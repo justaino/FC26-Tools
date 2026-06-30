@@ -1,0 +1,19 @@
+# macOS junk
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Node (only if you ever add tooling — none needed for the bookmarklet)
+node_modules/
+npm-debug.log*
+
+# OS / misc temp
+*.log
+*.tmp
