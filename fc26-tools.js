@@ -255,9 +255,29 @@
 
   // ---- STEP 1.4 player-picker UI -------------------------------------------
   // A "Players" heading, separated from the test buttons by a top border.
+  // Header row: "Players" title on the left, a Refresh button on the right.
+  var pickerHead = document.createElement("div");
+  pickerHead.style.cssText = "margin-top:12px;padding-top:10px;border-top:1px solid #1f3b5c;display:flex;align-items:center;gap:8px";
   var pickerTitle = document.createElement("div");
   pickerTitle.textContent = "Players";
-  pickerTitle.style.cssText = "margin-top:12px;padding-top:10px;border-top:1px solid #1f3b5c;font-weight:600";
+  pickerTitle.style.cssText = "flex:1;font-weight:600";
+  var refreshBtn = document.createElement("button");
+  refreshBtn.textContent = "↻ Refresh";   // ↻
+  refreshBtn.title = "Re-read your club (use after adding players)";
+  refreshBtn.style.cssText = "background:#223040;color:#cfe;border:0;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px";
+  refreshBtn.addEventListener("click", function () {
+    renderPlayers();
+    status.textContent = "Player list refreshed (" + getClubPlayers().length + " players).";
+  });
+  pickerHead.appendChild(pickerTitle);
+  pickerHead.appendChild(refreshBtn);
+
+  // Search box: type to filter the list by name.
+  var playerSearch = document.createElement("input");
+  playerSearch.type = "text";
+  playerSearch.placeholder = "search club by name...";
+  playerSearch.style.cssText = "margin-top:6px;width:100%;box-sizing:border-box;padding:6px 8px;border-radius:7px;border:1px solid #2a3b4d;background:#0a0f14;color:#e8f0fe";
+  playerSearch.addEventListener("input", renderPlayers);
 
   // Scrollable list of club players.
   var playerList = document.createElement("div");
@@ -303,10 +323,14 @@
   // renderPlayers(): (re)build the scrollable list, highest OVR first. The chosen
   // row gets a blue outline.
   function renderPlayers() {
+    var q = (playerSearch.value || "").trim().toLowerCase();   // current search text
     var players = getClubPlayers().slice().sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); });
+    if (q) { players = players.filter(function (it) { return playerName(it).toLowerCase().indexOf(q) !== -1; }); }
     playerList.innerHTML = "";
     if (!players.length) {
-      playerList.innerHTML = "<div style='opacity:.7'>No club players found - open your Club first, then re-open the panel.</div>";
+      playerList.innerHTML = q
+        ? "<div style='opacity:.7'>No players match \"" + esc(q) + "\".</div>"
+        : "<div style='opacity:.7'>No club players found - open your Club first, then click ↻ Refresh.</div>";
       return;
     }
     players.forEach(function (it) {
@@ -532,7 +556,8 @@
   panel.appendChild(title);
   panel.appendChild(btn);
   panel.appendChild(selfTestBtn);
-  panel.appendChild(pickerTitle);
+  panel.appendChild(pickerHead);
+  panel.appendChild(playerSearch);
   panel.appendChild(playerList);
   panel.appendChild(preview);
   panel.appendChild(evoTitle);
