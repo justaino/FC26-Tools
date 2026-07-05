@@ -54,4 +54,40 @@ comment every block. Don't assume front-end knowledge.
 - `bookmarklet.txt` — the one-line bookmarklet version of fc26-tools.js for daily use.
 
 ## Current status
-Phase 1 (EVO assigner), working through PHASE1-PROMPTS.md.
+**Phase 1 (EVO assigner) is built and working in-game.** It does more than the
+original PHASE1-PROMPTS.md list — the finished tool has:
+- Full-club player picker (loads EVERY player via `services.Club.search`, not just
+  the squad), name search, "↻ Reload club" button.
+- Preview card (OVR, rarity, GK, caps used, current PlayStyles).
+- PlayStyle / PS+ catalog as an **icon-tile grid** (3 cols, uses the app's own
+  `UltimateTeam-Icons` font via `icon_basetraitN` / `icon_icontraitN`).
+- Selection rules: owned disabled, GK-only disabled for outfielders, 3 PS+ / 8 basic
+  caps, live count.
+- **Suggest**: position + role dropdowns pre-tick recommended playstyles (top 3 as
+  PS+) from the reference's offline ROLES table (we deliberately did NOT use fut.gg —
+  CORS-blocked + fragile).
+- Apply loop: configurable **delay ms**, claim toggle, per-evo progress, Stop,
+  state-safe refresh, and **real-time preview update** from the apply response's
+  `data.updatedItem`.
+- Panel shell: header with **minimize/close**, scrollable body.
+
+**Decisions worth remembering:**
+- Proactive evo *eligibility* filtering was dropped: `canApplyTo(slot)` needs the
+  exact evolution open AND returned false for all club players in testing, so it's
+  unreliable. We rely on the app rejecting ineligible applies (error 460), which the
+  loop reports with a readable reason.
+- GK scope: GK-only evos (`g:1`) are hidden for outfielders, but general evos (`g:0`)
+  stay available to GKs (matches the reference + the game).
+
+**Workflow:**
+- Edit `fc26-tools.js`, then regenerate `bookmarklet.txt` with a Node minify snippet
+  (strip comments → join lines → prepend `javascript:`) and syntax-check via
+  `new Function(...)`. The user tests by pasting the bookmarklet line (or readable
+  source) into the FC web-app Console; reset first with
+  `document.getElementById('fc26-panel')?.remove(); delete window.FC26;`.
+- Git: work on the **`dev`** branch; **`main`** is stable. Only merge dev→main when
+  the user explicitly says so. Remote: github.com/justaino/FC26-Tools (private).
+
+**Next up (future sessions):** Phase 1.5 — redesign the panel theme/look (visual only,
+explored via Claude design artifacts; see PLAN.md §6.5), then Phase 2 (SBC builder,
+see PHASE2-PROMPTS.md).

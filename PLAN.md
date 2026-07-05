@@ -59,7 +59,27 @@ Tampermonkey. One panel, one user, desktop.
 ## 5. Phase 0 — Skeleton ✅
 Bookmarklet installed, panel shows, "list services" prints the app's service names.
 
-## 6. Phase 1 — EVO assigner (build first; reference script solves the hard parts)
+## 6. Phase 1 — EVO assigner ✅ DONE (working in-game)
+
+Built and confirmed. The finished tool went beyond the original 1.1–1.6 list:
+- 1.1–1.6 as planned (discovery, plumbing, catalog, picker, selection+caps, apply loop).
+- **Full-club loading** via `services.Club.search` (picker was only seeing the active
+  squad; now loads every player, paginated). "↻ Reload club" button + name search.
+- **Configurable delay** (delay-ms box) between applies, for account safety.
+- **Suggest**: position/role dropdowns pre-tick recommended playstyles (top 3 → PS+)
+  from the reference's offline ROLES table. (fut.gg was rejected: CORS-blocked, fragile.)
+- **Real-time preview update** from the apply response's `data.updatedItem`.
+- **Cleanup**: header with minimize/close, scrollable body, removed dev test buttons,
+  and the evo list is now an **icon-tile grid** (app's UltimateTeam-Icons font).
+
+Eligibility filtering was **cut**: `canApplyTo(slot)` proved unreliable (needs the exact
+evo open, returned false for all players in testing). We rely on the app's 460 rejection
+at apply time, surfaced with a readable reason.
+
+Git: development on `dev`, stable on `main` (merge only on request). Remote:
+github.com/justaino/FC26-Tools (private).
+
+### Original phased plan (kept for reference)
 
 1.1 **Discover:** confirm `services.Academy.addItemToSlot` / `claimSlot` and
     `repositories.Item.getClub()`; note how a call signals completion.
@@ -73,6 +93,20 @@ Bookmarklet installed, panel shows, "list services" prints the app's service nam
 
 *Exit:* pick a player, tick 4–5, apply, see them on the card without reloading.
 *(Cut for now: role auto-suggest. Add later only if wanted.)*
+
+## 6.5 Phase 1.5 — Panel redesign (NEXT; do in a fresh session)
+
+Restyle the EVO panel's theme/look. **Visual only — no behaviour changes.**
+
+- Explore themes first via **Claude design artifacts** (a hosted page with 3–4 mockups
+  of the panel) so the look can be reviewed before touching the real code.
+- Once a theme is picked, translate it into `fc26-tools.js` styles — the injected
+  `<style id="fc26-style">` block plus the inline `style.cssText` on each element —
+  then regenerate `bookmarklet.txt` and test as usual.
+- Constraints: stay **self-contained** (bookmarklet — no external fonts/CDNs; the app's
+  own `UltimateTeam-Icons` font is available on-page and must keep working for the evo
+  grid). Keep every existing feature intact. The app is dark-only, so no light/dark
+  theming needed unless we want it.
 
 ## 7. Phase 2 — SBC builder (minimal; chemistry is the hard part — defer it)
 
