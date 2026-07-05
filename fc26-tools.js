@@ -202,6 +202,45 @@
   window.FC26.getClubPlayers = getClubPlayers;
   window.FC26.state = state;
 
+  // ----------------------------------------------------------------------------
+  // STEP 1.9 - SUGGEST DATA (position groups, role recommendations, name lookups)
+  // Copied from the reference script. This is offline curated data - no fut.gg,
+  // no network. If a recommendation ever looks wrong, edit the list below.
+  // ----------------------------------------------------------------------------
+
+  // EA position id -> role group (from the app's position ids).
+  var POS_GROUP = {
+    0: "GK", 1: "CB", 2: "RB / LB", 3: "RB / LB", 4: "CB", 5: "CB", 6: "CB", 7: "RB / LB", 8: "RB / LB",
+    9: "CDM", 10: "CDM", 11: "CDM", 12: "RM / LM", 13: "CM", 14: "CM", 15: "CM", 16: "RM / LM",
+    17: "CAM", 18: "CAM", 19: "CAM", 20: "RW / LW", 21: "ST", 22: "RW / LW", 23: "RW / LW",
+    24: "ST", 25: "ST", 26: "ST", 27: "RW / LW"
+  };
+
+  // Recommended playstyles per position/role, in priority order. The top 3 become
+  // PS+, the rest basic PlayStyles.
+  var ROLES = {"ST":{"Advanced Forward":["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","Gamechanger","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer"],"Target Forward":["Finesse Shot","Enforcer","Precision Header","Low Driven Shot","Incisive Pass","Rapid","First Touch","Gamechanger","Tiki Taka","Press Proven","Pinged Pass"],"Poacher":["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","First Touch","Gamechanger","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer"],"False 9":["Finesse Shot","Incisive Pass","Low Driven Shot","Gamechanger","Rapid","Tiki Taka","Technical","Pinged Pass","Quick Step","Inventive","First Touch"]},"RW / LW":{"Inside Forward":["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive"],"Winger":["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive"],"Wide Playmaker":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive"]},"CAM":{"Shadow Striker":["Finesse Shot","Incisive Pass","Rapid","Low Driven Shot","Technical","Quick Step","Tiki Taka","Gamechanger","First Touch","Pinged Pass","Inventive"],"Playmaker":["Finesse Shot","Incisive Pass","Low Driven Shot","Tiki Taka","Pinged Pass","Technical","Gamechanger","First Touch","Press Proven","Quick Step","Inventive"],"Classic 10":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Press Proven","Quick Step","Inventive"],"Half Winger":["Incisive Pass","Rapid","Technical","Tiki Taka","Pinged Pass","Gamechanger","Quick Step","First Touch","Press Proven","Inventive","Low Driven Shot"]},"CM":{"Box to Box":["Incisive Pass","Pinged Pass","Intercept","Finesse Shot","Tiki Taka","Bruiser","Anticipate","Quick Step","Technical","Relentless","Press Proven"],"Playmaker":["Incisive Pass","Pinged Pass","Finesse Shot","Tiki Taka","Technical","Intercept","Low Driven Shot","Anticipate","First Touch","Quick Step","Inventive"],"Deep Lying Playmaker":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Holding":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Half Winger":["Pinged Pass","Intercept","Quick Step","Tiki Taka","Incisive Pass","Finesse Shot","Anticipate","Technical","Jockey","Bruiser","Rapid"]},"RM / LM":{"Inside Forward":["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive"],"Winger":["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive"],"Wide Playmaker":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive"],"Wide Midfielder":["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Whipped Pass","Jockey","Press Proven"]},"CDM":{"Holding":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Deep Lying Playmaker":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Box Crasher":["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Tiki Taka","Quick Step","Bruiser","Anticipate","Technical","Press Proven","Relentless"],"Centre Half":["Intercept","Bruiser","Jockey","Anticipate","Quick Step","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass"],"Wide Half":["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"]},"RB / LB":{"Fullback":["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"],"Wingback":["Intercept","Pinged Pass","Quick Step","Anticipate","Bruiser","Tiki Taka","Jockey","Incisive Pass","Rapid","Relentless","Press Proven"],"Falseback":["Intercept","Pinged Pass","Anticipate","Jockey","Tiki Taka","Incisive Pass","Bruiser","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Inverted Wingback":["Incisive Pass","Tiki Taka","Quick Step","Intercept","Anticipate","Rapid","Pinged Pass","Jockey","Press Proven","Relentless","Bruiser"],"Attacking Wingback":["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Jockey","First Touch","Bruiser"]},"CB":{"Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],"Stopper":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","Aerial Fortress"],"Wide Back":["Intercept","Anticipate","Quick Step","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],"Ball Playing Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress"]},"GK":{"Goalkeeper":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],"Ball Playing":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],"Sweeper Keeper":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"]}};
+
+  // Look up an evo by playstyle name. pspByName is keyed by the BASE name (no "+").
+  var psByName = {}, pspByName = {};
+  PS.forEach(function (x) { psByName[x.n] = x; });
+  PSP.forEach(function (x) { pspByName[x.n.replace(/\+$/, "")] = x; });
+
+  // playerPositionGroups(it): the role groups this player can fill (preferred
+  // position first, then alternates), deduped - used to fill the position dropdown.
+  function playerPositionGroups(it) {
+    var ids = null;
+    try { if (Array.isArray(it.possiblePositions)) ids = it.possiblePositions; } catch (e) {}
+    if (!ids) { try { ids = it.getBasePossiblePositions(); } catch (e) {} }
+    ids = ids || [];
+    var groups = [];
+    [it.preferredPosition].concat(ids).forEach(function (id) {
+      if (id == null) return;
+      var g = POS_GROUP[id];
+      if (g && groups.indexOf(g) === -1) groups.push(g);
+    });
+    return groups;
+  }
+
   // A small floating box, bottom-right.
   var panel = document.createElement("div");
   panel.id = "fc26-panel";
@@ -320,6 +359,7 @@
     state.selected = new Set();   // a fresh player starts with nothing ticked
     renderPlayers();
     renderPreview();
+    populatePositions();          // dropdowns now reflect this player's positions
     renderEvos();
     console.log("[FC26] selected player", playerName(it), it.id);
   }
@@ -374,6 +414,67 @@
   var evoTitle = document.createElement("div");
   evoTitle.textContent = "Evolutions";
   evoTitle.style.cssText = "margin-top:12px;padding-top:10px;border-top:1px solid #1f3b5c;font-weight:600";
+
+  // ---- STEP 1.9 suggest row: position + role dropdowns and a Suggest button ----
+  var suggestRow = document.createElement("div");
+  suggestRow.style.cssText = "display:flex;gap:6px;margin-top:6px;align-items:center";
+  var posSelect = document.createElement("select");
+  posSelect.style.cssText = "flex:1;min-width:0;padding:5px;border-radius:6px;border:1px solid #2a3b4d;background:#0a0f14;color:#e8f0fe";
+  var roleSelect = document.createElement("select");
+  roleSelect.style.cssText = "flex:1.4;min-width:0;padding:5px;border-radius:6px;border:1px solid #2a3b4d;background:#0a0f14;color:#e8f0fe";
+  var suggestBtn = document.createElement("button");
+  suggestBtn.textContent = "✨ Suggest";
+  suggestBtn.title = "Pre-tick recommended playstyles for this position/role (top 3 as PS+)";
+  suggestBtn.style.cssText = "background:#223040;color:#cfe;border:0;border-radius:6px;padding:5px 8px;cursor:pointer;white-space:nowrap;font-size:11px";
+  suggestRow.appendChild(posSelect); suggestRow.appendChild(roleSelect); suggestRow.appendChild(suggestBtn);
+
+  // populatePositions(): fill the position dropdown - the selected player's own
+  // positions (preferred first); if no player yet, show all groups.
+  function populatePositions() {
+    var groups = state.player ? playerPositionGroups(state.player) : [];
+    var list = groups.length ? groups : Object.keys(ROLES);
+    posSelect.innerHTML = list.map(function (p) { return "<option>" + esc(p) + "</option>"; }).join("");
+    populateRoles();
+  }
+  // populateRoles(): fill the role dropdown from the chosen position.
+  function populateRoles() {
+    var pos = posSelect.value;
+    var rs = (pos && ROLES[pos]) ? Object.keys(ROLES[pos]) : [];
+    roleSelect.innerHTML = '<option value="">role...</option>' + rs.map(function (r) { return "<option>" + esc(r) + "</option>"; }).join("");
+  }
+  // idxTab(): after suggesting, show whichever tab holds more of the picks.
+  function idxTab() {
+    var arr = Array.from(state.selected);
+    var selPlus = arr.filter(function (s) { var e = byId(s); return e && e.kind === "PS+"; }).length;
+    return selPlus >= (arr.length - selPlus) ? "PS+" : "PS";
+  }
+  // suggest(): pre-tick the recommended playstyles for the chosen position/role.
+  // Top 3 -> PS+, the rest -> basic. Skips owned / GK-mismatch / cap-full and
+  // respects the caps, exactly like manual ticking. Selection only - nothing applied.
+  function suggest() {
+    var it = state.player;
+    if (!it) { status.textContent = "Select a player first."; return; }
+    var pos = posSelect.value, role = roleSelect.value;
+    if (!pos || !role || !ROLES[pos] || !ROLES[pos][role]) { status.textContent = "Pick a position and role."; return; }
+    var gk = isGKPlayer(it);
+    var plusUsed = numPlus(it), baseUsed = numBasic(it), added = 0, owned = 0, skip = [];
+    state.selected = new Set();
+    ROLES[pos][role].forEach(function (name, idx) {
+      var wantPlus = idx < 3;                                   // top 3 -> PS+
+      var evo = wantPlus ? pspByName[name] : psByName[name];
+      if (!evo) { skip.push(name); return; }
+      if (evo.g && !gk) { skip.push(name + " (GK-only)"); return; }
+      if (hasEvo(it, evo)) { owned++; return; }                // already has it
+      if (wantPlus) { if (plusUsed >= CAP_PLUS) { skip.push(name + "+ (full)"); return; } plusUsed++; }
+      else { if (baseUsed >= CAP_BASIC) { skip.push(name + " (full)"); return; } baseUsed++; }
+      state.selected.add(evo.s); added++;
+    });
+    setTab(idxTab());                                          // switches tab AND re-renders
+    status.textContent = "Suggested " + added + " for " + pos + " / " + role +
+      (owned ? ", " + owned + " owned" : "") + (skip.length ? ", skipped " + skip.length : "") + ".";
+  }
+  posSelect.addEventListener("change", populateRoles);
+  suggestBtn.addEventListener("click", suggest);
 
   // Two tabs: PlayStyle+ and basic PlayStyle.
   var tabs = document.createElement("div");
@@ -613,9 +714,10 @@
     status.textContent = "Done: " + ok + " ok, " + fail + " failed.";
   }
 
-  renderPlayers(); // show whatever's cached immediately (the squad)
-  renderEvos();    // show the "select a player" prompt in the evo area
-  loadFullClub();  // then load the FULL club in the background and redraw
+  renderPlayers();     // show whatever's cached immediately (the squad)
+  populatePositions(); // fill the position/role dropdowns
+  renderEvos();        // show the "select a player" prompt in the evo area
+  loadFullClub();      // then load the FULL club in the background and redraw
 
   panel.appendChild(title);
   panel.appendChild(btn);
@@ -625,6 +727,7 @@
   panel.appendChild(playerList);
   panel.appendChild(preview);
   panel.appendChild(evoTitle);
+  panel.appendChild(suggestRow);
   panel.appendChild(tabs);
   panel.appendChild(evoCount);
   panel.appendChild(evoList);
