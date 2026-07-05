@@ -625,19 +625,14 @@
   // "claim & finish" toggle.
   var optRow = document.createElement("div");
   optRow.style.cssText = "margin-top:8px;display:flex;align-items:center;gap:6px";
-  var claimCb = document.createElement("input");
-  claimCb.type = "checkbox"; claimCb.checked = true; claimCb.id = "fc26-claim";
-  var claimLbl = document.createElement("label");
-  claimLbl.setAttribute("for", "fc26-claim");
-  claimLbl.textContent = "claim & finish each";
-  claimLbl.style.cursor = "pointer";
-  optRow.appendChild(claimCb); optRow.appendChild(claimLbl);
 
-  // Delay control (step 1.8): how long to wait BETWEEN each apply, in milliseconds.
-  // A bigger, human-ish gap is safer for the account. Pushed to the right edge.
+  // Delay control: how long to wait BETWEEN each apply, in milliseconds. A bigger,
+  // human-ish gap is safer for the account. (Claiming now happens automatically
+  // after every apply - PlayStyle evos grant on apply, so there's no reason to
+  // ever skip it, hence no toggle.)
   var delayWrap = document.createElement("label");
-  delayWrap.style.cssText = "margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px";
-  delayWrap.appendChild(document.createTextNode("delay ms"));
+  delayWrap.style.cssText = "display:flex;align-items:center;gap:4px;font-size:11px";
+  delayWrap.appendChild(document.createTextNode("delay between applies (ms)"));
   var delayInput = document.createElement("input");
   delayInput.type = "number"; delayInput.value = "500"; delayInput.min = "0"; delayInput.step = "100";
   delayInput.style.cssText = "width:64px;padding:4px 6px;border-radius:6px;border:1px solid #2a3b4d;background:#0a0f14;color:#e8f0fe";
@@ -673,7 +668,7 @@
     var slotIds = Array.from(state.selected);
     if (!slotIds.length) { status.textContent = "Nothing selected."; return; }
     state.running = true; state.abort = false; setRunning(true);
-    var itemId = it.id, claim = claimCb.checked, ok = 0, fail = 0;
+    var itemId = it.id, ok = 0, fail = 0;
     for (var i = 0; i < slotIds.length; i++) {
       if (state.abort) { status.textContent = "Stopped at " + i + "/" + slotIds.length + "."; break; }
       var slotId = slotIds[i];
@@ -681,10 +676,12 @@
       var label = "[" + (i + 1) + "/" + slotIds.length + "] " + (evo ? evo.n : slotId);
       status.textContent = label + " ...";
       try {
-        await applyEvo(slotId, itemId);                       // the actual evo apply
-        if (claim) {                                          // optional claim/finish
-          try { await claimEvo(slotId); } catch (ce) { console.warn("[FC26] claim skipped", label, ce); }
-        }
+        await applyEvo(slotId, itemId);                       // adds + grants the PlayStyle
+        // Always try to claim/finish (best-effort). For PlayStyle evos the grant
+        // already happened on apply, so claim commonly returns 460 - that's harmless
+        // and we just carry on.
+        try { await claimEvo(slotId); }
+        catch (ce) { console.warn("[FC26] claim skipped (usually fine for PlayStyle evos)", label, ce); }
         ok++; status.textContent = "OK " + label;
         console.log("[FC26] applied", label);
       } catch (e) {
@@ -696,10 +693,19 @@
         await sleep(delayMs);
       }
     }
-    refreshClub();                                            // state-safe redraw, no reload
-    try { var fresh = findPlayerById(itemId); if (fresh) state.player = fresh; } catch (e) {}
+    refreshClub();                                            // also nudge the app's own views
+    // The apply/claim responses return the player as it was BEFORE the grant, so we
+    // can't read the new PlayStyle from them. Re-pull the club fresh from the server
+    // (the same data a manual page reload fetches) and re-select the player, so the
+    // preview + grid show the granted PlayStyles without reloading the page.
+    try {
+      status.textContent = "Refreshing player...";
+      await loadFullClub();
+      var fresh = findPlayerById(itemId);
+      if (fresh) state.player = fresh;
+    } catch (e) {}
     state.selected = new Set();                               // applied ones are now owned
-    renderPreview(); renderEvos();                            // show the updated player
+    renderPreview(); renderEvos();                            // final redraw of the updated player
     state.running = false; setRunning(false);
     status.textContent = "Done: " + ok + " ok, " + fail + " failed.";
   }
