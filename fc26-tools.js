@@ -16,7 +16,7 @@
 
   // If the panel is already on screen (clicked twice), just re-show it and stop.
   var existing = document.getElementById("fc26-panel");
-  if (existing) { existing.style.display = "block"; return; }
+  if (existing) { existing.style.display = "flex"; return; }
 
   // ----------------------------------------------------------------------------
   // STEP 1.2 - SERVICE PLUMBING
@@ -244,66 +244,53 @@
   // A small floating box, bottom-right.
   var panel = document.createElement("div");
   panel.id = "fc26-panel";
+  // The panel is a flex column: a fixed header on top, a scrollable body below.
+  // max-height keeps it on-screen; the body scrolls when the content is tall.
   panel.style.cssText =
-    "position:fixed;bottom:16px;right:16px;z-index:99999;width:290px;padding:12px;" +
+    "position:fixed;bottom:16px;right:16px;z-index:99999;width:290px;max-height:88vh;" +
+    "display:flex;flex-direction:column;overflow:hidden;" +
     "border-radius:10px;background:#0b1a2b;color:#e8f0fe;font:13px system-ui,sans-serif;" +
     "box-shadow:0 6px 24px rgba(0,0,0,.4);border:1px solid #1f3b5c";
 
+  // Header bar: title left, minimize + close right. Lives OUTSIDE the scroll area
+  // so the buttons are always reachable even with a long list.
+  var header = document.createElement("div");
+  header.style.cssText = "display:flex;align-items:center;gap:8px;padding:10px 12px;background:#15202b;border-bottom:1px solid #1f3b5c";
   var title = document.createElement("div");
   title.textContent = "FC26 Tools";
-  title.style.cssText = "font-weight:600;margin-bottom:8px";
+  title.style.cssText = "flex:1;font-weight:600";
+  var minBtn = document.createElement("button");
+  minBtn.textContent = "–";
+  minBtn.title = "Minimize / expand";
+  minBtn.style.cssText = "background:#223040;color:#cfe;border:0;border-radius:6px;width:24px;height:24px;cursor:pointer;font-weight:700;line-height:1";
+  var closeBtn = document.createElement("button");
+  closeBtn.textContent = "×";                 // "×"
+  closeBtn.title = "Close (re-click the bookmark to reopen)";
+  closeBtn.style.cssText = "background:#3a2323;color:#ffb4b4;border:0;border-radius:6px;width:24px;height:24px;cursor:pointer;font-weight:700;line-height:1";
+  closeBtn.addEventListener("click", function () { panel.remove(); });
+  header.appendChild(title); header.appendChild(minBtn); header.appendChild(closeBtn);
 
-  var btn = document.createElement("button");
-  btn.textContent = "Test: list services";
-  btn.style.cssText =
-    "width:100%;padding:8px;border:none;border-radius:8px;cursor:pointer;" +
-    "background:#2563eb;color:#fff;font-weight:600";
+  // Scrollable body: everything except the header goes in here, so a long player
+  // or evo list scrolls INSIDE the panel instead of running off the screen.
+  var body = document.createElement("div");
+  body.style.cssText = "padding:12px;overflow-y:auto;flex:1";
+
+  // Minimize toggles the body (header stays); button flips between – and +.
+  minBtn.addEventListener("click", function () {
+    var hidden = body.style.display === "none";
+    body.style.display = hidden ? "" : "none";
+    minBtn.textContent = hidden ? "–" : "+";  // "–" / "+"
+  });
 
   var status = document.createElement("div");
   status.style.cssText = "margin-top:8px;opacity:.85;max-height:120px;overflow:auto";
   status.textContent = "Ready.";
 
-  // Clicking lists the app's service objects. They live on window in the FUT web
-  // app, but we also fall back to a bare global (matches the proven reference
-  // script). If you see "Academy", "SBC", etc., the whole approach works.
-  btn.addEventListener("click", function () {
-    var svcObj = window.services || (typeof services !== "undefined" ? services : null);
-    var list = svcObj
-      ? Object.keys(svcObj).sort().join(", ")
-      : "(none yet - open your Club first, then click again)";
-    status.textContent = "services: " + list;
-    console.log("[FC26] services =", svcObj);
-  });
-
-  // Temporary button (step 1.2): confirms the three plumbing helpers got defined
-  // without errors. It only checks they EXIST - it does NOT call them, so your
-  // club is untouched. We'll remove this once the real EVO UI is in place.
-  var selfTestBtn = document.createElement("button");
-  selfTestBtn.textContent = "Self-test plumbing";
-  selfTestBtn.style.cssText =
-    "width:100%;padding:8px;margin-top:8px;border:none;border-radius:8px;cursor:pointer;" +
-    "background:#475569;color:#fff;font-weight:600";
-
-  selfTestBtn.addEventListener("click", function () {
-    var results = {
-      applyEvo: typeof applyEvo === "function",
-      claimEvo: typeof claimEvo === "function",
-      awaitService: typeof awaitService === "function"
-    };
-    var allGood = results.applyEvo && results.claimEvo && results.awaitService;
-    status.textContent =
-      "Plumbing -> applyEvo=" + results.applyEvo +
-      ", claimEvo=" + results.claimEvo +
-      ", awaitService=" + results.awaitService +
-      (allGood ? "  (all present)" : "  (SOMETHING MISSING)");
-    console.log("[FC26] plumbing self-test", results);
-  });
-
   // ---- STEP 1.4 player-picker UI -------------------------------------------
   // A "Players" heading, separated from the test buttons by a top border.
   // Header row: "Players" title on the left, a Refresh button on the right.
   var pickerHead = document.createElement("div");
-  pickerHead.style.cssText = "margin-top:12px;padding-top:10px;border-top:1px solid #1f3b5c;display:flex;align-items:center;gap:8px";
+  pickerHead.style.cssText = "display:flex;align-items:center;gap:8px";
   var pickerTitle = document.createElement("div");
   pickerTitle.textContent = "Players";
   pickerTitle.style.cssText = "flex:1;font-weight:600";
@@ -536,26 +523,29 @@
     var capReached = state.tab === "PS+"
       ? (numPlus(it) + selectedCount("PS+") >= CAP_PLUS)
       : (numBasic(it) + selectedCount("PS") >= CAP_BASIC);
+    var isPlus = state.tab === "PS+";
+    // Build a 3-column grid of icon tiles (styles live in the injected <style>).
+    var grid = document.createElement("div");
+    grid.className = "fc26-grid";
     list.forEach(function (evo) {
       var owned = hasEvo(it, evo);
       var wrongScope = !!evo.g && !gk;            // GK-only evo, but player is not a GK
       var selected = state.selected.has(evo.s);
       var disabled = owned || wrongScope || (capReached && !selected);
-      var reason = owned ? "owned" : wrongScope ? "GK-only" : (disabled ? "cap full" : "");
-      var row = document.createElement("label");
-      row.style.cssText = "display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;" +
-        (disabled ? "opacity:.45;cursor:not-allowed;" : "cursor:pointer;") +
-        "border:1px solid " + (selected ? "#3d8bff" : "#20303f") + ";background:" + (selected ? "#15314f" : "#0d141b");
-      var cb = document.createElement("input");
-      cb.type = "checkbox"; cb.checked = selected; cb.disabled = disabled;
-      cb.addEventListener("change", function () { toggleEvo(evo, cb.checked); });
-      var nm = document.createElement("span");
-      nm.style.flex = "1";
-      nm.textContent = evo.n.replace(/\+$/, "");   // names already imply the kind via the tab
-      row.appendChild(cb); row.appendChild(nm);
-      if (reason) { var tag = document.createElement("span"); tag.style.cssText = "font-size:10px;color:#9fb6c9"; tag.textContent = reason; row.appendChild(tag); }
-      evoList.appendChild(row);
+      var reason = owned ? "already owned" : wrongScope ? "GK-only evo" : (disabled ? "cap full" : "");
+      var nm = evo.n.replace(/\+$/, "");          // name implies the kind via the tab
+      var tile = document.createElement("div");
+      tile.className = "fc26-ec" + (isPlus ? " psp" : "") + (selected ? " sel" : "") + (disabled ? " dis" : "");
+      tile.title = nm + (reason ? " - " + reason : "");
+      // the <i> uses the app's PlayStyle icon font via icon_basetraitN / icon_icontraitN
+      tile.innerHTML =
+        "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + evoTrait(evo) + "'></i>" +
+        "<div class='nm'>" + esc(nm) + "</div>" +
+        (owned ? "<span class='own'>✓</span>" : "");
+      if (!disabled) { tile.addEventListener("click", function () { toggleEvo(evo, !state.selected.has(evo.s)); }); }
+      grid.appendChild(tile);
     });
+    evoList.appendChild(grid);
     updateEvoCount();
   }
 
@@ -714,26 +704,46 @@
     status.textContent = "Done: " + ok + " ok, " + fail + " failed.";
   }
 
+  // Inject the evo-grid styles once (id-guarded so re-running can't duplicate).
+  // Scoped under #fc26-panel so we never affect the app's own styling.
+  if (!document.getElementById("fc26-style")) {
+    var st = document.createElement("style");
+    st.id = "fc26-style";
+    st.textContent =
+      "#fc26-panel .fc26-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}" +
+      "#fc26-panel .fc26-ec{position:relative;background:#0d141b;border:1px solid #233444;border-radius:9px;padding:7px 4px;cursor:pointer;text-align:center;transition:.08s;user-select:none}" +
+      "#fc26-panel .fc26-ec:hover{border-color:#3a6ea5}" +
+      "#fc26-panel .fc26-ec.sel{background:#15314f;border-color:#3d8bff;box-shadow:0 0 0 1px #3d8bff inset}" +
+      "#fc26-panel .fc26-ec.psp{background:linear-gradient(160deg,#241b06,#3a2c00);border-color:#5a4a1f}" +
+      "#fc26-panel .fc26-ec.psp.sel{background:#15314f;border-color:#3d8bff}" +
+      "#fc26-panel .fc26-ec.dis{opacity:.38;cursor:not-allowed}" +
+      "#fc26-panel .fc26-ec.dis:hover{border-color:#233444}" +
+      "#fc26-panel .fc26-ec .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:24px;line-height:1;display:block;margin-bottom:4px;color:#dbe7f0}" +
+      "#fc26-panel .fc26-ec.psp .ico{color:#ffe08a}" +
+      "#fc26-panel .fc26-ec .nm{font-size:9.5px;line-height:1.15;color:#cdd8e2;word-break:break-word}" +
+      "#fc26-panel .fc26-ec .own{position:absolute;top:3px;right:4px;font-size:10px;color:#67e08a}";
+    document.head.appendChild(st);
+  }
+
   renderPlayers();     // show whatever's cached immediately (the squad)
   populatePositions(); // fill the position/role dropdowns
   renderEvos();        // show the "select a player" prompt in the evo area
   loadFullClub();      // then load the FULL club in the background and redraw
 
-  panel.appendChild(title);
-  panel.appendChild(btn);
-  panel.appendChild(selfTestBtn);
-  panel.appendChild(pickerHead);
-  panel.appendChild(playerSearch);
-  panel.appendChild(playerList);
-  panel.appendChild(preview);
-  panel.appendChild(evoTitle);
-  panel.appendChild(suggestRow);
-  panel.appendChild(tabs);
-  panel.appendChild(evoCount);
-  panel.appendChild(evoList);
-  panel.appendChild(optRow);
-  panel.appendChild(applyBtn);
-  panel.appendChild(stopBtn);
-  panel.appendChild(status);
+  body.appendChild(pickerHead);
+  body.appendChild(playerSearch);
+  body.appendChild(playerList);
+  body.appendChild(preview);
+  body.appendChild(evoTitle);
+  body.appendChild(suggestRow);
+  body.appendChild(tabs);
+  body.appendChild(evoCount);
+  body.appendChild(evoList);
+  body.appendChild(optRow);
+  body.appendChild(applyBtn);
+  body.appendChild(stopBtn);
+  body.appendChild(status);
+  panel.appendChild(header);
+  panel.appendChild(body);
   document.body.appendChild(panel);
 })();
