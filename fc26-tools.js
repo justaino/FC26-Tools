@@ -155,11 +155,18 @@
   //   tab      = which evolution tab is showing ("PS+" or "PS")
   //   running  = true while an apply run is in progress
   //   abort    = set true by the Stop button to end the run early
-  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false };
+  //   clubItems = the FULL club loaded via search (null until we load it); when
+  //               present the picker uses this instead of the app's partial cache
+  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: null };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
   function getClubPlayers() {
+    // Prefer the full club we loaded ourselves (all players). Fall back to the
+    // app's in-memory cache (usually just the active squad) until that's done.
+    if (state.clubItems && state.clubItems.length) {
+      return state.clubItems.filter(function (it) { try { return it && it.isPlayer && it.isPlayer(); } catch (e) { return false; } });
+    }
     try {
       var c = window.repositories.Item.getClub();
       var raw = (c && c.items && typeof c.items.values === "function") ? Array.from(c.items.values()) : [];
@@ -262,13 +269,10 @@
   pickerTitle.textContent = "Players";
   pickerTitle.style.cssText = "flex:1;font-weight:600";
   var refreshBtn = document.createElement("button");
-  refreshBtn.textContent = "↻ Refresh";   // ↻
-  refreshBtn.title = "Re-read your club (use after adding players)";
+  refreshBtn.textContent = "↻ Reload club";
+  refreshBtn.title = "Load your full club (every player, not just the squad)";
   refreshBtn.style.cssText = "background:#223040;color:#cfe;border:0;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px";
-  refreshBtn.addEventListener("click", function () {
-    renderPlayers();
-    status.textContent = "Player list refreshed (" + getClubPlayers().length + " players).";
-  });
+  refreshBtn.addEventListener("click", function () { loadFullClub(); });
   pickerHead.appendChild(pickerTitle);
   pickerHead.appendChild(refreshBtn);
 
@@ -482,6 +486,51 @@
   // its new PlayStyles.
   function findPlayerById(id) { return getClubPlayers().filter(function (p) { return p.id === id; })[0]; }
 
+  // makeClubCriteria(offset, count): build the app's search criteria object for
+  // club players (one "page" starting at offset). Returns null if the app doesn't
+  // expose UTSearchCriteriaDTO.
+  function makeClubCriteria(offset, count) {
+    var Ctor = window.UTSearchCriteriaDTO;
+    if (!Ctor) return null;
+    var c = new Ctor();
+    try { c.type = (window.SearchType && window.SearchType.PLAYER) || "player"; } catch (e) {}
+    try { c.count = count; } catch (e) {}
+    try { c.offset = offset; } catch (e) {}
+    return c;
+  }
+
+  // loadFullClub(): page through services.Club.search to gather EVERY club player
+  // (not just the cached squad) and store them in state.clubItems, then redraw the
+  // picker. Read-only - it's the same search the app's Club screen uses.
+  async function loadFullClub() {
+    var svc = getServices();
+    var S = svc && svc.Club;
+    if (!S || !S.search || !window.UTSearchCriteriaDTO) { status.textContent = "Club search unavailable on this page."; return; }
+    var all = [], seen = {}, offset = 0, guard = 0;
+    status.textContent = "Loading full club...";
+    while (guard++ < 100) {
+      var crit = makeClubCriteria(offset, 91);
+      if (!crit) break;
+      var res;
+      try { res = await awaitService(S.search(crit)); }
+      catch (e) { if (offset === 0) { status.textContent = "Club load failed: " + errMsg(e); return; } break; }
+      var items = (res && res.response && res.response.items) || (res && res.data && res.data.items) || [];
+      if (!items.length) break;
+      var added = 0;
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i], id = it && it.id;
+        if (id != null && !seen[id]) { seen[id] = 1; all.push(it); added++; }
+      }
+      offset += items.length;
+      status.textContent = "Loading full club... " + all.length;
+      if (added === 0) break;                 // no new players -> we've seen them all
+      await sleep(120);                        // gentle pause between pages
+    }
+    state.clubItems = all;
+    renderPlayers();
+    status.textContent = "Club loaded: " + getClubPlayers().length + " players.";
+  }
+
   // "claim & finish" toggle.
   var optRow = document.createElement("div");
   optRow.style.cssText = "margin-top:8px;display:flex;align-items:center;gap:6px";
@@ -492,6 +541,17 @@
   claimLbl.textContent = "claim & finish each";
   claimLbl.style.cursor = "pointer";
   optRow.appendChild(claimCb); optRow.appendChild(claimLbl);
+
+  // Delay control (step 1.8): how long to wait BETWEEN each apply, in milliseconds.
+  // A bigger, human-ish gap is safer for the account. Pushed to the right edge.
+  var delayWrap = document.createElement("label");
+  delayWrap.style.cssText = "margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px";
+  delayWrap.appendChild(document.createTextNode("delay ms"));
+  var delayInput = document.createElement("input");
+  delayInput.type = "number"; delayInput.value = "500"; delayInput.min = "0"; delayInput.step = "100";
+  delayInput.style.cssText = "width:64px;padding:4px 6px;border-radius:6px;border:1px solid #2a3b4d;background:#0a0f14;color:#e8f0fe";
+  delayWrap.appendChild(delayInput);
+  optRow.appendChild(delayWrap);
 
   // Apply (green) and Stop (red) buttons - only one shows at a time.
   var applyBtn = document.createElement("button");
@@ -540,7 +600,10 @@
         fail++; status.textContent = "FAILED " + label + " - " + errMsg(e);
         console.warn("[FC26] apply failed", label, e);
       }
-      if (i < slotIds.length - 1 && !state.abort) { await sleep(400); } // breathe between calls
+      if (i < slotIds.length - 1 && !state.abort) {                     // breathe between calls
+        var delayMs = Math.max(0, parseInt(delayInput.value, 10) || 0); // read the box each time
+        await sleep(delayMs);
+      }
     }
     refreshClub();                                            // state-safe redraw, no reload
     try { var fresh = findPlayerById(itemId); if (fresh) state.player = fresh; } catch (e) {}
@@ -550,8 +613,9 @@
     status.textContent = "Done: " + ok + " ok, " + fail + " failed.";
   }
 
-  renderPlayers(); // fill the list as soon as the panel opens
+  renderPlayers(); // show whatever's cached immediately (the squad)
   renderEvos();    // show the "select a player" prompt in the evo area
+  loadFullClub();  // then load the FULL club in the background and redraw
 
   panel.appendChild(title);
   panel.appendChild(btn);
