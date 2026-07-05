@@ -71,6 +71,20 @@ original PHASE1-PROMPTS.md list — the finished tool has:
   `data.updatedItem`.
 - Panel shell: header with **minimize/close**, scrollable body.
 
+**Phase 1.5 (panel redesign) is DONE** — visual-only, explored via a Claude design
+artifact (four themes → Emerald frosted glass chosen) before touching code:
+- **Emerald frosted-glass theme.** All colours now live in ONE place: a CSS
+  custom-property **token block** on `#fc26-panel` (in the injected `<style id="fc26-style">`);
+  every inline `style.cssText` and grid rule reads them via `var(--…)`. Re-skinning =
+  edit that token block only. Panel uses `backdrop-filter: blur()` over a translucent
+  emerald tint. Accent = emerald `#4fe3ac`; ratings/PS+ stay FUT gold `#ffd98a`;
+  Stop button stays red (semantic, not themed).
+- **Preview card redesigned** (`renderPreview`): capacity **pips** (3 for PS+ gold,
+  8 for Basic emerald) that fill as slots are used, plus current PlayStyles as **icon
+  chips** in a PS+ row and a Basic row (chips reuse the `UltimateTeam-Icons` font).
+  Also added the player's position group(s) to the meta line. Same data as before —
+  purely visual.
+
 **Decisions worth remembering:**
 - Proactive evo *eligibility* filtering was dropped: `canApplyTo(slot)` needs the
   exact evolution open AND returned false for all club players in testing, so it's
@@ -85,9 +99,18 @@ original PHASE1-PROMPTS.md list — the finished tool has:
   `new Function(...)`. The user tests by pasting the bookmarklet line (or readable
   source) into the FC web-app Console; reset first with
   `document.getElementById('fc26-panel')?.remove(); delete window.FC26;`.
+  **When a change touches styles**, also remove the cached style block or the new
+  theme won't load (it's injected once per session):
+  `document.getElementById('fc26-panel')?.remove(); document.getElementById('fc26-style')?.remove(); delete window.FC26;`.
+- Minify snippet lives at `minify.js` (project root) — a small string/regex-aware
+  comment-stripper (the naive approach corrupts the `esc()` regex `/[&<>"]/g`, which
+  contains a quote). Run it with Node from the project root; it rewrites
+  `bookmarklet.txt` and syntax-checks via `new Function(...)`.
 - Git: work on the **`dev`** branch; **`main`** is stable. Only merge dev→main when
   the user explicitly says so. Remote: github.com/justaino/FC26-Tools (private).
 
-**Next up (future sessions):** Phase 1.5 — redesign the panel theme/look (visual only,
-explored via Claude design artifacts; see PLAN.md §6.5), then Phase 2 (SBC builder,
-see PHASE2-PROMPTS.md).
+**Next up:** revisit **eligible-player filtering** for the picker (only show players a
+selected evo can actually apply to). This was cut in Phase 1 because `canApplyTo(slot)`
+proved unreliable — see the "Decisions" note above; the revisit should re-test that
+assumption and find a reliable signal before building UI. After that, Phase 2 (SBC
+builder, see PHASE2-PROMPTS.md).

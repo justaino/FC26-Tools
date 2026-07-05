@@ -94,9 +94,18 @@ github.com/justaino/FC26-Tools (private).
 *Exit:* pick a player, tick 4–5, apply, see them on the card without reloading.
 *(Cut for now: role auto-suggest. Add later only if wanted.)*
 
-## 6.5 Phase 1.5 — Panel redesign (NEXT; do in a fresh session)
+## 6.5 Phase 1.5 — Panel redesign ✅ DONE
 
-Restyle the EVO panel's theme/look. **Visual only — no behaviour changes.**
+Restyled the EVO panel's theme/look. **Visual only — no behaviour changes.**
+
+Outcome: explored four themes in a Claude design artifact → chose **Emerald frosted
+glass**. Implemented as a CSS custom-property **token block** on `#fc26-panel` (all
+colours in one place; every element reads `var(--…)`), plus `backdrop-filter` blur on
+a translucent tint. Redesigned the preview card: capacity **pips** (PS+ gold / Basic
+emerald) + current PlayStyles as **icon chips** grouped into PS+ and Basic rows. See
+CLAUDE.md "Current status" for details.
+
+Original brief:
 
 - Explore themes first via **Claude design artifacts** (a hosted page with 3–4 mockups
   of the panel) so the look can be reviewed before touching the real code.

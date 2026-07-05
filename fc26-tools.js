@@ -249,24 +249,26 @@
   panel.style.cssText =
     "position:fixed;bottom:16px;right:16px;z-index:99999;width:290px;max-height:88vh;" +
     "display:flex;flex-direction:column;overflow:hidden;" +
-    "border-radius:10px;background:#0b1a2b;color:#e8f0fe;font:13px system-ui,sans-serif;" +
-    "box-shadow:0 6px 24px rgba(0,0,0,.4);border:1px solid #1f3b5c";
+    // Frosted glass: translucent emerald tint + blur whatever's behind it (the app).
+    "border-radius:var(--radius);background:var(--bg);color:var(--ink);font:13px system-ui,sans-serif;" +
+    "backdrop-filter:blur(16px) saturate(1.25);-webkit-backdrop-filter:blur(16px) saturate(1.25);" +
+    "box-shadow:var(--shadow);border:1px solid var(--border)";
 
   // Header bar: title left, minimize + close right. Lives OUTSIDE the scroll area
   // so the buttons are always reachable even with a long list.
   var header = document.createElement("div");
-  header.style.cssText = "display:flex;align-items:center;gap:8px;padding:10px 12px;background:#15202b;border-bottom:1px solid #1f3b5c";
+  header.style.cssText = "display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--header-bg);border-bottom:1px solid var(--border)";
   var title = document.createElement("div");
   title.textContent = "FC26 Tools";
-  title.style.cssText = "flex:1;font-weight:600";
+  title.style.cssText = "flex:1;font-weight:600;color:var(--title)";
   var minBtn = document.createElement("button");
   minBtn.textContent = "–";
   minBtn.title = "Minimize / expand";
-  minBtn.style.cssText = "background:#223040;color:#cfe;border:0;border-radius:6px;width:24px;height:24px;cursor:pointer;font-weight:700;line-height:1";
+  minBtn.style.cssText = "background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;width:24px;height:24px;cursor:pointer;font-weight:700;line-height:1";
   var closeBtn = document.createElement("button");
   closeBtn.textContent = "×";                 // "×"
   closeBtn.title = "Close (re-click the bookmark to reopen)";
-  closeBtn.style.cssText = "background:#3a2323;color:#ffb4b4;border:0;border-radius:6px;width:24px;height:24px;cursor:pointer;font-weight:700;line-height:1";
+  closeBtn.style.cssText = "background:var(--btnx);color:var(--btnx-ink);border:0;border-radius:6px;width:24px;height:24px;cursor:pointer;font-weight:700;line-height:1";
   closeBtn.addEventListener("click", function () { panel.remove(); });
   header.appendChild(title); header.appendChild(minBtn); header.appendChild(closeBtn);
 
@@ -297,7 +299,7 @@
   var refreshBtn = document.createElement("button");
   refreshBtn.textContent = "↻ Reload club";
   refreshBtn.title = "Load your full club (every player, not just the squad)";
-  refreshBtn.style.cssText = "background:#223040;color:#cfe;border:0;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px";
+  refreshBtn.style.cssText = "background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px";
   refreshBtn.addEventListener("click", function () { loadFullClub(); });
   pickerHead.appendChild(pickerTitle);
   pickerHead.appendChild(refreshBtn);
@@ -306,7 +308,7 @@
   var playerSearch = document.createElement("input");
   playerSearch.type = "text";
   playerSearch.placeholder = "search club by name...";
-  playerSearch.style.cssText = "margin-top:6px;width:100%;box-sizing:border-box;padding:6px 8px;border-radius:7px;border:1px solid #2a3b4d;background:#0a0f14;color:#e8f0fe";
+  playerSearch.style.cssText = "margin-top:6px;width:100%;box-sizing:border-box;padding:6px 8px;border-radius:7px;border:1px solid var(--field-border);background:var(--field);color:var(--ink)";
   playerSearch.addEventListener("input", renderPlayers);
 
   // Scrollable list of club players.
@@ -315,28 +317,77 @@
 
   // Preview card for the selected player (hidden until one is picked).
   var preview = document.createElement("div");
-  preview.style.cssText = "margin-top:8px;padding:8px;border-radius:8px;background:#0d141b;border:1px solid #20303f;display:none";
+  preview.style.cssText = "margin-top:8px;padding:8px;border-radius:8px;background:var(--card);border:1px solid var(--card-border);display:none";
 
-  // renderPreview(): redraw the selected-player card - OVR, rarity, GK badge,
-  // caps used, and current PlayStyles (named via our catalog).
+  // renderPreview(): redraw the selected-player card. Same info as before -
+  // name/OVR/rarity, caps used, and current PlayStyles - but laid out visually:
+  //   - two "capacity pip" trackers (3 pips for PS+, 8 for Basic) that fill up
+  //     as slots are used (PS+ pips gold, Basic pips emerald), and
+  //   - the current PlayStyles as icon chips, split into a PS+ row and a Basic row.
+  // The chip icons reuse the app's PlayStyle icon font, the same one the evo grid
+  // uses, so the preview and the picker share one look.
   function renderPreview() {
     var it = state.player;
     if (!it) { preview.style.display = "none"; preview.innerHTML = ""; return; }
     preview.style.display = "block";
+
+    // The app's official "slots used" counts (null if it can't tell us).
     var nb = (function () { try { return it.getNumBasicPlayStyles(); } catch (e) { return null; } })();
     var np = (function () { try { return it.getNumPlusPlayStyles(); } catch (e) { return null; } })();
-    var styles = currentPlayStyles(it).map(function (p) {
-      return (traitName[p.traitId] || ("trait " + p.traitId)) + (p.isIcon ? "+" : "");
+
+    // Split the player's current PlayStyles into PS+ (isIcon) and basic, keeping
+    // each one's traitId (for its icon) and readable name.
+    var plus = [], basic = [];
+    currentPlayStyles(it).forEach(function (p) {
+      var entry = { traitId: p.traitId, name: traitName[p.traitId] || ("trait " + p.traitId) };
+      (p.isIcon ? plus : basic).push(entry);
     });
+    // Use the app's count when we have it, else fall back to how many we found.
+    var pUsed = (np != null) ? np : plus.length;
+    var bUsed = (nb != null) ? nb : basic.length;
+
+    // pipsHTML(label, used, cap, kindClass): a labelled row of filled/empty pips.
+    function pipsHTML(label, used, cap, kindClass) {
+      var pips = "";
+      for (var i = 0; i < cap; i++) { pips += "<span class='pv-pip" + (i < used ? " on" : "") + "'></span>"; }
+      return "<div class='pv-cap " + kindClass + "'>" +
+        "<div class='pv-lab'><span>" + label + "</span><b>" + used + "/" + cap + "</b></div>" +
+        "<div class='pv-pips'>" + pips + "</div></div>";
+    }
+
+    // groupHTML(label, list, isPlus): one "PlayStyle+"/"Basic" chip row (hidden
+    // when that group is empty).
+    function groupHTML(label, list, isPlus) {
+      if (!list.length) return "";
+      var chips = list.map(function (e) {
+        return "<span class='pv-chip" + (isPlus ? " plus" : "") + "'>" +
+          "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + e.traitId + "'></i>" +
+          esc(e.name) + "</span>";
+      }).join("");
+      return "<div class='pv-group'><div class='pv-gl'>" + label + "</div>" +
+        "<div class='pv-chips'>" + chips + "</div></div>";
+    }
+
+    // Position groups for the meta line (e.g. "RW / LW"), if the app exposes them.
+    var posLine = "";
+    try { var pg = playerPositionGroups(it); if (pg && pg.length) posLine = " &middot; " + esc(pg.join(", ")); } catch (e) {}
+
+    var noneMsg = (!plus.length && !basic.length) ? "<div class='pv-none'>No PlayStyles yet.</div>" : "";
+
     preview.innerHTML =
-      "<div style='font-weight:700'>" + esc(playerName(it)) +
-        " <span style='color:#ffd27d'>" + (it.rating != null ? it.rating : "?") + "</span>" +
-        (isGKPlayer(it) ? " <span style='color:#9adcff;font-size:10px'>GK</span>" : "") + "</div>" +
-      "<div style='opacity:.8;margin-top:2px'>" + esc(rarityName(it)) + " &middot; item " + it.id + "</div>" +
-      "<div style='margin-top:4px'>PS+ used: " + (np != null ? np : "?") + "/" + CAP_PLUS +
-        " &middot; Basic used: " + (nb != null ? nb : "?") + "/" + CAP_BASIC + "</div>" +
-      "<div style='margin-top:4px'>PlayStyles: " +
-        (styles.length ? esc(styles.join(", ")) : "<span style='opacity:.6'>none</span>") + "</div>";
+      "<div class='pv-head'>" +
+        "<span class='pv-name'>" + esc(playerName(it)) + "</span>" +
+        "<span class='pv-ovr'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+        (isGKPlayer(it) ? "<span class='pv-gk'>GK</span>" : "") +
+      "</div>" +
+      "<div class='pv-meta'>" + esc(rarityName(it)) + posLine + " &middot; item " + it.id + "</div>" +
+      "<div class='pv-caps'>" +
+        pipsHTML("PlayStyle+", pUsed, CAP_PLUS, "plus") +
+        pipsHTML("Basic", bUsed, CAP_BASIC, "basic") +
+      "</div>" +
+      noneMsg +
+      groupHTML("PlayStyle+", plus, true) +
+      groupHTML("Basic", basic, false);
   }
 
   // selectPlayer(it): remember the choice, clear any ticked evos from the previous
@@ -369,13 +420,13 @@
       var row = document.createElement("div");
       row.style.cssText =
         "display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:7px;cursor:pointer;border:1px solid " +
-        (selected ? "#3d8bff" : "#20303f") + ";background:" + (selected ? "#15314f" : "#0d141b");
+        (selected ? "var(--accent)" : "var(--card-border)") + ";background:" + (selected ? "var(--sel)" : "var(--card)");
       row.innerHTML =
-        "<span style='font-weight:800;color:#ffd27d;min-width:22px;text-align:center'>" +
+        "<span style='font-weight:800;color:var(--gold);min-width:22px;text-align:center'>" +
           (it.rating != null ? it.rating : "?") + "</span>" +
         "<span style='flex:1'>" + esc(playerName(it)) + "</span>" +
-        (isGKPlayer(it) ? "<span style='color:#9adcff;font-size:9px;border:1px solid #2c5872;border-radius:4px;padding:0 4px'>GK</span>" : "") +
-        "<span style='font-size:10px;color:#9fb6c9'>" + esc(rarityName(it)) + "</span>";
+        (isGKPlayer(it) ? "<span style='color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px'>GK</span>" : "") +
+        "<span style='font-size:10px;color:var(--muted)'>" + esc(rarityName(it)) + "</span>";
       row.addEventListener("click", function () { selectPlayer(it); });
       playerList.appendChild(row);
     });
@@ -400,19 +451,19 @@
   // "Evolutions" heading.
   var evoTitle = document.createElement("div");
   evoTitle.textContent = "Evolutions";
-  evoTitle.style.cssText = "margin-top:12px;padding-top:10px;border-top:1px solid #1f3b5c;font-weight:600";
+  evoTitle.style.cssText = "margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-weight:600";
 
   // ---- STEP 1.9 suggest row: position + role dropdowns and a Suggest button ----
   var suggestRow = document.createElement("div");
   suggestRow.style.cssText = "display:flex;gap:6px;margin-top:6px;align-items:center";
   var posSelect = document.createElement("select");
-  posSelect.style.cssText = "flex:1;min-width:0;padding:5px;border-radius:6px;border:1px solid #2a3b4d;background:#0a0f14;color:#e8f0fe";
+  posSelect.style.cssText = "flex:1;min-width:0;padding:5px;border-radius:6px;border:1px solid var(--field-border);background:var(--field);color:var(--ink)";
   var roleSelect = document.createElement("select");
-  roleSelect.style.cssText = "flex:1.4;min-width:0;padding:5px;border-radius:6px;border:1px solid #2a3b4d;background:#0a0f14;color:#e8f0fe";
+  roleSelect.style.cssText = "flex:1.4;min-width:0;padding:5px;border-radius:6px;border:1px solid var(--field-border);background:var(--field);color:var(--ink)";
   var suggestBtn = document.createElement("button");
   suggestBtn.textContent = "✨ Suggest";
   suggestBtn.title = "Pre-tick recommended playstyles for this position/role (top 3 as PS+)";
-  suggestBtn.style.cssText = "background:#223040;color:#cfe;border:0;border-radius:6px;padding:5px 8px;cursor:pointer;white-space:nowrap;font-size:11px";
+  suggestBtn.style.cssText = "background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:5px 8px;cursor:pointer;white-space:nowrap;font-size:11px";
   suggestRow.appendChild(posSelect); suggestRow.appendChild(roleSelect); suggestRow.appendChild(suggestBtn);
 
   // populatePositions(): fill the position dropdown - the selected player's own
@@ -469,7 +520,7 @@
   function makeTab(label, kind) {
     var b = document.createElement("button");
     b.textContent = label;
-    b.style.cssText = "flex:1;padding:6px;border:1px solid #2a3b4d;border-radius:7px;color:#fff;cursor:pointer;font-weight:600;background:#1b2733";
+    b.style.cssText = "flex:1;padding:6px;border:1px solid var(--field-border);border-radius:7px;color:var(--ink);cursor:pointer;font-weight:600;background:var(--tab)";
     b.addEventListener("click", function () { setTab(kind); });
     return b;
   }
@@ -479,7 +530,7 @@
 
   // Live count of what's ticked.
   var evoCount = document.createElement("div");
-  evoCount.style.cssText = "margin-top:6px;color:#8fd6ff;font-weight:700;font-size:12px";
+  evoCount.style.cssText = "margin-top:6px;color:var(--accent);font-weight:700;font-size:12px";
   evoCount.textContent = "0 selected";
 
   // Scrollable tickable list for the active tab.
@@ -513,8 +564,11 @@
   //   - GK-only on a non-GK  -> disabled
   //   - once a kind's cap is reached, remaining unticked ones of that kind -> disabled
   function renderEvos() {
-    tabPlus.style.background = state.tab === "PS+" ? "#2d6cdf" : "#1b2733";
-    tabBase.style.background = state.tab === "PS" ? "#2d6cdf" : "#1b2733";
+    // Active tab uses the emerald accent with dark text; inactive stays a faint wash.
+    tabPlus.style.background = state.tab === "PS+" ? "var(--accent)" : "var(--tab)";
+    tabPlus.style.color = state.tab === "PS+" ? "var(--accent-ink)" : "var(--ink)";
+    tabBase.style.background = state.tab === "PS" ? "var(--accent)" : "var(--tab)";
+    tabBase.style.color = state.tab === "PS" ? "var(--accent-ink)" : "var(--ink)";
     evoList.innerHTML = "";
     var it = state.player;
     if (!it) { evoList.innerHTML = "<div style='opacity:.7'>Select a player above to choose evolutions.</div>"; updateEvoCount(); return; }
@@ -635,14 +689,14 @@
   delayWrap.appendChild(document.createTextNode("delay between applies (ms)"));
   var delayInput = document.createElement("input");
   delayInput.type = "number"; delayInput.value = "500"; delayInput.min = "0"; delayInput.step = "100";
-  delayInput.style.cssText = "width:64px;padding:4px 6px;border-radius:6px;border:1px solid #2a3b4d;background:#0a0f14;color:#e8f0fe";
+  delayInput.style.cssText = "width:64px;padding:4px 6px;border-radius:6px;border:1px solid var(--field-border);background:var(--field);color:var(--ink)";
   delayWrap.appendChild(delayInput);
   optRow.appendChild(delayWrap);
 
   // Apply (green) and Stop (red) buttons - only one shows at a time.
   var applyBtn = document.createElement("button");
   applyBtn.textContent = "Apply selected";
-  applyBtn.style.cssText = "width:100%;margin-top:8px;padding:9px;border:none;border-radius:8px;cursor:pointer;background:#2f9e51;color:#fff;font-weight:700";
+  applyBtn.style.cssText = "width:100%;margin-top:8px;padding:9px;border:none;border-radius:8px;cursor:pointer;background:var(--apply);color:var(--apply-ink);font-weight:700";
   applyBtn.addEventListener("click", runApply);
 
   var stopBtn = document.createElement("button");
@@ -716,17 +770,67 @@
     var st = document.createElement("style");
     st.id = "fc26-style";
     st.textContent =
+      // ---- THEME TOKENS ("Emerald frosted glass") ------------------------------
+      // The ONE place colours live. Every element below and every inline style in
+      // this file reads these via var(--name), so re-skinning = edit this block only.
+      // Values are mostly translucent (rgba) on purpose: the panel is frosted glass,
+      // so the live app shows through, softened by the blur set on the panel itself.
+      "#fc26-panel{" +
+        "--radius:12px;" +                                          // corner rounding
+        "--bg:rgba(18,42,35,.58);" +                                // panel glass tint (deep emerald)
+        "--border:rgba(255,255,255,.15);" +                         // hairline edges
+        "--header-bg:rgba(255,255,255,.06);" +                      // title bar wash
+        "--ink:#eaf6f0;--muted:#a2c9ba;--title:#ffffff;" +          // text: normal / dim / heading
+        "--accent:#4fe3ac;--accent-ink:#04241a;" +                  // emerald accent + dark text for on-accent
+        "--gold:#ffd98a;" +                                         // ratings + PlayStyle+ (FUT gold)
+        "--btn:rgba(255,255,255,.10);--btn-ink:#d6f4e8;" +          // secondary buttons
+        "--btnx:rgba(255,120,120,.14);--btnx-ink:#ffc2c2;" +        // close (×) button
+        "--field:rgba(0,0,0,.28);--field-border:rgba(255,255,255,.14);" + // inputs / dropdowns
+        "--card:rgba(255,255,255,.06);--card-border:rgba(255,255,255,.12);" + // sub-panels (rows, preview)
+        "--sel:rgba(79,227,172,.18);" +                             // selected / highlighted fill
+        "--tab:rgba(255,255,255,.06);--icon:#dcf4ea;" +             // inactive tab + evo icon colour
+        "--tile:rgba(255,255,255,.05);--tile-border:rgba(255,255,255,.12);" + // basic evo tiles
+        "--tile-psp:rgba(255,217,138,.12);--tile-psp-border:rgba(255,217,138,.34);" + // PS+ tiles (gold tint)
+        "--apply:rgba(79,227,172,.92);--apply-ink:#04241a;" +      // Apply button
+        "--shadow:0 16px 40px rgba(0,0,0,.5);" +                    // drop shadow
+      "}" +
+      // ---- preview card (selected player) --------------------------------------
+      // Header line: name + OVR + optional GK badge.
+      "#fc26-panel .pv-head{display:flex;align-items:baseline;gap:8px}" +
+      "#fc26-panel .pv-name{font-weight:800;font-size:15px;color:var(--ink)}" +
+      "#fc26-panel .pv-ovr{color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .pv-gk{margin-left:auto;color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px}" +
+      "#fc26-panel .pv-meta{color:var(--muted);font-size:11px;margin-top:2px}" +
+      // Capacity pips: one filled pip per slot used (PS+ = gold, Basic = emerald).
+      "#fc26-panel .pv-caps{display:flex;gap:14px;margin-top:11px}" +
+      "#fc26-panel .pv-cap{flex:1;min-width:0}" +
+      "#fc26-panel .pv-lab{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}" +
+      "#fc26-panel .pv-lab b{color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:0}" +
+      "#fc26-panel .pv-pips{display:flex;gap:4px}" +
+      "#fc26-panel .pv-pip{height:6px;flex:1;border-radius:3px;background:rgba(255,255,255,.12)}" +
+      "#fc26-panel .pv-cap.plus .pv-pip.on{background:var(--gold)}" +
+      "#fc26-panel .pv-cap.basic .pv-pip.on{background:var(--accent)}" +
+      // Grouped chips: current PlayStyles, split into a PS+ row and a Basic row.
+      "#fc26-panel .pv-group{margin-top:12px}" +
+      "#fc26-panel .pv-gl{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}" +
+      "#fc26-panel .pv-chips{display:flex;flex-wrap:wrap;gap:5px}" +
+      "#fc26-panel .pv-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 8px 4px 6px;border-radius:999px;font-size:11px;background:var(--tile);border:1px solid var(--tile-border);color:var(--ink)}" +
+      "#fc26-panel .pv-chip.plus{background:var(--tile-psp);border-color:var(--tile-psp-border);color:#ffe7b0}" +
+      "#fc26-panel .pv-chip .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:13px;line-height:1;color:var(--icon)}" +
+      "#fc26-panel .pv-chip.plus .ico{color:var(--gold)}" +
+      "#fc26-panel .pv-none{margin-top:10px;font-size:11px;color:var(--muted);opacity:.8}" +
+      // ---- evo-grid tiles ------------------------------------------------------
       "#fc26-panel .fc26-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}" +
-      "#fc26-panel .fc26-ec{position:relative;background:#0d141b;border:1px solid #233444;border-radius:9px;padding:7px 4px;cursor:pointer;text-align:center;transition:.08s;user-select:none}" +
-      "#fc26-panel .fc26-ec:hover{border-color:#3a6ea5}" +
-      "#fc26-panel .fc26-ec.sel{background:#15314f;border-color:#3d8bff;box-shadow:0 0 0 1px #3d8bff inset}" +
-      "#fc26-panel .fc26-ec.psp{background:linear-gradient(160deg,#241b06,#3a2c00);border-color:#5a4a1f}" +
-      "#fc26-panel .fc26-ec.psp.sel{background:#15314f;border-color:#3d8bff}" +
+      "#fc26-panel .fc26-ec{position:relative;background:var(--tile);border:1px solid var(--tile-border);border-radius:9px;padding:7px 4px;cursor:pointer;text-align:center;transition:.08s;user-select:none}" +
+      "#fc26-panel .fc26-ec:hover{border-color:var(--accent)}" +
+      "#fc26-panel .fc26-ec.sel{background:var(--sel);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}" +
+      "#fc26-panel .fc26-ec.psp{background:var(--tile-psp);border-color:var(--tile-psp-border)}" +
+      "#fc26-panel .fc26-ec.psp.sel{background:var(--sel);border-color:var(--accent)}" +
       "#fc26-panel .fc26-ec.dis{opacity:.38;cursor:not-allowed}" +
-      "#fc26-panel .fc26-ec.dis:hover{border-color:#233444}" +
-      "#fc26-panel .fc26-ec .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:24px;line-height:1;display:block;margin-bottom:4px;color:#dbe7f0}" +
-      "#fc26-panel .fc26-ec.psp .ico{color:#ffe08a}" +
-      "#fc26-panel .fc26-ec .nm{font-size:9.5px;line-height:1.15;color:#cdd8e2;word-break:break-word}" +
+      "#fc26-panel .fc26-ec.dis:hover{border-color:var(--tile-border)}" +
+      "#fc26-panel .fc26-ec .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:24px;line-height:1;display:block;margin-bottom:4px;color:var(--icon)}" +
+      "#fc26-panel .fc26-ec.psp .ico{color:var(--gold)}" +
+      "#fc26-panel .fc26-ec .nm{font-size:9.5px;line-height:1.15;color:var(--muted);word-break:break-word}" +
       "#fc26-panel .fc26-ec .own{position:absolute;top:3px;right:4px;font-size:10px;color:#67e08a}";
     document.head.appendChild(st);
   }
