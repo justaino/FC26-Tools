@@ -14,9 +14,15 @@
 (function () {
   "use strict";
 
-  // If the panel is already on screen (clicked twice), just re-show it and stop.
-  var existing = document.getElementById("fc26-panel");
-  if (existing) { existing.style.display = "flex"; return; }
+  // Every click rebuilds from scratch. We tear down any existing panel AND the
+  // injected styles first, so the LATEST code/styles always show - no manual reset
+  // needed after an update (this applies whether you click the bookmark or paste
+  // the source). To keep the rebuild instant, we grab the club we already loaded in
+  // the previous run and reuse it instead of re-fetching all ~1300 players.
+  var prevClub = null;
+  try { if (window.FC26 && window.FC26.state && window.FC26.state.clubItems) prevClub = window.FC26.state.clubItems; } catch (e) {}
+  var oldPanel = document.getElementById("fc26-panel"); if (oldPanel) oldPanel.remove();
+  var oldStyle = document.getElementById("fc26-style"); if (oldStyle) oldStyle.remove();
 
   // ----------------------------------------------------------------------------
   // STEP 1.2 - SERVICE PLUMBING
@@ -191,7 +197,7 @@
   //               present the picker uses this instead of the app's partial cache
   //   eligible = Set of evo-eligible rareflags (see EVO-ELIGIBLE RARITIES above)
   //   onlyEligible = true when the picker is filtered to eligible rarities only
-  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: null, eligible: loadEligible(), onlyEligible: loadOnlyEligible() };
+  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible() };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
@@ -1032,7 +1038,13 @@
   renderPlayers();     // show whatever's cached immediately (the squad)
   populatePositions(); // fill the position/role dropdowns
   renderEvos();        // show the "select a player" prompt in the evo area
-  loadFullClub();      // then load the FULL club in the background and redraw
+  // Only fetch the full club if we didn't inherit it from the previous click. If we
+  // did, it's shown instantly; hit "↻ Reload club" to pull a fresh copy.
+  if (state.clubItems && state.clubItems.length) {
+    status.textContent = "Club ready: " + getClubPlayers().length + " players (↻ Reload club to refresh).";
+  } else {
+    loadFullClub();    // first run: load the FULL club in the background and redraw
+  }
 
   body.appendChild(pickerHead);
   body.appendChild(playerSearch);

@@ -21,18 +21,20 @@ The panel header reads **"Men Gallant FC - Justaino PS Tool"**.
 1. Make sure the bookmarklet is saved as a bookmark (its URL is the one long line
    in `bookmarklet.txt`, starting with `javascript:`).
 2. Open the FC Web App and let your club load.
-3. Click the bookmark. The panel appears bottom-right. Click it again any time to
-   re-show it if you closed it.
+3. Click the bookmark. The panel appears bottom-right.
 
-**If something looks stuck or you just updated the code**, reset and re-run by
-pasting into the browser Console (F12 → Console):
+**Every click rebuilds fresh.** Clicking the bookmark again (or re-pasting the
+source) tears down the old panel + styles and rebuilds with the latest code, so you
+do **not** need any manual reset after an update — the new look/logic just shows.
+The already-loaded club is carried over so the rebuild is instant; hit `↻ Reload
+club` if you want a fresh pull.
+
+**Hard reset** (only if something is truly stuck, or to clear the `window.FC26`
+namespace) — paste into the Console (F12 → Console):
 
 ```js
 document.getElementById('fc26-panel')?.remove(); document.getElementById('fc26-style')?.remove(); delete window.FC26;
 ```
-
-> The middle part (`fc26-style`) matters whenever the **look** changed — the styles
-> are injected once per page, so without removing them the new theme won't load.
 
 ---
 
@@ -157,7 +159,7 @@ last number (e.g. `.7`).
    error, the change broke something — fix and re-run.
 3. Update your bookmark's URL with the new `bookmarklet.txt` line (or, while
    testing, paste the readable `fc26-tools.js` straight into the Console).
-4. Reset + re-run in the app (§2).
+4. Just click the bookmark / paste again — it rebuilds itself, so no reset needed.
 
 ---
 
@@ -165,8 +167,8 @@ last number (e.g. `.7`).
 
 | Symptom | Fix |
 |---|---|
-| Panel won't open / looks half-styled | Full reset (§2), then re-run. |
-| New colours didn't apply | You skipped removing `fc26-style` — use the full reset (§2). |
+| Panel won't open / looks half-styled | Click the bookmark again (it rebuilds); if still stuck, hard reset (§2). |
+| New colours didn't apply | Re-click the bookmark — it now re-injects styles every time. |
 | "No club players found" | Open your Club in the app, then click `↻ Reload club`. |
 | An apply fails with `460 ineligible` | That card can't take that PlayStyle (already has it, capped, or rarity/OVR not allowed). Normal for non-eligible cards. |
 | Eligible filter shows a card that won't evo | Select it → **Remove** on its card (the seed was a guess). |

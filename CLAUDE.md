@@ -100,11 +100,11 @@ artifact (four themes → Emerald frosted glass chosen) before touching code:
 - Edit `fc26-tools.js`, then regenerate `bookmarklet.txt` with a Node minify snippet
   (strip comments → join lines → prepend `javascript:`) and syntax-check via
   `new Function(...)`. The user tests by pasting the bookmarklet line (or readable
-  source) into the FC web-app Console; reset first with
-  `document.getElementById('fc26-panel')?.remove(); delete window.FC26;`.
-  **When a change touches styles**, also remove the cached style block or the new
-  theme won't load (it's injected once per session):
-  `document.getElementById('fc26-panel')?.remove(); document.getElementById('fc26-style')?.remove(); delete window.FC26;`.
+  source) into the FC web-app Console. **The bookmarklet now self-refreshes**: on
+  every run it removes any existing `#fc26-panel` AND `#fc26-style` and rebuilds, so
+  no manual reset is needed after a change (it also carries the loaded club over
+  between runs so rebuilds are instant). A hard reset is only for wiping the
+  namespace: `document.getElementById('fc26-panel')?.remove(); document.getElementById('fc26-style')?.remove(); delete window.FC26;`.
 - Minify snippet lives at `minify.js` (project root) — a small string/regex-aware
   comment-stripper (the naive approach corrupts the `esc()` regex `/[&<>"]/g`, which
   contains a quote). Run it with Node from the project root; it rewrites
