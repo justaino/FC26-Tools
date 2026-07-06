@@ -85,6 +85,38 @@ below are the same** in both — they're just arranged differently.
 
 ---
 
+## 3a. New in v2 — resize the panel, batch apply, remove evos
+
+**Resize the panel (computer only).** Grab the small **diagonal-striped handle in the
+bottom-right corner** and drag to change the panel's width and height. Minimum ~340×260;
+it won't spill off-screen. The size is **remembered** (like the drag position), so it
+reopens at the size you left it. On a phone, and while minimized, there's no handle.
+
+**Apply to several players at once (batch).** Every player row has a **checkbox** on the
+left. Tick everyone you want — ticking one also previews it. A green **"N selected for
+batch apply"** bar appears (with a **Clear** button). Pick your PlayStyles once, hit
+**Apply selected**, and it applies to all ticked players in one run. A **roll-call**
+("Applying selected PlayStyles to N players: …") shows above the Apply button so you can
+see exactly who's included first.
+- Each player is checked **on its own**: anything it already owns, can't fit (its own 3
+  PS+ / 8 basic caps), or that's GK-only on an outfielder is **skipped** (not a failure).
+  The result shows a **section per player** with added / failed / skipped.
+- **✨ Suggest** (and its dropdowns) is greyed out while more than one player is ticked —
+  Suggest works on one player at a time. With **nothing** ticked, Apply works on just the
+  previewed player, exactly as before.
+
+**Remove PlayStyles / evos.** The preview card has **Remove Latest Evo** and **Clear all
+evos** (they show only when the card has PlayStyles). Both **ask you to confirm** and show
+a spinner + live count under the buttons while working.
+- The game removes evo *upgrades* **newest-first** and gives **no way to target a specific
+  one** — and the next one removed **might be a stat/skill upgrade, not a PlayStyle**.
+  That's why the buttons say "evo" and the confirm warns you.
+- **Clear all evos** keeps removing until the card fully reverts, which can make it
+  **leave your club evo list**.
+- Drives the app's own `services.Academy.removeEvoUpgrade` — nothing faked.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
@@ -276,7 +308,8 @@ bookmarklet). If it ever feels big, prune a few old ones with `remove`.
 - `release.js` — cuts a new install-page version (`node release.js "note"`, §7a).
 - `versions.js` — the list of published versions the install page reads (generated).
 - `index.html` — the install page (renders itself from `versions.js`).
-- `RUNBOOK.md` — this file (how to run / maintain it).
-- `USER-GUIDE.md` — friendly feature guide for using the tool.
+- `Documentation/RUNBOOK.md` — this file (how to run / maintain it).
+- `Documentation/USER-GUIDE.md` — friendly feature guide for using the tool.
+- `CHANGELOG.md` — plain-English per-version log of what changed (add an entry each release).
 - `CLAUDE.md` — standing build context. `PLAN.md` — scope + phases.
 - `reference-evo.js` — read-only reference script we borrowed proven bits from.

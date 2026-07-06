@@ -38,6 +38,10 @@ comment every block. Don't assume front-end knowledge.
   instead. Never hand me a change without a test for it.
 - You can't see the live app (it's behind login), so I run Console commands and
   paste output/errors back. That hand-off is normal — rely on it.
+- **When a new feature is approved and committed, ALWAYS update `RUNBOOK.md` and
+  `CHANGELOG.md` in the same change** — `RUNBOOK.md` with how to use/maintain it,
+  `CHANGELOG.md` with a plain-English entry under the current install-page version
+  (`node release.js`). Not optional; do it as part of shipping the feature.
 
 ## Files in this folder
 - `CLAUDE.md` — this file (standing context).
@@ -60,8 +64,11 @@ comment every block. Don't assume front-end knowledge.
   install page reads this. Never hand-edit except to trim old entries.
 - `index.html` — GitHub Pages install page; renders the latest bookmarklet + a "Previous
   versions" list entirely from `versions.js`.
-- `RUNBOOK.md` — plain-English how-to-use/maintain guide (rarity numbers, editing the
-  eligible list, theming, rebuilding, publishing versions §7a).
+- `Documentation/RUNBOOK.md` — plain-English how-to-use/maintain guide (rarity numbers,
+  editing the eligible list, theming, rebuilding, publishing versions §7a). Long-form docs
+  (RUNBOOK, USER-GUIDE, + PDF exports) live in `Documentation/`. **Update on every new feature.**
+- `CHANGELOG.md` — plain-English per-version log of what changed (newest first, by
+  install-page version), at the project root. **Add an entry on every new feature.**
 
 ## Current status
 **Phase 1 (EVO assigner) is built and working in-game.** It does more than the
