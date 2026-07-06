@@ -476,6 +476,7 @@
   function selectPlayer(it) {
     state.player = it;
     state.selected = new Set();   // a fresh player starts with nothing ticked
+    if (typeof applyBox !== "undefined" && applyBox) { applyBox.style.display = "none"; applyBox.innerHTML = ""; }  // clear any old apply summary
     renderPlayers();
     renderPreview();
     populatePositions();          // dropdowns now reflect this player's positions
@@ -799,6 +800,69 @@
     stopBtn.style.display = on ? "" : "none";
   }
 
+  // ---- apply animation + result summary ------------------------------------
+  // A box under the buttons that shows the apply IN PROGRESS (a grid of the queued
+  // PlayStyle tiles, each spinning then stamping a tick, one by one) and then the
+  // RESULT SUMMARY (icon chips of what was added). Purely visual - same applies.
+  var applyBox = document.createElement("div");
+  applyBox.className = "fc26-apply";
+  applyBox.style.display = "none";
+
+  // buildApplyTiles(slotIds): one tile per queued evo, in apply order. Returns the
+  // tile elements so runApply can flip each: (nothing) -> applying -> done/failed.
+  function buildApplyTiles(slotIds) {
+    applyBox.style.display = "block";
+    applyBox.innerHTML = "";
+    var grid = document.createElement("div");
+    grid.className = "fc26-grid";
+    var tiles = slotIds.map(function (sid) {
+      var evo = byId(sid);
+      var isPlus = evo && evo.kind === "PS+";
+      var t = document.createElement("div");
+      t.className = "fc26-ec" + (isPlus ? " psp" : "");
+      var nm = evo ? evo.n.replace(/\+$/, "") : String(sid);
+      t.innerHTML =
+        "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + (evo ? evoTrait(evo) : "") + "'></i>" +
+        "<div class='nm'>" + esc(nm) + "</div><span class='ap-badge'></span>";
+      grid.appendChild(t);
+      return t;
+    });
+    applyBox.appendChild(grid);
+    return tiles;
+  }
+
+  // renderApplySummary(okList, failCount, name): the after-run card - a tick, the
+  // count, and the added PlayStyles as chips that pop in (PS+ gold, basic emerald).
+  function renderApplySummary(okList, failCount, name) {
+    applyBox.style.display = "block";
+    applyBox.innerHTML = "";
+    var head = document.createElement("div");
+    head.className = "ap-head";
+    head.innerHTML =
+      "<span class='tick'>✓</span><span>Added " + okList.length + " to <b>" + esc(name) + "</b></span>" +
+      "<span class='sub'>" + (failCount || 0) + " failed</span>";
+    applyBox.appendChild(head);
+    var chipsWrap = document.createElement("div");
+    chipsWrap.className = "ap-chips";
+    var chipEls = okList.map(function (evo) {
+      var isPlus = evo.kind === "PS+";
+      var c = document.createElement("span");
+      c.className = "ap-chip" + (isPlus ? " plus" : "");
+      c.innerHTML = "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + evoTrait(evo) + "'></i>" + esc(evo.n.replace(/\+$/, ""));
+      chipsWrap.appendChild(c);
+      return c;
+    });
+    applyBox.appendChild(chipsWrap);
+    if (!okList.length) {
+      var none = document.createElement("div");
+      none.className = "ap-fail";
+      none.textContent = "Nothing was added.";
+      applyBox.appendChild(none);
+    }
+    // Stagger the pop-in (non-blocking so the club refresh can run underneath).
+    chipEls.forEach(function (c, i) { setTimeout(function () { c.classList.add("show"); }, 90 * i); });
+  }
+
   // runApply(): the queue. For each ticked evo: await applyEvo, optionally await
   // claimEvo, pause ~400ms, report progress in the status line. A failure on one
   // evo is logged and the run continues. Nothing is faked - every call goes
@@ -812,11 +876,15 @@
     if (!slotIds.length) { status.textContent = "Nothing selected."; return; }
     state.running = true; state.abort = false; setRunning(true);
     var itemId = it.id, rareflag = it.rareflag, ok = 0, fail = 0;
+    var tiles = buildApplyTiles(slotIds);   // the animated queue under the buttons
+    var okList = [];                         // evos that succeeded (for the summary)
     for (var i = 0; i < slotIds.length; i++) {
       if (state.abort) { status.textContent = "Stopped at " + i + "/" + slotIds.length + "."; break; }
       var slotId = slotIds[i];
       var evo = byId(slotId);
+      var tile = tiles[i];                                    // this evo's animated tile
       var label = "[" + (i + 1) + "/" + slotIds.length + "] " + (evo ? evo.n : slotId);
+      if (tile) tile.classList.add("applying");               // spin while it applies
       status.textContent = label + " ...";
       try {
         await applyEvo(slotId, itemId);                       // adds + grants the PlayStyle
@@ -825,10 +893,14 @@
         // and we just carry on.
         try { await claimEvo(slotId); }
         catch (ce) { console.warn("[FC26] claim skipped (usually fine for PlayStyle evos)", label, ce); }
-        ok++; status.textContent = "OK " + label;
+        ok++; if (evo) okList.push(evo);                       // remember for the summary
+        if (tile) { tile.classList.remove("applying"); tile.classList.add("done"); var b = tile.querySelector(".ap-badge"); if (b) b.textContent = "✓"; }
+        status.textContent = "OK " + label;
         console.log("[FC26] applied", label);
       } catch (e) {
-        fail++; status.textContent = "FAILED " + label + " - " + errMsg(e);
+        fail++;
+        if (tile) { tile.classList.remove("applying"); tile.classList.add("failed"); var bf = tile.querySelector(".ap-badge"); if (bf) bf.textContent = "✕"; }
+        status.textContent = "FAILED " + label + " - " + errMsg(e);
         console.warn("[FC26] apply failed", label, e);
       }
       if (i < slotIds.length - 1 && !state.abort) {                     // breathe between calls
@@ -836,6 +908,8 @@
         await sleep(delayMs);
       }
     }
+    // Swap the animated tiles for the result summary (chips of what was added).
+    renderApplySummary(okList, fail, playerName(it));
     // Self-learn: any success proves this card's rarity CAN receive PlayStyles, so
     // add it to the evo-eligible list (persisted). Grows the list over time.
     if (ok > 0) { setRarityEligible(rareflag, true); }
@@ -929,7 +1003,29 @@
       "#fc26-panel .fc26-ec .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:24px;line-height:1;display:block;margin-bottom:4px;color:var(--icon)}" +
       "#fc26-panel .fc26-ec.psp .ico{color:var(--gold)}" +
       "#fc26-panel .fc26-ec .nm{font-size:9.5px;line-height:1.15;color:var(--muted);word-break:break-word}" +
-      "#fc26-panel .fc26-ec .own{position:absolute;top:3px;right:4px;font-size:10px;color:#67e08a}";
+      "#fc26-panel .fc26-ec .own{position:absolute;top:3px;right:4px;font-size:10px;color:#67e08a}" +
+      // ---- apply progress (tiles spin -> tick) + result summary ----------------
+      "#fc26-panel .fc26-ec .ap-badge{position:absolute;top:3px;right:4px;width:14px;height:14px;border-radius:50%;display:grid;place-items:center;font-size:9px;opacity:0;transform:scale(.4)}" +
+      "#fc26-panel .fc26-ec.applying{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset,0 0 14px rgba(79,227,172,.45)}" +
+      "#fc26-panel .fc26-ec.applying::after{content:'';position:absolute;inset:0;border-radius:9px;border:2px solid transparent;border-top-color:var(--accent);animation:fc26spin .7s linear infinite}" +
+      "#fc26-panel .fc26-ec.done{border-color:rgba(79,227,172,.5)}" +
+      "#fc26-panel .fc26-ec.done .ap-badge{background:var(--accent);color:#04241a;opacity:1;transform:scale(1);transition:.25s cubic-bezier(.3,1.6,.5,1)}" +
+      "#fc26-panel .fc26-ec.failed{border-color:rgba(255,120,120,.5);opacity:.7}" +
+      "#fc26-panel .fc26-ec.failed .ap-badge{background:#e06767;color:#fff;opacity:1;transform:scale(1)}" +
+      "@keyframes fc26spin{to{transform:rotate(360deg)}}" +
+      "#fc26-panel .fc26-apply{margin-top:10px}" +
+      "#fc26-panel .ap-head{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px;margin-bottom:9px}" +
+      "#fc26-panel .ap-head .tick{width:20px;height:20px;border-radius:50%;background:var(--accent);color:#04241a;display:grid;place-items:center;font-size:12px;flex:none}" +
+      "#fc26-panel .ap-head .sub{font-weight:500;font-size:11px;color:var(--muted);margin-left:auto}" +
+      "#fc26-panel .ap-chips{display:flex;flex-wrap:wrap;gap:6px}" +
+      "#fc26-panel .ap-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px 4px 7px;border-radius:999px;font-size:11px;background:var(--tile);border:1px solid var(--tile-border);color:var(--ink);opacity:0;transform:scale(.6) translateY(6px)}" +
+      "#fc26-panel .ap-chip.plus{background:var(--tile-psp);border-color:var(--tile-psp-border);color:#ffe7b0}" +
+      "#fc26-panel .ap-chip .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:13px;line-height:1;color:var(--icon)}" +
+      "#fc26-panel .ap-chip.plus .ico{color:var(--gold)}" +
+      "#fc26-panel .ap-chip.show{animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) forwards}" +
+      "@keyframes fc26pop{to{opacity:1;transform:scale(1) translateY(0)}}" +
+      "#fc26-panel .ap-fail{margin-top:9px;font-size:11px;color:#ff9e9e}" +
+      "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
   }
 
@@ -951,6 +1047,7 @@
   body.appendChild(optRow);
   body.appendChild(applyBtn);
   body.appendChild(stopBtn);
+  body.appendChild(applyBox);
   body.appendChild(status);
   panel.appendChild(header);
   panel.appendChild(body);
