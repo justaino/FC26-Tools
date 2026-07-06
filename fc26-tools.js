@@ -84,6 +84,19 @@
     return awaitService(svc.Academy.claimSlot(slotId));
   }
 
+  // removeEvo(itemId): removes ONE applied PlayStyle/evo upgrade from a club player.
+  // Discovered live: services.Academy.removeEvoUpgrade(itemId) returns an EAObservable
+  // like addItemToSlot, and the response carries { item, lastEvoRemoved } - lastEvoRemoved
+  // is true when that was the final upgrade (the card then reverts and leaves the club evo
+  // list). There is NO argument to target a specific PlayStyle - each call just removes one
+  // (an "undo"), so "clear all" means calling this repeatedly until lastEvoRemoved. Returns
+  // a Promise. (The two extra args removeEvoUpgrade takes are booleans that default false;
+  // we leave them at their defaults.)
+  function removeEvo(itemId) {
+    var svc = getServices();
+    return awaitService(svc.Academy.removeEvoUpgrade(itemId));
+  }
+
   // Also stash the helpers on a tiny namespace, so you can poke them from the
   // DevTools Console (e.g. type: typeof window.FC26.applyEvo) when testing.
   // Optional - the panel uses the local functions above directly.
@@ -92,6 +105,7 @@
   window.FC26.awaitService = awaitService;
   window.FC26.applyEvo = applyEvo;
   window.FC26.claimEvo = claimEvo;
+  window.FC26.removeEvo = removeEvo;
 
   // ----------------------------------------------------------------------------
   // STEP 1.3 - PLAYSTYLE CATALOG
@@ -197,7 +211,10 @@
   //               present the picker uses this instead of the app's partial cache
   //   eligible = Set of evo-eligible rareflags (see EVO-ELIGIBLE RARITIES above)
   //   onlyEligible = true when the picker is filtered to eligible rarities only
-  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible() };
+  //   batch    = a Map of id -> club item: the players TICKED for batch apply. The
+  //              active player (state.player) is NOT auto-added; when the batch is
+  //              empty, Apply targets just the active player (unchanged single flow).
+  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map() };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
@@ -341,7 +358,7 @@
   // the full-width sheet.
   minBtn.addEventListener("click", function () {
     state.minimized = !state.minimized;
-    body.style.display = state.minimized ? "none" : "";
+    body.style.display = state.minimized ? "none" : "flex";   // restore flex (not ""), or the scroll height chain collapses
     minBtn.textContent = state.minimized ? "+" : "–";
     applyPanelChrome();   // update size/position for the new minimized state
   });
@@ -388,6 +405,65 @@
   eligNote.style.cssText = "margin-left:auto;opacity:.85";
   filterRow.appendChild(eligChk); filterRow.appendChild(eligChkLbl); filterRow.appendChild(eligNote);
   eligChk.addEventListener("change", function () { state.onlyEligible = eligChk.checked; saveOnlyEligible(); renderPlayers(); });
+
+  // ---- STEP 2a batch bar ---------------------------------------------------
+  // Shows how many players are ticked (via the per-row checkbox) for BATCH apply,
+  // with a Clear button. Hidden when nothing is ticked (then Apply just targets the
+  // previewed player, exactly like before).
+  var batchBar = document.createElement("div");
+  batchBar.style.cssText = "display:none;align-items:center;gap:8px;margin-top:8px;padding:5px 8px;border-radius:7px;background:var(--sel);border:1px solid var(--accent);font-size:11px;color:var(--ink)";
+  var batchCount = document.createElement("span");
+  batchCount.style.cssText = "flex:1;font-weight:600";
+  var batchClear = document.createElement("button");
+  batchClear.textContent = "Clear";
+  batchClear.title = "Untick all batched players";
+  batchClear.style.cssText = "background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:10px;font-weight:600";
+  batchClear.addEventListener("click", function () { state.batch.clear(); renderPlayers(); updateBatchUI(); });
+  batchBar.appendChild(batchCount); batchBar.appendChild(batchClear);
+
+  // batchList: a "who will get these PlayStyles" summary shown right above the Apply
+  // button (it lives in applyMod, which is the desktop right pane AND the mobile step-3
+  // screen - so on a phone, where you can't see the ticked list, you still get a clear
+  // roll-call before applying). Hidden unless 2+ players are batched. Rendered by
+  // renderBatchList() and refreshed from updateBatchUI().
+  var batchList = document.createElement("div");
+  batchList.style.cssText = "display:none;margin-bottom:8px;padding:8px;border-radius:8px;background:var(--card);border:1px solid var(--accent);font-size:11px";
+  function renderBatchList() {
+    if (state.batch.size <= 1) { batchList.style.display = "none"; batchList.innerHTML = ""; return; }
+    batchList.style.display = "block";
+    var chips = Array.from(state.batch.values()).map(function (it) {
+      return "<span class='bl-chip'><b>" + (it.rating != null ? it.rating : "?") + "</b> " + esc(playerName(it)) + "</span>";
+    }).join("");
+    batchList.innerHTML = "<div class='bl-lead'>Applying selected PlayStyles to " + state.batch.size + " players:</div><div class='bl-chips'>" + chips + "</div>";
+  }
+
+  // updateBatchUI(): refresh the batch bar's count/visibility, and disable Suggest when
+  // more than one player is batched (Suggest is single-player only - it reads the active
+  // player's position/role). Manual ticking still works in batch mode.
+  function updateBatchUI() {
+    var n = state.batch.size;
+    if (n > 0) { batchBar.style.display = "flex"; batchCount.textContent = n + " selected for batch apply"; }
+    else { batchBar.style.display = "none"; }
+    // Suggest (and its position/role dropdowns, which only feed Suggest) are single-
+    // player only, so grey them all out together when more than one player is batched.
+    var many = n > 1;
+    if (typeof suggestBtn !== "undefined" && suggestBtn) {
+      suggestBtn.disabled = many;
+      suggestBtn.style.opacity = many ? ".45" : "";
+      suggestBtn.style.cursor = many ? "not-allowed" : "pointer";
+      suggestBtn.title = many
+        ? "Suggest works on one player at a time - uncheck extras first."
+        : "Pre-tick recommended playstyles for this position/role (top 3 as PS+)";
+    }
+    [typeof posSelect !== "undefined" ? posSelect : null, typeof roleSelect !== "undefined" ? roleSelect : null].forEach(function (sel) {
+      if (!sel) return;
+      sel.disabled = many;
+      sel.style.opacity = many ? ".45" : "";
+      sel.style.cursor = many ? "not-allowed" : "";
+    });
+    renderBatchList();                 // refresh the "applying to N players" roll-call
+    if (typeof updateWizWho === "function") updateWizWho();  // keep the mobile step-2 header in sync
+  }
 
   // Scrollable list of club players. Its height is set by CSS (.fc26-plist): a fixed
   // cap on mobile, but "flex to fill the left pane" on desktop so it never leaves a gap.
@@ -476,7 +552,15 @@
       "</div>" +
       noneMsg +
       groupHTML("PlayStyle+", plus, true) +
-      groupHTML("Basic", basic, false);
+      groupHTML("Basic", basic, false) +
+      // Reset row (only when there's something to remove): "Remove one" undoes a single
+      // PlayStyle; "Clear all" strips them all (confirmed). See runRemove().
+      ((plus.length || basic.length)
+        ? "<div class='pv-reset'>" +
+            "<button class='pv-rm-one'>Remove Latest Evo</button>" +
+            "<button class='pv-rm-all'>Clear all evos</button>" +
+          "</div>"
+        : "");
 
     // Wire the eligibility button (listener, not inline onclick - the app's CSP
     // blocks inline handlers). Toggles this rarity, then redraws the card + list.
@@ -486,11 +570,19 @@
       renderPreview();
       renderPlayers();
     });
+    // Wire the reset buttons (listeners, not inline - CSP). runRemove guards on
+    // state.running, so a stray click mid-run is harmless.
+    var rmOne = preview.querySelector(".pv-rm-one");
+    if (rmOne) rmOne.addEventListener("click", function () { runRemove(false); });
+    var rmAll = preview.querySelector(".pv-rm-all");
+    if (rmAll) rmAll.addEventListener("click", function () { runRemove(true); });
   }
 
-  // selectPlayer(it): remember the choice, clear any ticked evos from the previous
-  // player, then redraw the list, preview, and evolution tabs.
-  function selectPlayer(it) {
+  // selectPlayer(it, keepStep): remember the choice, clear any ticked evos from the
+  // previous player, then redraw the list, preview, and evolution tabs. keepStep=true
+  // focuses the player WITHOUT advancing the mobile wizard (used when a batch checkbox
+  // brings a player into focus, so ticking several on a phone doesn't jump to step 2).
+  function selectPlayer(it, keepStep) {
     state.player = it;
     state.selected = new Set();   // a fresh player starts with nothing ticked
     if (typeof applyBox !== "undefined" && applyBox) { applyBox.style.display = "none"; applyBox.innerHTML = ""; }  // clear any old apply summary
@@ -499,8 +591,9 @@
     populatePositions();          // dropdowns now reflect this player's positions
     renderEvos();
     updateWizWho();               // keep the wizard's mini header in sync
-    // On mobile the picker is step 1 of the wizard; choosing a player moves to step 2.
-    if (currentMode() === "mobile" && state.wizStep === 1) { goStep(2); }
+    // On mobile the picker is step 1 of the wizard; choosing a player moves to step 2
+    // (skipped when keepStep=true, e.g. ticking a batch checkbox).
+    if (!keepStep && currentMode() === "mobile" && state.wizStep === 1) { goStep(2); }
     reclampPanel();               // the right pane just grew - keep the whole panel on-screen
     console.log("[FC26] selected player", playerName(it), it.id);
   }
@@ -549,6 +642,23 @@
           (isGKPlayer(it) ? "<span class='pl-gk'>GK</span>" : "") +
           "<span class='pl-rar'>" + esc(rarityName(it)) + "</span>" +
         "</span>";
+      // Batch-apply checkbox (prepended). Ticking it adds/removes this player from the
+      // batch WITHOUT selecting it as active (stopPropagation) - so it never changes the
+      // preview or, on mobile, advances the wizard. Tapping the row body still selects.
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "pl-check";
+      cb.checked = state.batch.has(it.id);
+      cb.title = "Add to batch apply";
+      cb.addEventListener("click", function (e) { e.stopPropagation(); });
+      cb.addEventListener("change", function () {
+        if (cb.checked) state.batch.set(it.id, it); else state.batch["delete"](it.id);
+        updateBatchUI();
+        // Ticking a player also brings it into focus (preview/evos), but WITHOUT the
+        // mobile wizard jump - so you can tick several in a row on a phone.
+        if (cb.checked) selectPlayer(it, true);
+      });
+      row.insertBefore(cb, row.firstChild);
       row.addEventListener("click", function () { selectPlayer(it); });
       playerList.appendChild(row);
     });
@@ -612,6 +722,7 @@
   // Top 3 -> PS+, the rest -> basic. Skips owned / GK-mismatch / cap-full and
   // respects the caps, exactly like manual ticking. Selection only - nothing applied.
   function suggest() {
+    if (state.batch.size > 1) { status.textContent = "Suggest works on one player at a time - uncheck extras first."; return; }
     var it = state.player;
     if (!it) { status.textContent = "Select a player first."; return; }
     var pos = posSelect.value, role = roleSelect.value;
@@ -894,29 +1005,240 @@
       applyBox.appendChild(none);
     }
     // "Back to players" - jump straight back to the player list to pick the next card.
-    // On mobile that's step 1 of the wizard; on desktop the list is always visible, so
-    // we just scroll it into view. Either way we redraw the list so its PlayStyle+ icons
-    // reflect what we just added.
-    var backBtn = document.createElement("button");
-    backBtn.className = "ap-back";
-    backBtn.textContent = "← Back to players";
-    backBtn.addEventListener("click", function () {
-      renderPlayers();
-      if (currentMode() === "mobile") { goStep(1); }
-      else { try { playerList.scrollIntoView({ block: "nearest" }); } catch (e) {} }
-    });
-    applyBox.appendChild(backBtn);
+    // "Back to players" only on mobile (the wizard hides the list on other steps). On
+    // desktop the player list is always visible in the left pane, so the button is redundant.
+    if (currentMode() === "mobile") {
+      var backBtn = document.createElement("button");
+      backBtn.className = "ap-back";
+      backBtn.textContent = "← Back to players";
+      backBtn.addEventListener("click", function () { renderPlayers(); goStep(1); });
+      applyBox.appendChild(backBtn);
+    }
     // Stagger the pop-in (non-blocking so the club refresh can run underneath).
     chipEls.forEach(function (c, i) { setTimeout(function () { c.classList.add("show"); }, 90 * i); });
   }
 
-  // runApply(): the queue. For each ticked evo: await applyEvo, optionally await
-  // claimEvo, pause ~400ms, report progress in the status line. A failure on one
-  // evo is logged and the run continues. Nothing is faked - every call goes
-  // through the app's own Academy service. At the end we refresh so the new
-  // PlayStyles show without a page reload.
-  async function runApply() {
+  // ---- STEP 2b batch apply -------------------------------------------------
+  // runApply(): the Apply button's entry point. If any players are TICKED for batch
+  // (state.batch), run the batch flow; otherwise run the classic single-player flow on
+  // the previewed player. (Both are below.)
+  function runApply() {
     if (state.running) return;
+    if (state.batch.size >= 1) { return runBatch(); }
+    return runSingle();
+  }
+
+  // ---- STEP 3 reset / remove PlayStyles ------------------------------------
+  // runRemove(all): remove PlayStyles from the PREVIEWED player.
+  //   all=false -> remove ONE (the game decides which; the API can't target a specific
+  //                PlayStyle, so this is an "undo" of one upgrade).
+  //   all=true  -> loop removeEvo until lastEvoRemoved (the card is fully reverted and
+  //                leaves the club evo list). Confirmed first.
+  // Same delay between calls, same Stop (via setRunning + state.abort), and the same
+  // reload-then-repoll refresh apply uses - but here we wait for the count to CHANGE
+  // (drop), or for the card to leave the club, rather than grow.
+  async function runRemove(all) {
+    if (state.running) return;
+    var it = state.player;
+    if (!it) { status.textContent = "Select a player first."; return; }
+    if (!currentPlayStyles(it).length) { status.textContent = "This player has no PlayStyles to remove."; return; }
+    // IMPORTANT wording: the game removes evo UPGRADES (newest first), which may be a
+    // stat/skill boost, NOT necessarily a PlayStyle - and we can't target or peek. So we
+    // always confirm and say "evo", not "PlayStyle".
+    var msg = all
+      ? "Clear ALL evo upgrades from " + playerName(it) + "?\n\nRemoves upgrades one at a time, newest first (PlayStyles AND any stat/skill upgrades), until the card fully reverts - it may leave your club evo list."
+      : "Remove the LATEST evo upgrade from " + playerName(it) + "?\n\nThis removes whatever was applied most recently, which may be a stat/skill upgrade rather than a PlayStyle.";
+    if (!window.confirm(msg)) return;
+    state.running = true; state.abort = false; setRunning(true);
+    applyBox.style.display = "none"; applyBox.innerHTML = "";   // clear any old apply/batch summary
+    // Loader appended to the preview card (right under the reset buttons, so the spinner
+    // sits next to the button you pressed). It's wiped when renderPreview() rebuilds the
+    // card at the end.
+    var loader = document.createElement("div");
+    loader.className = "rm-load"; loader.style.marginTop = "10px";
+    loader.innerHTML = "<span class='rm-spin'></span><span class='rm-txt'>" + (all ? "Clearing evos…" : "Removing evo…") + "</span>";
+    preview.appendChild(loader);
+    function setLoad(t) { var el = loader.querySelector(".rm-txt"); if (el) el.textContent = t; }
+    var id = it.id, removed = 0, guard = 0, maxIter = all ? 40 : 1, failMsg = "";  // 40 = generous backstop; lastEvoRemoved is the real stop
+    while (guard++ < maxIter) {
+      if (state.abort) break;
+      setLoad((all ? "Clearing evos… " : "Removing evo… ") + removed + " removed");
+      status.textContent = (all ? "Clearing evos" : "Removing evo") + "... " + removed;
+      var res;
+      try { res = await removeEvo(id); }
+      catch (e) { failMsg = errMsg(e); break; }
+      removed++;
+      var last = !!(res && res.response && res.response.lastEvoRemoved);
+      if (!all || last) break;                                  // single removal, or reached the final one
+      await sleep(Math.max(0, parseInt(delayInput.value, 10) || 0));
+    }
+    setLoad("Refreshing…");
+    refreshClub();
+    // Reload the club and re-point the preview, retrying until the removal shows (the
+    // player's PlayStyle count changed from what it was, or the card left the club).
+    var have = currentPlayStyles(it).length;
+    for (var att = 0; att < 4; att++) {
+      try { await loadFullClub(); } catch (e) {}
+      var fresh = findPlayerById(id);
+      state.player = fresh || null;
+      if (!fresh || currentPlayStyles(fresh).length !== have) break;
+      if (att < 3) { status.textContent = "Waiting for removal to register..."; await sleep(700); }
+    }
+    state.selected = new Set();
+    // renderPreview rebuilds the card (removing the loader); the status line reports the result.
+    renderPreview(); renderEvos(); renderPlayers(); updateBatchUI();
+    if (currentMode() === "mobile") renderWizStep();
+    state.running = false; setRunning(false);
+    status.textContent = failMsg
+      ? ("Removed " + removed + ", then failed: " + failMsg)
+      : ("Removed " + removed + " evo" + (removed === 1 ? "" : "s") + (state.player ? " from " + playerName(state.player) : "") + ".");
+  }
+
+  // planForPlayer(it, slotIds): decide, for ONE player, which of the selected evos can
+  // actually be applied and which must be skipped - re-checked per player because caps
+  // and owned styles differ. Mirrors the same rules as manual ticking (suggest()).
+  //   - already owned (base or +)   -> skip "owned"
+  //   - GK-only evo on a non-GK     -> skip "GK-only"
+  //   - that player's cap is full   -> skip "PS+ full" / "full"
+  // Returns { toApply:[{slotId,evo}], skipped:[{evo,reason}] }.
+  function planForPlayer(it, slotIds) {
+    var gk = isGKPlayer(it);
+    var plusLeft = CAP_PLUS - numPlus(it);      // PS+ slots still open on THIS player
+    var baseLeft = CAP_BASIC - numBasic(it);    // basic slots still open on THIS player
+    var toApply = [], skipped = [];
+    slotIds.forEach(function (sid) {
+      var evo = byId(sid);
+      if (!evo) return;
+      if (hasEvo(it, evo)) { skipped.push({ evo: evo, reason: "owned" }); return; }
+      if (evo.g && !gk) { skipped.push({ evo: evo, reason: "GK-only" }); return; }
+      if (evo.kind === "PS+") { if (plusLeft <= 0) { skipped.push({ evo: evo, reason: "PS+ full" }); return; } plusLeft--; }
+      else { if (baseLeft <= 0) { skipped.push({ evo: evo, reason: "full" }); return; } baseLeft--; }
+      toApply.push({ slotId: sid, evo: evo });
+    });
+    return { toApply: toApply, skipped: skipped };
+  }
+
+  // buildBatchUI(targets, slotIds): draw one section per batched player (header + a grid
+  // of the tiles that WILL be applied + a "skipped" note), and return the structure the
+  // loop animates: [{player, rows:[{slotId,evo,tileEl}], statEl, skippedCount}].
+  function buildBatchUI(targets, slotIds) {
+    applyBox.style.display = "block";
+    applyBox.innerHTML = "";
+    return targets.map(function (it) {
+      var plan = planForPlayer(it, slotIds);
+      var sec = document.createElement("div"); sec.className = "bx-sec";
+      var head = document.createElement("div"); head.className = "bx-head";
+      head.innerHTML =
+        "<span class='bx-rate'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+        "<span class='bx-name'>" + esc(playerName(it)) + "</span>" +
+        "<span class='bx-stat'>queued " + plan.toApply.length + "</span>";
+      sec.appendChild(head);
+      var rows = [];
+      if (plan.toApply.length) {
+        var grid = document.createElement("div"); grid.className = "fc26-grid";
+        plan.toApply.forEach(function (r) {
+          var evo = r.evo, isPlus = evo.kind === "PS+";
+          var t = document.createElement("div"); t.className = "fc26-ec" + (isPlus ? " psp" : "");
+          t.innerHTML =
+            "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + evoTrait(evo) + "'></i>" +
+            "<div class='nm'>" + esc(evo.n.replace(/\+$/, "")) + "</div><span class='ap-badge'></span>";
+          grid.appendChild(t);
+          rows.push({ slotId: r.slotId, evo: evo, tileEl: t });
+        });
+        sec.appendChild(grid);
+      } else {
+        var no = document.createElement("div"); no.className = "bx-none"; no.textContent = "Nothing to apply (owned / full / GK scope).";
+        sec.appendChild(no);
+      }
+      if (plan.skipped.length) {
+        var sk = document.createElement("div"); sk.className = "bx-skip";
+        sk.textContent = "skipped " + plan.skipped.length + ": " + plan.skipped.map(function (s) { return s.evo.n.replace(/\+$/, "") + " (" + s.reason + ")"; }).join(", ");
+        sec.appendChild(sk);
+      }
+      applyBox.appendChild(sec);
+      return { player: it, rows: rows, statEl: head.querySelector(".bx-stat"), skippedCount: plan.skipped.length };
+    });
+  }
+
+  // runBatch(): apply the selected evos to EVERY ticked player, one player at a time,
+  // one evo at a time (await each, then claim). Per-player owned/cap/scope re-check means
+  // a style another player already has is reported as "skipped", not "failed". Same delay
+  // between every call, same Stop, same state-safe club refresh at the end.
+  async function runBatch() {
+    var slotIds = Array.from(state.selected);
+    if (!slotIds.length) { status.textContent = "Nothing selected."; return; }
+    var targets = Array.from(state.batch.values());
+    if (!targets.length) { status.textContent = "No players ticked."; return; }
+    state.running = true; state.abort = false; setRunning(true);
+    var prevCounts = {};                                   // PlayStyle counts before, per player (to detect the grants landing)
+    targets.forEach(function (t) { prevCounts[t.id] = currentPlayStyles(t).length; });
+    var sections = buildBatchUI(targets, slotIds);
+    var totalSteps = sections.reduce(function (n, s) { return n + s.rows.length; }, 0);
+    var step = 0, totalOk = 0, totalFail = 0;
+    for (var pi = 0; pi < sections.length && !state.abort; pi++) {
+      var sec = sections[pi], it = sec.player, okC = 0, failC = 0;
+      for (var i = 0; i < sec.rows.length; i++) {
+        if (state.abort) break;
+        var row = sec.rows[i], tile = row.tileEl;
+        if (tile) tile.classList.add("applying");
+        status.textContent = "[" + (pi + 1) + "/" + sections.length + "] " + playerName(it) + " - " + row.evo.n + " ...";
+        try {
+          await applyEvo(row.slotId, it.id);                          // adds + grants the PlayStyle
+          try { await claimEvo(row.slotId); } catch (ce) { console.warn("[FC26] claim skipped", ce); }
+          okC++; totalOk++;
+          if (tile) { tile.classList.remove("applying"); tile.classList.add("done"); var b = tile.querySelector(".ap-badge"); if (b) b.textContent = "✓"; }
+        } catch (e) {
+          failC++; totalFail++;
+          if (tile) { tile.classList.remove("applying"); tile.classList.add("failed"); var bf = tile.querySelector(".ap-badge"); if (bf) bf.textContent = "✕"; }
+          console.warn("[FC26] apply failed", playerName(it), row.evo.n, e);
+        }
+        step++;
+        if (step < totalSteps && !state.abort) { await sleep(Math.max(0, parseInt(delayInput.value, 10) || 0)); }
+      }
+      if (sec.statEl) sec.statEl.textContent = okC + " added" + (failC ? ", " + failC + " failed" : "") + (sec.skippedCount ? ", " + sec.skippedCount + " skipped" : "");
+      if (okC > 0) { setRarityEligible(it.rareflag, true); }        // a success proves this rarity is evo-eligible
+    }
+    // Overall banner at the top of the box.
+    var banner = document.createElement("div"); banner.className = "bx-banner";
+    banner.innerHTML = "<span class='tick'>✓</span><span>Batch: <b>" + totalOk + "</b> added across " + sections.length + (sections.length === 1 ? " player" : " players") +
+      (totalFail ? ", " + totalFail + " failed" : "") + (state.abort ? " (stopped)" : "") + "</span>";
+    applyBox.insertBefore(banner, applyBox.firstChild);
+    // Back-to-players button - mobile only (desktop always shows the list in the left pane).
+    if (currentMode() === "mobile") {
+      var backBtn = document.createElement("button"); backBtn.className = "ap-back"; backBtn.textContent = "← Back to players";
+      backBtn.addEventListener("click", function () { renderPlayers(); goStep(1); });
+      applyBox.appendChild(backBtn);
+    }
+    refreshClub();
+    // Reload the club and re-point our held items to the fresh copies, RETRYING until at
+    // least one player's PlayStyle count grows (the grant can lag the apply, same as the
+    // single-player flow). Keeps the preview/roll-call accurate without a manual reload.
+    if (totalOk > 0) {
+      for (var att = 0; att < 4; att++) {
+        try { await loadFullClub(); } catch (e) {}
+        var grew = false;
+        for (var ti = 0; ti < targets.length; ti++) { var fr = findPlayerById(targets[ti].id); if (fr && currentPlayStyles(fr).length > (prevCounts[targets[ti].id] || 0)) { grew = true; break; } }
+        if (grew) break;
+        if (att < 3) { status.textContent = "Waiting for grants to register..."; await sleep(700); }
+      }
+    }
+    // Re-point active player + batch entries to the fresh club items.
+    if (state.player) { var fp = findPlayerById(state.player.id); if (fp) state.player = fp; }
+    var newBatch = new Map();
+    targets.forEach(function (t) { var f = findPlayerById(t.id) || t; newBatch.set(f.id, f); });
+    state.batch = newBatch;
+    state.selected = new Set();                                       // applied ones are now owned
+    renderPreview(); renderEvos(); renderPlayers(); updateBatchUI();
+    if (currentMode() === "mobile") renderWizStep();
+    state.running = false; setRunning(false);
+    status.textContent = "Batch done: " + totalOk + " added, " + totalFail + " failed.";
+  }
+
+  // runSingle(): the classic single-player queue (unchanged). For each ticked evo: await
+  // applyEvo, then claimEvo, pause, report progress. A failure on one evo is logged and
+  // the run continues. Nothing is faked - every call goes through the app's own Academy
+  // service. At the end we refresh so the new PlayStyles show without a page reload.
+  async function runSingle() {
     var it = state.player;
     if (!it) { status.textContent = "Select a player first."; return; }
     var slotIds = Array.from(state.selected);
@@ -1049,8 +1371,25 @@
       "#fc26-panel .pv-elig-state.on{color:var(--accent)}" +
       "#fc26-panel .pv-elig-state.off{color:var(--muted)}" +
       "#fc26-panel .pv-elig-btn{margin-left:auto;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:10px;font-weight:600}" +
+      // reset / remove PlayStyles row (preview card)
+      "#fc26-panel .pv-reset{display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}" +
+      "#fc26-panel .pv-rm-one{flex:none;background:var(--btn);color:var(--btn-ink);border:0;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-weight:600}" +
+      "#fc26-panel .pv-rm-one:hover{color:var(--accent)}" +
+      "#fc26-panel .pv-rm-all{flex:none;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-weight:600}" +
+      "#fc26-panel .pv-rm-all:hover{background:rgba(255,120,120,.22)}" +
+      // removal loader + summary (shown in the apply box while clearing/removing evos)
+      "#fc26-panel .rm-load{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink)}" +
+      "#fc26-panel .rm-spin{width:18px;height:18px;flex:none;border:2px solid rgba(255,255,255,.18);border-top-color:var(--accent);border-radius:50%;animation:fc26spin .7s linear infinite}" +
+      "#fc26-panel .rm-done{display:flex;align-items:center;gap:8px;font-weight:700;font-size:12px}" +
+      "#fc26-panel .rm-done .tick{width:20px;height:20px;flex:none;border-radius:50%;background:var(--accent);color:#04241a;display:grid;place-items:center;font-size:12px}" +
       // ---- evo-grid tiles ------------------------------------------------------
       // PlayStyle+ icons shown inline on each player row in the picker (gold).
+      "#fc26-panel .pl-check{flex:none;width:15px;height:15px;margin:0;accent-color:var(--accent);cursor:pointer}" +
+      // batch roll-call summary (above the Apply button when 2+ players are batched)
+      "#fc26-panel .bl-lead{font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}" +
+      "#fc26-panel .bl-chips{display:flex;flex-wrap:wrap;gap:5px}" +
+      "#fc26-panel .bl-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;font-size:11px;background:var(--tile);border:1px solid var(--tile-border);color:var(--ink)}" +
+      "#fc26-panel .bl-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .pl-ps{display:inline-flex;gap:3px;align-items:center;flex:none}" +
       "#fc26-panel .pl-ps .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:14px;line-height:1;color:var(--gold)}" +
       // Player row: rating | name (flexes) | meta zone (icons + GK + rarity).
@@ -1097,6 +1436,17 @@
       "#fc26-panel .ap-fail{margin-top:9px;font-size:11px;color:#ff9e9e}" +
       "#fc26-panel .ap-back{margin-top:12px;width:100%;padding:9px;border:1px solid var(--field-border);border-radius:8px;background:var(--tab);color:var(--ink);font-weight:700;font-size:12px;cursor:pointer}" +
       "#fc26-panel .ap-back:hover{border-color:var(--accent);color:var(--accent)}" +
+      // ---- batch apply: per-player sections + overall banner -------------------
+      "#fc26-panel .bx-banner{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px;margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid var(--border)}" +
+      "#fc26-panel .bx-banner .tick{width:20px;height:20px;border-radius:50%;background:var(--accent);color:#04241a;display:grid;place-items:center;font-size:12px;flex:none}" +
+      "#fc26-panel .bx-sec{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)}" +
+      "#fc26-panel .bx-sec:last-child{border-bottom:0;margin-bottom:0}" +
+      "#fc26-panel .bx-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}" +
+      "#fc26-panel .bx-rate{flex:none;min-width:22px;text-align:center;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .bx-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}" +
+      "#fc26-panel .bx-stat{flex:none;font-size:10px;color:var(--muted)}" +
+      "#fc26-panel .bx-none{font-size:11px;color:var(--muted);opacity:.8}" +
+      "#fc26-panel .bx-skip{margin-top:6px;font-size:10px;color:var(--muted);opacity:.85}" +
       // ---- responsive layout: Split Console (desktop) / Wizard sheet (mobile) ---
       "#fc26-panel.fc26-desktop{bottom:16px;right:16px;width:520px;max-width:calc(100vw - 24px);max-height:88vh;border-radius:var(--radius)}" +
       "#fc26-panel.fc26-mobile{left:0;right:0;bottom:0;width:100%;max-height:86vh;border-radius:16px 16px 0 0}" +
@@ -1112,6 +1462,10 @@
       "#fc26-panel .fc26-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow-y:auto}" +
       "#fc26-panel .fc26-pane.l{width:46%;flex:none}" +
       "#fc26-panel .fc26-pane.r{flex:1;border-left:1px solid var(--border);padding-left:14px}" +
+      // The right pane is the desktop scroller. Force its children (preview / build / apply)
+      // to keep their natural height (flex:none) so tall content OVERFLOWS and the pane
+      // scrolls, instead of the flex column squishing them to fit (which killed the scroll).
+      "#fc26-panel .fc26-pane.r > *{flex:0 0 auto}" +
       // list heights: capped on mobile; on desktop the squad list flexes to fill its
       // pane and the evo list is uncapped (the whole right pane scrolls as one).
       "#fc26-panel .fc26-plist{max-height:210px}" +
@@ -1124,6 +1478,13 @@
       "#fc26-panel ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:8px}" +
       "#fc26-panel ::-webkit-scrollbar-track{background:transparent}" +
       "#fc26-panel *{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}" +
+      // ---- resize grip (desktop only) ------------------------------------------
+      // A small diagonal-striped handle in the bottom-right corner. Only shown on the
+      // maximized desktop panel (hidden on mobile + when minimized). The diagonal
+      // stripes are drawn with a CSS gradient so there's no image to embed.
+      "#fc26-panel .fc26-grip{position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;z-index:4;touch-action:none;opacity:.5;" +
+        "background:linear-gradient(135deg,transparent 0 45%,var(--muted) 45% 55%,transparent 55% 66%,var(--muted) 66% 76%,transparent 76%)}" +
+      "#fc26-panel .fc26-grip:hover{opacity:.95}" +
       "#fc26-panel .fc26-stepper{display:flex;gap:6px;margin-bottom:12px}" +
       "#fc26-panel .fc26-step{flex:1;text-align:center;font-size:10px;color:var(--muted);cursor:pointer;user-select:none}" +
       "#fc26-panel .fc26-step .c{width:22px;height:22px;border-radius:50%;margin:0 auto 4px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);font-weight:700;font-size:11px}" +
@@ -1176,6 +1537,84 @@
   function savePos(k, p) { try { window.localStorage.setItem(k, JSON.stringify(p)); } catch (e) {} }
   var positions = { Max: loadPos("FC26_posMax"), PillD: loadPos("FC26_posPillD"), PillM: loadPos("FC26_posPillM") };
 
+  // ---- RESIZE (desktop only) ------------------------------------------------
+  // The maximized desktop panel can be resized by dragging the bottom-right grip.
+  // The chosen size is remembered in localStorage (same helpers as the drag spots)
+  // and re-applied on every run. Mobile (bottom sheet) and the minimized pill are
+  // NOT resizable - they keep their CSS sizing, and the grip is hidden there.
+  var savedSize = loadPos("FC26_size");     // {w,h} in px, or null until first resize
+
+  // A tiny corner handle appended to the panel (styled by .fc26-grip in the CSS).
+  var grip = document.createElement("div");
+  grip.className = "fc26-grip";
+  grip.title = "Drag to resize";
+  panel.appendChild(grip);
+
+  // canResize(): only the maximized desktop panel is resizable.
+  function canResize() { return currentMode() === "desktop" && !state.minimized; }
+
+  // clampSize(w,h): keep the box within sensible min sizes and the viewport.
+  function clampSize(w, h) {
+    return {
+      w: Math.max(340, Math.min(w, window.innerWidth - 8)),
+      h: Math.max(260, Math.min(h, window.innerHeight - 8))
+    };
+  }
+
+  // applyPanelSize(): set an explicit width/height on the panel (overriding the CSS
+  // 520px / 88vh) when a saved size exists AND we're on the resizable desktop panel;
+  // otherwise clear those inline styles so the CSS sizing takes over. Also shows/hides
+  // the grip. Called from applyPanelChrome so size + mode + position stay in sync.
+  function applyPanelSize() {
+    if (canResize() && savedSize) {
+      var c = clampSize(savedSize.w, savedSize.h);
+      panel.style.width = c.w + "px";
+      panel.style.height = c.h + "px";
+      panel.style.maxHeight = "none";       // our explicit height replaces the 88vh cap
+    } else {
+      panel.style.width = "";
+      panel.style.height = "";
+      panel.style.maxHeight = "";
+    }
+    grip.style.display = canResize() ? "block" : "none";
+  }
+
+  // Live resize, mirroring the header-drag pointer pattern below. We pin the panel's
+  // current TOP-LEFT corner as inline left/top, then grow width/height toward the
+  // pointer (bottom-right), clamped so the box never leaves the screen.
+  var resizeState = null;
+  function endResize() {
+    if (!resizeState) return;
+    var r = panel.getBoundingClientRect();
+    savedSize = { w: r.width, h: r.height };
+    savePos("FC26_size", savedSize);
+    if (resizeState.pid != null) { try { grip.releasePointerCapture(resizeState.pid); } catch (_) {} }
+    resizeState = null;
+  }
+  grip.addEventListener("pointerdown", function (e) {
+    if (!canResize()) return;
+    e.preventDefault();
+    e.stopPropagation();                     // don't let this reach the header/drag logic
+    var r = panel.getBoundingClientRect();
+    panel.style.left = r.left + "px"; panel.style.top = r.top + "px";
+    panel.style.right = "auto"; panel.style.bottom = "auto";
+    panel.style.maxHeight = "none";
+    resizeState = { left: r.left, top: r.top, pid: e.pointerId };
+    try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  grip.addEventListener("pointermove", function (e) {
+    if (!resizeState) return;
+    if (e.buttons === 0) { endResize(); return; }   // missed pointerup guard
+    // Cap against the viewport using the pinned corner so it can't overflow while dragging.
+    var maxW = window.innerWidth - resizeState.left - 4;
+    var maxH = window.innerHeight - resizeState.top - 4;
+    var w = Math.max(340, Math.min(e.clientX - resizeState.left, maxW));
+    var h = Math.max(260, Math.min(e.clientY - resizeState.top, maxH));
+    panel.style.width = w + "px"; panel.style.height = h + "px";
+  });
+  grip.addEventListener("pointerup", endResize);
+  grip.addEventListener("pointercancel", endResize);
+
   // posSlot(): which remembered spot applies right now, or null when the panel is docked
   // (the mobile full sheet) and therefore not draggable.
   function posSlot() {
@@ -1198,6 +1637,7 @@
   function applyPanelChrome() {
     var m = currentMode();
     panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "");
+    applyPanelSize();     // set/clear our explicit size BEFORE clamping position (so the rect is right)
     var slot = posSlot();
     var pos = slot ? positions[slot] : null;
     if (pos) {
@@ -1262,19 +1702,26 @@
   // a flex column (via .fc26-squad) so the player list flexes to fill the left pane.
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(playerList);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(batchBar); squadMod.appendChild(playerList);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList);
   // Group 3 - Apply (delay + Apply/Stop + the animation/summary box + status line).
   var applyMod = document.createElement("div");
-  applyMod.appendChild(optRow); applyMod.appendChild(applyBtn); applyMod.appendChild(stopBtn); applyMod.appendChild(applyBox); applyMod.appendChild(status);
+  applyMod.appendChild(batchList); applyMod.appendChild(optRow); applyMod.appendChild(applyBtn); applyMod.appendChild(stopBtn); applyMod.appendChild(applyBox); applyMod.appendChild(status);
 
   // Compact "selected player" header, shown atop the wizard's PlayStyles step.
   var wizWho = document.createElement("div");
   wizWho.className = "fc26-wizwho";
   function updateWizWho() {
     var it = state.player;
+    // With a batch of 2+, the styles apply to ALL of them, but the evo grid's owned/caps
+    // still reflect the previewed player - so say both ("N players · building from X").
+    if (state.batch.size > 1) {
+      wizWho.innerHTML = "<span style='color:var(--accent);font-weight:800'>👥 " + state.batch.size + " players</span>" +
+        (it ? " <span style='color:var(--muted)'>&middot; building from " + esc(playerName(it)) + "</span>" : "");
+      return;
+    }
     wizWho.innerHTML = it
       ? "<span style='color:var(--gold);font-weight:800'>" + (it.rating != null ? it.rating : "?") + "</span> <b>" + esc(playerName(it)) + "</b>"
       : "<span style='color:var(--muted)'>No player selected</span>";
@@ -1353,6 +1800,7 @@
   renderPlayers();     // show whatever's cached immediately (the squad)
   populatePositions(); // fill the position/role dropdowns
   renderEvos();        // show the "select a player" prompt in the evo area
+  updateBatchUI();     // batch bar hidden + Suggest enabled to start (empty batch)
   // Only fetch the full club if we didn't inherit it from the previous click. If we
   // did, it's shown instantly; hit "↻ Reload club" to pull a fresh copy.
   if (state.clubItems && state.clubItems.length) {
