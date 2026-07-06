@@ -290,6 +290,26 @@
   // PS+, the rest basic PlayStyles.
   var ROLES = {"ST":{"Advanced Forward":["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","Gamechanger","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer"],"Target Forward":["Finesse Shot","Enforcer","Precision Header","Low Driven Shot","Incisive Pass","Rapid","First Touch","Gamechanger","Tiki Taka","Press Proven","Pinged Pass"],"Poacher":["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","First Touch","Gamechanger","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer"],"False 9":["Finesse Shot","Incisive Pass","Low Driven Shot","Gamechanger","Rapid","Tiki Taka","Technical","Pinged Pass","Quick Step","Inventive","First Touch"]},"RW / LW":{"Inside Forward":["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive"],"Winger":["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive"],"Wide Playmaker":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive"]},"CAM":{"Shadow Striker":["Finesse Shot","Incisive Pass","Rapid","Low Driven Shot","Technical","Quick Step","Tiki Taka","Gamechanger","First Touch","Pinged Pass","Inventive"],"Playmaker":["Finesse Shot","Incisive Pass","Low Driven Shot","Tiki Taka","Pinged Pass","Technical","Gamechanger","First Touch","Press Proven","Quick Step","Inventive"],"Classic 10":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Press Proven","Quick Step","Inventive"],"Half Winger":["Incisive Pass","Rapid","Technical","Tiki Taka","Pinged Pass","Gamechanger","Quick Step","First Touch","Press Proven","Inventive","Low Driven Shot"]},"CM":{"Box to Box":["Incisive Pass","Pinged Pass","Intercept","Finesse Shot","Tiki Taka","Bruiser","Anticipate","Quick Step","Technical","Relentless","Press Proven"],"Playmaker":["Incisive Pass","Pinged Pass","Finesse Shot","Tiki Taka","Technical","Intercept","Low Driven Shot","Anticipate","First Touch","Quick Step","Inventive"],"Deep Lying Playmaker":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Holding":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Half Winger":["Pinged Pass","Intercept","Quick Step","Tiki Taka","Incisive Pass","Finesse Shot","Anticipate","Technical","Jockey","Bruiser","Rapid"]},"RM / LM":{"Inside Forward":["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive"],"Winger":["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive"],"Wide Playmaker":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive"],"Wide Midfielder":["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Whipped Pass","Jockey","Press Proven"]},"CDM":{"Holding":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Deep Lying Playmaker":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Box Crasher":["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Tiki Taka","Quick Step","Bruiser","Anticipate","Technical","Press Proven","Relentless"],"Centre Half":["Intercept","Bruiser","Jockey","Anticipate","Quick Step","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass"],"Wide Half":["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"]},"RB / LB":{"Fullback":["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"],"Wingback":["Intercept","Pinged Pass","Quick Step","Anticipate","Bruiser","Tiki Taka","Jockey","Incisive Pass","Rapid","Relentless","Press Proven"],"Falseback":["Intercept","Pinged Pass","Anticipate","Jockey","Tiki Taka","Incisive Pass","Bruiser","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Inverted Wingback":["Incisive Pass","Tiki Taka","Quick Step","Intercept","Anticipate","Rapid","Pinged Pass","Jockey","Press Proven","Relentless","Bruiser"],"Attacking Wingback":["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Jockey","First Touch","Bruiser"]},"CB":{"Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],"Stopper":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","Aerial Fortress"],"Wide Back":["Intercept","Anticipate","Quick Step","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],"Ball Playing Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress"]},"GK":{"Goalkeeper":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],"Ball Playing":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],"Sweeper Keeper":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"]}};
 
+  // POSITION-GROUP FALLBACK TAILS.
+  // The role lists above are only 11 long (= the 3 PS+ + 8 basic cap). If a player
+  // already owns several of a role's top picks, that list can run out of "next best"
+  // options before every slot is filled. So each position GROUP also has a general
+  // priority order of (nearly) all the playstyles that make sense there. suggest()
+  // fills from the role's curated list FIRST, then keeps going down this tail for any
+  // slot still open - guaranteeing there's always a next-best pick. These broad
+  // orders are just the safety net; the curated role lists above drive the top picks.
+  var TAIL_ATT = ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Tiki Taka","Pinged Pass","First Touch","Inventive","Trickster","Press Proven","Power Shot","Chip Shot","Acrobatic","Precision Header","Relentless","Whipped Pass","Enforcer","Dead Ball","Long Ball Pass","Anticipate","Intercept","Jockey","Bruiser","Block","Slide Tackle","Aerial Fortress","Long Throw"];
+  var TAIL_MID = ["Incisive Pass","Pinged Pass","Tiki Taka","Intercept","Anticipate","Quick Step","Technical","First Touch","Press Proven","Rapid","Gamechanger","Bruiser","Jockey","Relentless","Inventive","Finesse Shot","Low Driven Shot","Long Ball Pass","Whipped Pass","Trickster","Block","Enforcer","Slide Tackle","Power Shot","Precision Header","Aerial Fortress","Chip Shot","Acrobatic","Dead Ball","Long Throw"];
+  var TAIL_DEF = ["Intercept","Anticipate","Jockey","Bruiser","Block","Slide Tackle","Aerial Fortress","Quick Step","Rapid","Tiki Taka","Pinged Pass","Incisive Pass","Press Proven","Relentless","Enforcer","First Touch","Long Ball Pass","Whipped Pass","Technical","Inventive","Gamechanger","Trickster","Finesse Shot","Low Driven Shot","Power Shot","Precision Header","Acrobatic","Chip Shot","Dead Ball","Long Throw"];
+  var TAIL_GK  = ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Incisive Pass","Press Proven","First Touch","Quick Step","Whipped Pass","Inventive"];
+  // Which fallback tail each position group uses (attacker / midfielder / defender / GK).
+  var POS_TAIL = {
+    "ST": TAIL_ATT, "RW / LW": TAIL_ATT, "CAM": TAIL_ATT, "RM / LM": TAIL_ATT,
+    "CM": TAIL_MID,
+    "CDM": TAIL_DEF, "RB / LB": TAIL_DEF, "CB": TAIL_DEF,
+    "GK": TAIL_GK
+  };
+
   // Look up an evo by playstyle name. pspByName is keyed by the BASE name (no "+").
   var psByName = {}, pspByName = {};
   PS.forEach(function (x) { psByName[x.n] = x; });
@@ -719,30 +739,93 @@
     return selPlus >= (arr.length - selPlus) ? "PS+" : "PS";
   }
   // suggest(): pre-tick the recommended playstyles for the chosen position/role.
-  // Top 3 -> PS+, the rest -> basic. Skips owned / GK-mismatch / cap-full and
-  // respects the caps, exactly like manual ticking. Selection only - nothing applied.
+  //
+  // How it works: each role has ONE ranked list (best pick first). We fill the
+  // player's OPEN slots in two passes down that same list:
+  //   Pass 1 - PlayStyle+ : fill the free PS+ slots with the best picks the player
+  //            doesn't already have. If a top pick is owned (or is GK-only for a
+  //            non-GK), we "fall through" to the next-best pick instead of leaving
+  //            the slot empty - so an owned top pick no longer wastes a PS+ slot.
+  //   Pass 2 - Basic      : keep walking the SAME list and fill the free basic slots
+  //            with the next picks the player doesn't own and that we didn't already
+  //            tick as a "+" in pass 1.
+  // Selection only - nothing is applied. Never re-ticks a style the player owns.
   function suggest() {
     if (state.batch.size > 1) { status.textContent = "Suggest works on one player at a time - uncheck extras first."; return; }
     var it = state.player;
     if (!it) { status.textContent = "Select a player first."; return; }
     var pos = posSelect.value, role = roleSelect.value;
     if (!pos || !role || !ROLES[pos] || !ROLES[pos][role]) { status.textContent = "Pick a position and role."; return; }
-    var gk = isGKPlayer(it);
-    var plusUsed = numPlus(it), baseUsed = numBasic(it), added = 0, owned = 0, skip = [];
-    state.selected = new Set();
-    ROLES[pos][role].forEach(function (name, idx) {
-      var wantPlus = idx < 3;                                   // top 3 -> PS+
-      var evo = wantPlus ? pspByName[name] : psByName[name];
-      if (!evo) { skip.push(name); return; }
-      if (evo.g && !gk) { skip.push(name + " (GK-only)"); return; }
-      if (hasEvo(it, evo)) { owned++; return; }                // already has it
-      if (wantPlus) { if (plusUsed >= CAP_PLUS) { skip.push(name + "+ (full)"); return; } plusUsed++; }
-      else { if (baseUsed >= CAP_BASIC) { skip.push(name + " (full)"); return; } baseUsed++; }
-      state.selected.add(evo.s); added++;
+
+    var gk = isGKPlayer(it);          // is this player a goalkeeper?
+
+    // Build the ONE ranked list we fill from: the role's curated picks FIRST, then
+    // the position group's general fallback order for anything still open. We drop
+    // duplicates (keeping the first, higher-priority appearance) so no playstyle is
+    // ever considered - or ticked - twice.
+    var ranked = [];
+    var seenName = {};
+    ROLES[pos][role].concat(POS_TAIL[pos] || []).forEach(function (name) {
+      if (seenName[name]) return;     // already in the list higher up - skip the repeat
+      seenName[name] = true;
+      ranked.push(name);
     });
-    setTab(idxTab());                                          // switches tab AND re-renders
+
+    // owns(name): does the player ALREADY have this playstyle, in EITHER form
+    // (basic OR plus)? Base and plus share the same underlying trait, so we must
+    // check both - otherwise a player who owns "Bruiser+" could be re-suggested a
+    // basic "Bruiser". If they own it either way, we skip it entirely.
+    function owns(name) {
+      var b = psByName[name], p = pspByName[name];
+      return (b && hasEvo(it, b)) || (p && hasEvo(it, p));
+    }
+
+    // Suggest replaces whatever was ticked - start from a clean selection.
+    state.selected = new Set();
+
+    // How many slots of each kind are still OPEN on this player right now.
+    var plusOpen = CAP_PLUS - numPlus(it);    // free PlayStyle+ slots
+    var baseOpen = CAP_BASIC - numBasic(it);  // free basic slots
+    var added = 0;                            // how many we tick in total
+
+    // ---- Pass 1: PlayStyle+ ----
+    ranked.forEach(function (name) {
+      if (plusOpen <= 0) return;              // no PS+ slots left -> stop ticking "+"
+      var evo = pspByName[name];              // the "+" version of this playstyle
+      if (!evo) return;                       // no PS+ exists for this name (shouldn't happen)
+      if (evo.g && !gk) return;               // GK-only evo, player isn't a GK -> fall through
+      if (owns(name)) return;                 // already has it -> fall through (don't re-tick)
+      state.selected.add(evo.s); plusOpen--; added++;   // tick this PS+
+    });
+
+    // ---- Pass 2: basic PlayStyles ----
+    ranked.forEach(function (name) {
+      if (baseOpen <= 0) return;              // no basic slots left -> stop
+      var evo = psByName[name];               // the basic version of this playstyle
+      if (!evo) return;
+      if (evo.g && !gk) return;               // GK-only evo, player isn't a GK -> fall through
+      if (owns(name)) return;                 // already has it -> skip
+      var plusEvo = pspByName[name];          // was this name already ticked as a "+" above?
+      if (plusEvo && state.selected.has(plusEvo.s)) return;   // yes -> don't also tick basic
+      state.selected.add(evo.s); baseOpen--; added++;         // tick this basic
+    });
+
+    // For the status line only: count how many list picks were skipped because the
+    // player already owns them, and how many have no usable evo (e.g. a GK-only
+    // style for a non-GK). These are informational - they don't change the ticks.
+    var owned = 0, unavailable = 0;
+    ranked.forEach(function (name) {
+      if (owns(name)) { owned++; return; }
+      var b = psByName[name], p = pspByName[name];
+      var noPlus = !p || (p.g && !gk);        // no PS+ we could ever use for this player
+      var noBase = !b || (b.g && !gk);        // no basic we could ever use for this player
+      if (noPlus && noBase) unavailable++;
+    });
+
+    setTab(idxTab());                         // switches to the busier tab AND re-renders
     status.textContent = "Suggested " + added + " for " + pos + " / " + role +
-      (owned ? ", " + owned + " owned" : "") + (skip.length ? ", skipped " + skip.length : "") + ".";
+      (owned ? ", " + owned + " owned" : "") +
+      (unavailable ? ", " + unavailable + " unavailable" : "") + ".";
   }
   posSelect.addEventListener("change", populateRoles);
   suggestBtn.addEventListener("click", suggest);

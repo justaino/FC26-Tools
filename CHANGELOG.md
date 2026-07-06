@@ -5,6 +5,27 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v3 — 2026-07-06
+
+The last of the four friend-feedback tweaks: a smarter **✨ Suggest**.
+
+### 4. Smarter Suggest (fall-through past owned PlayStyles)
+Suggest now always fills every slot it can, instead of leaving gaps.
+
+- **Before:** if a player already owned one of a role's top picks, Suggest just skipped
+  it and left that slot empty — so an owned top pick meant one fewer suggestion.
+- **Now:** it **falls through** to the next-best pick. It fills your **open** slots
+  best-first (top picks as PS+, the rest basic), counting only the slots you actually
+  have free.
+- **Never re-ticks an owned style** — in either form. If you already hold a PlayStyle as
+  a "+", Suggest won't offer you its basic version either.
+- **Always has a next-best.** When a role's own curated list runs out of unowned picks,
+  Suggest keeps going down a general **position** list (attacker / midfielder / defender /
+  keeper), so even a heavily-evolved card still gets every slot filled.
+- Still works on **one player at a time** (greyed out during a multi-player batch).
+
+---
+
 ## v2 — 2026-07-06
 
 Four feature tweaks (from friends' feedback) plus a couple of desktop fixes.

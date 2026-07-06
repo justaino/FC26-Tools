@@ -73,7 +73,11 @@ below are the same** in both — they're just arranged differently.
   8 for Basic in emerald) showing slots used; and current PlayStyles as **chips**,
   split into a PlayStyle+ row and a Basic row.
 - **✨ Suggest** — position + role dropdowns that pre-tick the recommended PlayStyles
-  (top 3 as PS+, the rest basic).
+  for that role, filling your **open** slots best-first: the top picks become **PS+**,
+  the rest **basic**. If the player already **owns** a top pick, Suggest **falls through**
+  to the next-best one instead of leaving the slot empty (it never re-ticks something
+  owned), and when a role's own list runs out it keeps going down a general **position**
+  list — so there's always a next-best pick. See §3b.
 - **PlayStyle+ / PlayStyle tabs + icon grid** — tick the ones you want. Owned ones are
   disabled, GK-only ones are hidden for outfielders, and each type stops at its cap
   (3 PS+, 8 basic). A live counter shows how many you've picked.
@@ -114,6 +118,34 @@ a spinner + live count under the buttons while working.
 - **Clear all evos** keeps removing until the card fully reverts, which can make it
   **leave your club evo list**.
 - Drives the app's own `services.Academy.removeEvoUpgrade` — nothing faked.
+
+---
+
+## 3b. New in v3 — smarter Suggest (fall-through)
+
+**Suggest now always fills what it can.** Before, if a player already owned one of a
+role's top picks, that slot was just skipped and left empty (so an owned top pick meant
+one fewer suggestion). Now it **falls through** to the next-best pick instead:
+
+- It fills your **open** slots best-first — top picks as **PS+**, the rest **basic** —
+  and only counts slots you actually have free (a player who already holds a PS+ has
+  fewer PS+ slots to fill).
+- Anything the player **already owns is skipped** and never re-ticked (in either form —
+  it won't offer a basic version of a PlayStyle you already hold as a "+").
+- When the role's own curated list runs out of unowned picks, Suggest keeps going down a
+  general **position** list (attacker / midfielder / defender / keeper) so it can always
+  find a next-best — a heavily-evolved player still gets every slot filled.
+- Still **one player at a time** (greyed out during a multi-player batch, same as before).
+
+**Maintaining the rankings.** Two tables in `fc26-tools.js` drive Suggest:
+- `ROLES` — the curated best-first list per position/role (the top picks). Edit a role's
+  array to change its priorities.
+- `TAIL_ATT` / `TAIL_MID` / `TAIL_DEF` / `TAIL_GK` (mapped by `POS_TAIL`) — the general
+  position fallback orders used once a role's list is exhausted. These are broad,
+  sensible defaults, not a live meta feed; edit them to taste. Because the tail only
+  kicks in after the curated picks, its exact order only matters for already-loaded cards.
+
+After editing either table, rebuild with `node minify.js` (see §7).
 
 ---
 
