@@ -142,12 +142,44 @@
   // rareflag (a number EA uses internally) -> readable rarity name. Copied from the
   // reference script. If a rareflag isn't listed we just show the number, so a
   // missing entry is harmless.
-  var RARITIES = {"0":"Common","1":"Rare","3":"Team of the Week","5":"Team of the Year","8":"Star Performer","11":"Team of the Season","12":"Icon","14":"Knockout Royalty Hero","15":"Knockout Royalty ICON","18":"Festival of Football ICON","20":"FoF: Answer the Call","21":"Prime Hero","22":"Ratings Reload","23":"Future Stars Hero","26":"UCL Primetime Hero","27":"UWCL Primetime Hero","28":"Festival of Football: Captains","30":"FUT Birthday","31":"UEFA Women's Champions League Primetime","32":"UEFA Women's Champions League Road to the Final","33":"Thunderstruck","34":"FC Pro Live","35":"Winter Wildcards ICON","36":"Journey of Nations","46":"UEFA Europa League Primetime","49":"Winter Wildcards Hero","50":"UEFA Champions League Primetime","55":"Knockout Royalty","57":"Showdown Upgrade","58":"Showdown","62":"Festival of Football Showdown","63":"Festival of Football Showdown Upgrade","64":"TOTY Honourable Mentions","65":"TOTS Honourable Mentions","69":"World Tour Silver Superstar","71":"Future Stars","72":"Heroes","76":"Trophy Titans ICON","77":"Trophy Titans Hero","81":"Classic XI Hero","82":"Unbreakables","83":"Unbreakables Hero","85":"Unbreakables ICON","88":"Unbreakables Evolution","90":"Moments","91":"World Tour","94":"Festival of Football: Star Performer","96":"Joga Bonito","97":"Joga Bonito Hero","104":"Festival of Football: Glory Hunters Red","105":"UEFA Conference League Primetime","107":"Festival of Football: Path to Glory","108":"Time Warp","109":"Festival of Football: Glory Hunters","111":"Fantasy FC","112":"Time Warp ICON","116":"Festival of Football: Captains ICON","117":"Winter Wildcards","120":"TOTS Breakthrough","124":"UEFA Champions League Road to the Final","125":"UEFA Europa League Road to the Final","126":"UEFA Conference League Road to the Final","130":"Festival of Football: Greats of the Game Hero","131":"Festival of Football: Greats of the Game ICON","132":"TOTY HM Evolution","135":"Fantasy FC Hero","147":"FUT Birthday EVO","148":"FUT Birthday Hero","149":"FUT Birthday ICON","150":"Cornerstones","151":"Ultimate Scream","155":"Team of the Year ICON","157":"Thunderstruck ICON","168":"Ultimate Scream Hero","170":"Future Stars ICON"};
+  var RARITIES = {"0":"Common","1":"Rare","3":"Team of the Week","5":"Team of the Year","8":"Star Performer","11":"Team of the Season","12":"Icon","14":"Knockout Royalty Hero","15":"Knockout Royalty ICON","18":"Festival of Football ICON","20":"FoF: Answer the Call","21":"Prime Hero","22":"Ratings Reload","23":"Future Stars Hero","26":"UCL Primetime Hero","27":"UWCL Primetime Hero","28":"Festival of Football: Captains","30":"FUT Birthday","31":"UEFA Women's Champions League Primetime","32":"UEFA Women's Champions League Road to the Final","33":"Thunderstruck","34":"FC Pro Live","35":"Winter Wildcards ICON","36":"Journey of Nations","46":"UEFA Europa League Primetime","49":"Winter Wildcards Hero","50":"UEFA Champions League Primetime","55":"Knockout Royalty","57":"Showdown Upgrade","58":"Showdown","62":"Festival of Football Showdown","63":"Festival of Football Showdown Upgrade","64":"TOTY Honourable Mentions","65":"TOTS Honourable Mentions","69":"World Tour Silver Superstar","71":"Future Stars","72":"Heroes","76":"Trophy Titans ICON","77":"Trophy Titans Hero","81":"Classic XI Hero","82":"Unbreakables","83":"Unbreakables Hero","85":"Unbreakables ICON","88":"Unbreakables Evolution","90":"Moments","91":"World Tour","94":"Festival of Football: Star Performer","96":"Joga Bonito","97":"Joga Bonito Hero","98":"Festival of Football: National Pride","104":"Festival of Football: Glory Hunters Red","105":"UEFA Conference League Primetime","107":"Festival of Football: Path to Glory","108":"Time Warp","109":"Festival of Football: Glory Hunters","111":"Fantasy FC","112":"Time Warp ICON","116":"Festival of Football: Captains ICON","117":"Winter Wildcards","120":"TOTS Breakthrough","124":"UEFA Champions League Road to the Final","125":"UEFA Europa League Road to the Final","126":"UEFA Conference League Road to the Final","127":"Team of the Season Champions","130":"Festival of Football: Greats of the Game Hero","131":"Festival of Football: Greats of the Game ICON","132":"TOTY HM Evolution","135":"Fantasy FC Hero","147":"FUT Birthday EVO","148":"FUT Birthday Hero","149":"FUT Birthday ICON","150":"Cornerstones","151":"Ultimate Scream","155":"Team of the Year ICON","157":"Thunderstruck ICON","163":"eCL Icon","168":"Ultimate Scream Hero","170":"Future Stars ICON"};
 
   // traitId -> PlayStyle base name, built from our catalog (traitId = rewardId - 301).
   // Used to label a player's CURRENT playstyles in the preview.
   var traitName = {};
   PS.forEach(function (x) { traitName[x.r - TRAIT_OFFSET] = x.n; });
+
+  // ----------------------------------------------------------------------------
+  // EVO-ELIGIBLE RARITIES
+  // Only certain card rarities can actually receive PlayStyles. We can't read this
+  // reliably from the app - the app's own canApplyTo() returns false for every club
+  // card unless it's the exact one mid-evolution - so we keep our OWN list of
+  // eligible "rareflags" (the number EA uses for a card's rarity). The list is:
+  //   - seeded from a small STARTER guess (edit ELIG_SEED below anytime);
+  //   - grown AUTOMATICALLY: every time an Apply succeeds, that card's rarity is
+  //     proven eligible, so we add it;
+  //   - correctable by hand: the preview card shows a mark/remove button for the
+  //     selected player's rarity.
+  // It's saved in the browser (localStorage) so it survives page reloads.
+  var ELIG_KEY = "FC26_eligibleRarities";   // localStorage key: the rarity list
+  var ELIG_ONLY_KEY = "FC26_onlyEligible";  // localStorage key: is the filter on?
+  var ELIG_SEED = [30, 98, 109];            // starter guess (from reference-evo.js) - edit freely
+  // loadEligible(): the saved list, or the seed on first ever run.
+  function loadEligible() {
+    try { var raw = window.localStorage.getItem(ELIG_KEY); if (raw) return new Set(JSON.parse(raw).map(Number)); } catch (e) {}
+    return new Set(ELIG_SEED);
+  }
+  // loadOnlyEligible(): the saved on/off state of the filter (default off).
+  function loadOnlyEligible() {
+    try { return window.localStorage.getItem(ELIG_ONLY_KEY) === "1"; } catch (e) { return false; }
+  }
+  // saveEligible() / saveOnlyEligible(): write the current values back to storage.
+  function saveEligible() { try { window.localStorage.setItem(ELIG_KEY, JSON.stringify(Array.from(state.eligible))); } catch (e) {} }
+  function saveOnlyEligible() { try { window.localStorage.setItem(ELIG_ONLY_KEY, state.onlyEligible ? "1" : "0"); } catch (e) {} }
+  // isEligibleRarity(it): is this player's rarity in our eligible list?
+  function isEligibleRarity(it) { try { return state.eligible.has(it.rareflag); } catch (e) { return false; } }
+  // setRarityEligible(rf, on): add/remove one rareflag, then persist.
+  function setRarityEligible(rf, on) { if (on) state.eligible.add(rf); else state.eligible["delete"](rf); saveEligible(); }
 
   // The one place we remember what the user has picked. Reused by later steps.
   //   player   = the selected club item (or null)
@@ -157,7 +189,9 @@
   //   abort    = set true by the Stop button to end the run early
   //   clubItems = the FULL club loaded via search (null until we load it); when
   //               present the picker uses this instead of the app's partial cache
-  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: null };
+  //   eligible = Set of evo-eligible rareflags (see EVO-ELIGIBLE RARITIES above)
+  //   onlyEligible = true when the picker is filtered to eligible rarities only
+  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: null, eligible: loadEligible(), onlyEligible: loadOnlyEligible() };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
@@ -201,6 +235,19 @@
   // Expose for Console poking while we build.
   window.FC26.getClubPlayers = getClubPlayers;
   window.FC26.state = state;
+
+  // Console helpers for editing the evo-eligible rarity list by hand. Each one
+  // saves to storage AND redraws the panel, and returns the updated list:
+  //   window.FC26.eligible.list()       -> current eligible rarity numbers
+  //   window.FC26.eligible.add(98)      -> add rarity 98
+  //   window.FC26.eligible.remove(30)   -> remove rarity 30
+  //   window.FC26.eligible.clear()      -> empty the whole list
+  window.FC26.eligible = {
+    list: function () { return Array.from(state.eligible).sort(function (a, b) { return a - b; }); },
+    add: function (rf) { setRarityEligible(Number(rf), true); try { renderPlayers(); if (state.player) renderPreview(); } catch (e) {} return this.list(); },
+    remove: function (rf) { setRarityEligible(Number(rf), false); try { renderPlayers(); if (state.player) renderPreview(); } catch (e) {} return this.list(); },
+    clear: function () { state.eligible = new Set(); saveEligible(); try { renderPlayers(); if (state.player) renderPreview(); } catch (e) {} return this.list(); }
+  };
 
   // ----------------------------------------------------------------------------
   // STEP 1.9 - SUGGEST DATA (position groups, role recommendations, name lookups)
@@ -259,8 +306,8 @@
   var header = document.createElement("div");
   header.style.cssText = "display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--header-bg);border-bottom:1px solid var(--border)";
   var title = document.createElement("div");
-  title.textContent = "FC26 Tools";
-  title.style.cssText = "flex:1;font-weight:600;color:var(--title)";
+  title.textContent = "Men Gallant FC - Justaino PS Tool";
+  title.style.cssText = "flex:1;font-weight:700;font-size:12px;line-height:1.2;color:var(--title)";
   var minBtn = document.createElement("button");
   minBtn.textContent = "–";
   minBtn.title = "Minimize / expand";
@@ -310,6 +357,22 @@
   playerSearch.placeholder = "search club by name...";
   playerSearch.style.cssText = "margin-top:6px;width:100%;box-sizing:border-box;padding:6px 8px;border-radius:7px;border:1px solid var(--field-border);background:var(--field);color:var(--ink)";
   playerSearch.addEventListener("input", renderPlayers);
+
+  // "Only evo-eligible" filter. When ticked, the list shows only players whose
+  // rarity is in our eligible set (see EVO-ELIGIBLE RARITIES). The right-hand note
+  // shows how many rarities are currently marked eligible. State is remembered.
+  var filterRow = document.createElement("label");
+  filterRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--muted);cursor:pointer";
+  var eligChk = document.createElement("input");
+  eligChk.type = "checkbox";
+  eligChk.checked = state.onlyEligible;
+  eligChk.style.cssText = "accent-color:var(--accent);cursor:pointer;margin:0";
+  var eligChkLbl = document.createElement("span");
+  eligChkLbl.textContent = "Only evo-eligible";
+  var eligNote = document.createElement("span");
+  eligNote.style.cssText = "margin-left:auto;opacity:.85";
+  filterRow.appendChild(eligChk); filterRow.appendChild(eligChkLbl); filterRow.appendChild(eligNote);
+  eligChk.addEventListener("change", function () { state.onlyEligible = eligChk.checked; saveOnlyEligible(); renderPlayers(); });
 
   // Scrollable list of club players.
   var playerList = document.createElement("div");
@@ -374,13 +437,22 @@
 
     var noneMsg = (!plus.length && !basic.length) ? "<div class='pv-none'>No PlayStyles yet.</div>" : "";
 
+    // Eligibility row: is THIS card's rarity in our evo-eligible list, and a button
+    // to add/remove it (this is how you seed or correct the list by hand).
+    var elig = isEligibleRarity(it);
+    var eligHTML = "<div class='pv-elig'>" +
+      "<span class='pv-elig-state " + (elig ? "on" : "off") + "'>" + (elig ? "✓ evo-eligible" : "not evo-eligible") + "</span>" +
+      "<button class='pv-elig-btn'>" + (elig ? "Remove" : "Mark eligible") + "</button>" +
+      "</div>";
+
     preview.innerHTML =
       "<div class='pv-head'>" +
         "<span class='pv-name'>" + esc(playerName(it)) + "</span>" +
         "<span class='pv-ovr'>" + (it.rating != null ? it.rating : "?") + "</span>" +
         (isGKPlayer(it) ? "<span class='pv-gk'>GK</span>" : "") +
       "</div>" +
-      "<div class='pv-meta'>" + esc(rarityName(it)) + posLine + " &middot; item " + it.id + "</div>" +
+      "<div class='pv-meta'>" + esc(rarityName(it)) + " &middot; rarity #" + it.rareflag + posLine + " &middot; item " + it.id + "</div>" +
+      eligHTML +
       "<div class='pv-caps'>" +
         pipsHTML("PlayStyle+", pUsed, CAP_PLUS, "plus") +
         pipsHTML("Basic", bUsed, CAP_BASIC, "basic") +
@@ -388,6 +460,15 @@
       noneMsg +
       groupHTML("PlayStyle+", plus, true) +
       groupHTML("Basic", basic, false);
+
+    // Wire the eligibility button (listener, not inline onclick - the app's CSP
+    // blocks inline handlers). Toggles this rarity, then redraws the card + list.
+    var eb = preview.querySelector(".pv-elig-btn");
+    if (eb) eb.addEventListener("click", function () {
+      setRarityEligible(it.rareflag, !isEligibleRarity(it));
+      renderPreview();
+      renderPlayers();
+    });
   }
 
   // selectPlayer(it): remember the choice, clear any ticked evos from the previous
@@ -405,14 +486,22 @@
   // renderPlayers(): (re)build the scrollable list, highest OVR first. The chosen
   // row gets a blue outline.
   function renderPlayers() {
+    // Keep the filter's rarity-count label in sync every redraw.
+    if (typeof eligNote !== "undefined" && eligNote) {
+      var nR = state.eligible.size;
+      eligNote.textContent = "(" + nR + " rarit" + (nR === 1 ? "y" : "ies") + ")";
+    }
     var q = (playerSearch.value || "").trim().toLowerCase();   // current search text
     var players = getClubPlayers().slice().sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); });
+    if (state.onlyEligible) { players = players.filter(isEligibleRarity); }  // eligible-only filter
     if (q) { players = players.filter(function (it) { return playerName(it).toLowerCase().indexOf(q) !== -1; }); }
     playerList.innerHTML = "";
     if (!players.length) {
       playerList.innerHTML = q
         ? "<div style='opacity:.7'>No players match \"" + esc(q) + "\".</div>"
-        : "<div style='opacity:.7'>No club players found - open your Club first, then click ↻ Refresh.</div>";
+        : (state.onlyEligible
+            ? "<div style='opacity:.7'>No evo-eligible players shown. Untick \"Only evo-eligible\", or pick a card you can evo and click \"Mark eligible\" on its card.</div>"
+            : "<div style='opacity:.7'>No club players found - open your Club first, then click ↻ Refresh.</div>");
       return;
     }
     players.forEach(function (it) {
@@ -722,7 +811,7 @@
     var slotIds = Array.from(state.selected);
     if (!slotIds.length) { status.textContent = "Nothing selected."; return; }
     state.running = true; state.abort = false; setRunning(true);
-    var itemId = it.id, ok = 0, fail = 0;
+    var itemId = it.id, rareflag = it.rareflag, ok = 0, fail = 0;
     for (var i = 0; i < slotIds.length; i++) {
       if (state.abort) { status.textContent = "Stopped at " + i + "/" + slotIds.length + "."; break; }
       var slotId = slotIds[i];
@@ -747,6 +836,9 @@
         await sleep(delayMs);
       }
     }
+    // Self-learn: any success proves this card's rarity CAN receive PlayStyles, so
+    // add it to the evo-eligible list (persisted). Grows the list over time.
+    if (ok > 0) { setRarityEligible(rareflag, true); }
     refreshClub();                                            // also nudge the app's own views
     // The apply/claim responses return the player as it was BEFORE the grant, so we
     // can't read the new PlayStyle from them. Re-pull the club fresh from the server
@@ -819,6 +911,12 @@
       "#fc26-panel .pv-chip .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:13px;line-height:1;color:var(--icon)}" +
       "#fc26-panel .pv-chip.plus .ico{color:var(--gold)}" +
       "#fc26-panel .pv-none{margin-top:10px;font-size:11px;color:var(--muted);opacity:.8}" +
+      // Eligibility row inside the preview card.
+      "#fc26-panel .pv-elig{display:flex;align-items:center;gap:8px;margin-top:8px}" +
+      "#fc26-panel .pv-elig-state{font-size:10px;letter-spacing:.04em;text-transform:uppercase}" +
+      "#fc26-panel .pv-elig-state.on{color:var(--accent)}" +
+      "#fc26-panel .pv-elig-state.off{color:var(--muted)}" +
+      "#fc26-panel .pv-elig-btn{margin-left:auto;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:10px;font-weight:600}" +
       // ---- evo-grid tiles ------------------------------------------------------
       "#fc26-panel .fc26-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}" +
       "#fc26-panel .fc26-ec{position:relative;background:var(--tile);border:1px solid var(--tile-border);border-radius:9px;padding:7px 4px;cursor:pointer;text-align:center;transition:.08s;user-select:none}" +
@@ -842,6 +940,7 @@
 
   body.appendChild(pickerHead);
   body.appendChild(playerSearch);
+  body.appendChild(filterRow);
   body.appendChild(playerList);
   body.appendChild(preview);
   body.appendChild(evoTitle);

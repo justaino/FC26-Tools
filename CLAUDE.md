@@ -52,6 +52,9 @@ comment every block. Don't assume front-end knowledge.
   to copy proven bits from (PlayStyle catalog, error-code map) and learn the apply
   flow. Never edit it; we're not shipping it.
 - `bookmarklet.txt` — the one-line bookmarklet version of fc26-tools.js for daily use.
+- `minify.js` — rebuilds `bookmarklet.txt` from the source (`node minify.js`).
+- `RUNBOOK.md` — plain-English how-to-use/maintain guide (rarity numbers, editing the
+  eligible list, theming, rebuilding).
 
 ## Current status
 **Phase 1 (EVO assigner) is built and working in-game.** It does more than the
