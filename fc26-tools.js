@@ -294,16 +294,16 @@
     return groups;
   }
 
-  // A small floating box, bottom-right.
+  // The floating panel. A flex column: fixed header on top, scrollable body below.
   var panel = document.createElement("div");
   panel.id = "fc26-panel";
-  // The panel is a flex column: a fixed header on top, a scrollable body below.
-  // max-height keeps it on-screen; the body scrolls when the content is tall.
+  // Size / position / rounding come from .fc26-desktop or .fc26-mobile (in the CSS),
+  // which applyLayout() sets on the panel based on screen width. Everything else
+  // (the frosted glass look) is here.
   panel.style.cssText =
-    "position:fixed;bottom:16px;right:16px;z-index:99999;width:290px;max-height:88vh;" +
+    "position:fixed;z-index:99999;" +
     "display:flex;flex-direction:column;overflow:hidden;" +
-    // Frosted glass: translucent emerald tint + blur whatever's behind it (the app).
-    "border-radius:var(--radius);background:var(--bg);color:var(--ink);font:13px system-ui,sans-serif;" +
+    "background:var(--bg);color:var(--ink);font:13px system-ui,sans-serif;" +
     "backdrop-filter:blur(16px) saturate(1.25);-webkit-backdrop-filter:blur(16px) saturate(1.25);" +
     "box-shadow:var(--shadow);border:1px solid var(--border)";
 
@@ -328,7 +328,10 @@
   // Scrollable body: everything except the header goes in here, so a long player
   // or evo list scrolls INSIDE the panel instead of running off the screen.
   var body = document.createElement("div");
-  body.style.cssText = "padding:12px;overflow-y:auto;flex:1";
+  // Body fills the panel and is a flex column; it does NOT scroll itself - the inner
+  // layout (panes on desktop / the sheet on mobile) does its own scrolling. min-height:0
+  // lets it shrink inside the flex panel so the inner scroll areas actually cap.
+  body.style.cssText = "padding:12px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden";
 
   // Minimize toggles the body (header stays); button flips between – and +.
   minBtn.addEventListener("click", function () {
@@ -380,9 +383,11 @@
   filterRow.appendChild(eligChk); filterRow.appendChild(eligChkLbl); filterRow.appendChild(eligNote);
   eligChk.addEventListener("change", function () { state.onlyEligible = eligChk.checked; saveOnlyEligible(); renderPlayers(); });
 
-  // Scrollable list of club players.
+  // Scrollable list of club players. Its height is set by CSS (.fc26-plist): a fixed
+  // cap on mobile, but "flex to fill the left pane" on desktop so it never leaves a gap.
   var playerList = document.createElement("div");
-  playerList.style.cssText = "margin-top:6px;max-height:160px;overflow:auto;display:flex;flex-direction:column;gap:4px";
+  playerList.className = "fc26-plist";
+  playerList.style.cssText = "margin-top:6px;overflow:auto;display:flex;flex-direction:column;gap:4px";
 
   // Preview card for the selected player (hidden until one is picked).
   var preview = document.createElement("div");
@@ -487,6 +492,9 @@
     renderPreview();
     populatePositions();          // dropdowns now reflect this player's positions
     renderEvos();
+    updateWizWho();               // keep the wizard's mini header in sync
+    // On mobile the picker is step 1 of the wizard; choosing a player moves to step 2.
+    if (currentMode() === "mobile" && state.wizStep === 1) { goStep(2); }
     console.log("[FC26] selected player", playerName(it), it.id);
   }
 
@@ -517,10 +525,17 @@
       row.style.cssText =
         "display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:7px;cursor:pointer;border:1px solid " +
         (selected ? "var(--accent)" : "var(--card-border)") + ";background:" + (selected ? "var(--sel)" : "var(--card)");
+      // The PlayStyle+ icons the player already has (isIcon = the "+" version), so you
+      // can see a card's PS+ at a glance without opening it. Uses the game icon font.
+      var psPlus = currentPlayStyles(it).filter(function (p) { return p.isIcon; });
+      var psHTML = psPlus.length
+        ? "<span class='pl-ps'>" + psPlus.map(function (p) { return "<i class='ico icon_icontrait" + p.traitId + "'></i>"; }).join("") + "</span>"
+        : "";
       row.innerHTML =
         "<span style='font-weight:800;color:var(--gold);min-width:22px;text-align:center'>" +
           (it.rating != null ? it.rating : "?") + "</span>" +
-        "<span style='flex:1'>" + esc(playerName(it)) + "</span>" +
+        "<span style='flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>" + esc(playerName(it)) + "</span>" +
+        psHTML +
         (isGKPlayer(it) ? "<span style='color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px'>GK</span>" : "") +
         "<span style='font-size:10px;color:var(--muted)'>" + esc(rarityName(it)) + "</span>";
       row.addEventListener("click", function () { selectPlayer(it); });
@@ -629,9 +644,11 @@
   evoCount.style.cssText = "margin-top:6px;color:var(--accent);font-weight:700;font-size:12px";
   evoCount.textContent = "0 selected";
 
-  // Scrollable tickable list for the active tab.
+  // Tickable list for the active tab. Height via CSS (.fc26-elist): capped on mobile,
+  // uncapped on desktop (the whole right pane scrolls instead of a box-in-a-box).
   var evoList = document.createElement("div");
-  evoList.style.cssText = "margin-top:6px;max-height:200px;overflow:auto;display:flex;flex-direction:column;gap:3px";
+  evoList.className = "fc26-elist";
+  evoList.style.cssText = "margin-top:6px;overflow:auto;display:flex;flex-direction:column;gap:3px";
 
   function updateEvoCount() {
     var sp = selectedCount("PS+"), sb = selectedCount("PS");
@@ -998,6 +1015,9 @@
       "#fc26-panel .pv-elig-state.off{color:var(--muted)}" +
       "#fc26-panel .pv-elig-btn{margin-left:auto;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:10px;font-weight:600}" +
       // ---- evo-grid tiles ------------------------------------------------------
+      // PlayStyle+ icons shown inline on each player row in the picker (gold).
+      "#fc26-panel .pl-ps{display:inline-flex;gap:3px;align-items:center;flex:none}" +
+      "#fc26-panel .pl-ps .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:14px;line-height:1;color:var(--gold)}" +
       "#fc26-panel .fc26-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}" +
       "#fc26-panel .fc26-ec{position:relative;background:var(--tile);border:1px solid var(--tile-border);border-radius:9px;padding:7px 4px;cursor:pointer;text-align:center;transition:.08s;user-select:none}" +
       "#fc26-panel .fc26-ec:hover{border-color:var(--accent)}" +
@@ -1031,6 +1051,35 @@
       "#fc26-panel .ap-chip.show{animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) forwards}" +
       "@keyframes fc26pop{to{opacity:1;transform:scale(1) translateY(0)}}" +
       "#fc26-panel .ap-fail{margin-top:9px;font-size:11px;color:#ff9e9e}" +
+      // ---- responsive layout: Split Console (desktop) / Wizard sheet (mobile) ---
+      "#fc26-panel.fc26-desktop{bottom:16px;right:16px;width:520px;max-width:calc(100vw - 24px);max-height:88vh;border-radius:var(--radius)}" +
+      "#fc26-panel.fc26-mobile{left:0;right:0;bottom:0;width:100%;max-height:86vh;border-radius:16px 16px 0 0}" +
+      "#fc26-panel .fc26-cols{display:flex;gap:14px;flex:1;min-height:0}" +
+      "#fc26-panel .fc26-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow-y:auto}" +
+      "#fc26-panel .fc26-pane.l{width:46%;flex:none}" +
+      "#fc26-panel .fc26-pane.r{flex:1;border-left:1px solid var(--border);padding-left:14px}" +
+      // list heights: capped on mobile; on desktop the squad list flexes to fill its
+      // pane and the evo list is uncapped (the whole right pane scrolls as one).
+      "#fc26-panel .fc26-plist{max-height:210px}" +
+      "#fc26-panel .fc26-elist{max-height:210px}" +
+      "#fc26-panel.fc26-desktop .fc26-squad{display:flex;flex-direction:column;flex:1;min-height:0}" +
+      "#fc26-panel.fc26-desktop .fc26-plist{flex:1;min-height:80px;max-height:none}" +
+      "#fc26-panel.fc26-desktop .fc26-elist{max-height:none}" +
+      // thin, subtle scrollbars everywhere inside the panel (no fat OS scrollbar).
+      "#fc26-panel ::-webkit-scrollbar{width:8px;height:8px}" +
+      "#fc26-panel ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:8px}" +
+      "#fc26-panel ::-webkit-scrollbar-track{background:transparent}" +
+      "#fc26-panel *{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}" +
+      "#fc26-panel .fc26-stepper{display:flex;gap:6px;margin-bottom:12px}" +
+      "#fc26-panel .fc26-step{flex:1;text-align:center;font-size:10px;color:var(--muted);cursor:pointer;user-select:none}" +
+      "#fc26-panel .fc26-step .c{width:22px;height:22px;border-radius:50%;margin:0 auto 4px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);font-weight:700;font-size:11px}" +
+      "#fc26-panel .fc26-step.done .c{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" +
+      "#fc26-panel .fc26-step.now .c{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 3px rgba(79,227,172,.15)}" +
+      "#fc26-panel .fc26-step.now{color:var(--ink);font-weight:700}" +
+      "#fc26-panel .fc26-wizwho{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--card);border:1px solid var(--card-border);margin-bottom:11px;font-size:13px}" +
+      "#fc26-panel .fc26-wviznav{display:flex;gap:8px;margin-top:12px}" +
+      "#fc26-panel .fc26-wizbtn{padding:10px 12px;border-radius:8px;border:1px solid var(--field-border);background:var(--tab);color:var(--ink);font-weight:600;font-size:12px;cursor:pointer}" +
+      "#fc26-panel .fc26-wizbtn.next{flex:1;background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" +
       "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
   }
@@ -1046,21 +1095,121 @@
     loadFullClub();    // first run: load the FULL club in the background and redraw
   }
 
-  body.appendChild(pickerHead);
-  body.appendChild(playerSearch);
-  body.appendChild(filterRow);
-  body.appendChild(playerList);
-  body.appendChild(preview);
-  body.appendChild(evoTitle);
-  body.appendChild(suggestRow);
-  body.appendChild(tabs);
-  body.appendChild(evoCount);
-  body.appendChild(evoList);
-  body.appendChild(optRow);
-  body.appendChild(applyBtn);
-  body.appendChild(stopBtn);
-  body.appendChild(applyBox);
-  body.appendChild(status);
+  // ----------------------------------------------------------------------------
+  // RESPONSIVE LAYOUT
+  // Every element above is kept EXACTLY as-is (so all render/apply logic keeps
+  // working). We only PLACE those elements differently depending on screen width:
+  //   - wide screens  -> "Split Console": squad on the LEFT, build + apply on RIGHT.
+  //   - phone/narrow  -> "Wizard": a bottom sheet with 3 steps (Player / PlayStyles / Apply).
+  // Trick: group the elements into 4 reusable "modules" (wrapper divs), then move the
+  // whole module around with one appendChild (which re-parents it) as the layout changes.
+  // ----------------------------------------------------------------------------
+
+  var mq = window.matchMedia("(max-width: 620px)");            // "am I on a phone-ish screen?"
+  function currentMode() { return mq.matches ? "mobile" : "desktop"; }
+  state.wizStep = 1;                                            // which wizard step (mobile)
+
+  // Group 1 - Squad (search + eligible filter + player list). On desktop this becomes
+  // a flex column (via .fc26-squad) so the player list flexes to fill the left pane.
+  var squadMod = document.createElement("div");
+  squadMod.className = "fc26-squad";
+  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(playerList);
+  // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
+  var buildMod = document.createElement("div");
+  buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList);
+  // Group 3 - Apply (delay + Apply/Stop + the animation/summary box + status line).
+  var applyMod = document.createElement("div");
+  applyMod.appendChild(optRow); applyMod.appendChild(applyBtn); applyMod.appendChild(stopBtn); applyMod.appendChild(applyBox); applyMod.appendChild(status);
+
+  // Compact "selected player" header, shown atop the wizard's PlayStyles step.
+  var wizWho = document.createElement("div");
+  wizWho.className = "fc26-wizwho";
+  function updateWizWho() {
+    var it = state.player;
+    wizWho.innerHTML = it
+      ? "<span style='color:var(--gold);font-weight:800'>" + (it.rating != null ? it.rating : "?") + "</span> <b>" + esc(playerName(it)) + "</b>"
+      : "<span style='color:var(--muted)'>No player selected</span>";
+  }
+
+  // Wizard scaffolding (used only on mobile).
+  var layoutHost = document.createElement("div");             // the one box we rebuild the layout into
+  layoutHost.style.cssText = "flex:1;min-height:0;display:flex;flex-direction:column";
+  var stepper = document.createElement("div"); stepper.className = "fc26-stepper";
+  var stepBody = document.createElement("div");
+  var wizNav = document.createElement("div"); wizNav.className = "fc26-wviznav";
+  var wizBack = document.createElement("button"); wizBack.className = "fc26-wizbtn"; wizBack.textContent = "← Back";
+  var wizNext = document.createElement("button"); wizNext.className = "fc26-wizbtn next"; wizNext.textContent = "Next →";
+  wizNav.appendChild(wizBack); wizNav.appendChild(wizNext);
+  wizBack.addEventListener("click", function () { goStep(state.wizStep - 1); });
+  wizNext.addEventListener("click", function () { goStep(state.wizStep + 1); });
+  var STEP_LABELS = ["Player", "PlayStyles", "Apply"];
+
+  // goStep(n): change wizard step (clamped 1-3) and redraw, on mobile.
+  function goStep(n) { state.wizStep = Math.max(1, Math.min(3, n)); if (currentMode() === "mobile") renderWizStep(); }
+
+  // renderWizStep(): draw the stepper + show the current step's modules + set nav buttons.
+  function renderWizStep() {
+    stepper.innerHTML = "";
+    for (var i = 1; i <= 3; i++) {
+      (function (n) {
+        var s = document.createElement("div");
+        s.className = "fc26-step" + (n === state.wizStep ? " now" : (n < state.wizStep ? " done" : ""));
+        s.innerHTML = "<span class='c'>" + (n < state.wizStep ? "✓" : n) + "</span>" + STEP_LABELS[n - 1];
+        s.addEventListener("click", function () { goStep(n); });
+        stepper.appendChild(s);
+      })(i);
+    }
+    stepBody.innerHTML = "";
+    if (state.wizStep === 1) {                                 // Step 1: pick a player
+      stepBody.appendChild(squadMod);
+    } else if (state.wizStep === 2) {                          // Step 2: choose PlayStyles
+      updateWizWho(); stepBody.appendChild(wizWho); stepBody.appendChild(buildMod);
+    } else {                                                    // Step 3: review + apply
+      stepBody.appendChild(preview); stepBody.appendChild(applyMod);
+    }
+    wizBack.style.visibility = state.wizStep === 1 ? "hidden" : "visible";
+    wizNext.style.display = state.wizStep === 3 ? "none" : "";  // step 3 uses the Apply button, not Next
+    wizNext.textContent = state.wizStep === 1 ? "Next: PlayStyles →" : "Next: Review →";
+  }
+
+  // applyLayout(): (re)build the whole layout for the current screen width.
+  function applyLayout() {
+    var m = currentMode();
+    panel.className = m === "mobile" ? "fc26-mobile" : "fc26-desktop";
+    // Desktop: the panes scroll (host doesn't). Mobile: the whole sheet scrolls.
+    layoutHost.style.overflowX = "hidden";
+    layoutHost.style.overflowY = m === "mobile" ? "auto" : "hidden";
+    layoutHost.innerHTML = "";
+    if (m === "desktop") {
+      var cols = document.createElement("div"); cols.className = "fc26-cols";
+      var l = document.createElement("div"); l.className = "fc26-pane l";
+      var r = document.createElement("div"); r.className = "fc26-pane r";
+      l.appendChild(squadMod);
+      r.appendChild(preview); r.appendChild(buildMod); r.appendChild(applyMod);
+      cols.appendChild(l); cols.appendChild(r);
+      layoutHost.appendChild(cols);
+    } else {
+      layoutHost.appendChild(stepper); layoutHost.appendChild(stepBody); layoutHost.appendChild(wizNav);
+      renderWizStep();
+    }
+  }
+
+  // Rebuild the layout when the screen crosses the phone/desktop breakpoint (resize/rotate).
+  try { mq.addEventListener("change", applyLayout); } catch (e) { try { mq.addListener(applyLayout); } catch (e2) {} }
+
+  renderPlayers();     // show whatever's cached immediately (the squad)
+  populatePositions(); // fill the position/role dropdowns
+  renderEvos();        // show the "select a player" prompt in the evo area
+  // Only fetch the full club if we didn't inherit it from the previous click. If we
+  // did, it's shown instantly; hit "↻ Reload club" to pull a fresh copy.
+  if (state.clubItems && state.clubItems.length) {
+    status.textContent = "Club ready: " + getClubPlayers().length + " players (↻ Reload club to refresh).";
+  } else {
+    loadFullClub();    // first run: load the FULL club in the background and redraw
+  }
+
+  applyLayout();                 // build the initial layout for this screen
+  body.appendChild(layoutHost);
   panel.appendChild(header);
   panel.appendChild(body);
   document.body.appendChild(panel);

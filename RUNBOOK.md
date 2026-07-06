@@ -14,6 +14,9 @@ once. It drives the app's own logged-in services — no passwords, no servers.
 
 The panel header reads **"Men Gallant FC - Justaino PS Tool"**.
 
+It's **responsive**: on a computer it opens as a wide **two-pane** panel; on a phone
+it opens as a full-width **step-by-step** sheet (see §3). Same features either way.
+
 ---
 
 ## 2. Running it day-to-day
@@ -38,26 +41,47 @@ document.getElementById('fc26-panel')?.remove(); document.getElementById('fc26-s
 
 ---
 
-## 3. The panel, top to bottom
+## 3. The panel — two layouts
 
-- **Players** + `↻ Reload club` — loads every player in your club (not just your
-  squad). Use Reload if you've just opened/changed your club.
+The panel automatically picks a layout based on your screen width. **All the parts
+below are the same** in both — they're just arranged differently.
+
+**On a computer (wide screen) → "Split Console" (two columns):**
+- **Left column = your squad:** the `↻ Reload club` button, a **search box**, the
+  **☑ Only evo-eligible** filter, and the **player list**. The list fills the whole
+  height and scrolls on its own.
+- **Right column = build & apply:** the selected player's **preview card**, the
+  **✨ Suggest** row, the **PlayStyle+ / PlayStyle tabs + grid**, and the **Apply**
+  button.
+
+**On a phone (narrow screen) → "Wizard" (a bottom sheet, one step at a time):**
+- **Step ① Player** — search + filter + player list. Tap a player to move on.
+- **Step ② PlayStyles** — the ✨ Suggest row + tabs + grid. Tap **Next: Review →**.
+- **Step ③ Apply** — the preview card + the Apply button.
+- A **stepper** across the top shows where you are; tap it or **← Back** to move around.
+
+### The parts (both layouts)
+- **`↻ Reload club`** — loads every player in your club (not just your squad). Use it
+  if you've just opened or changed your club.
 - **search box** — filter the list by name.
-- **☑ Only evo-eligible `(N rarities)`** — see §4.
-- **player list** — rating, name, GK badge, rarity. Click one to select it.
+- **☑ Only evo-eligible `(N rarities)`** — hides cards that can't take PlayStyles (§4).
+- **player list** — each row shows rating, name, and — handy — the **PlayStyle+ icons
+  the player already has** (gold, on the right), plus a GK badge and rarity. Click/tap
+  a row to select.
 - **preview card** — name, OVR, GK; the **rarity name + `rarity #NN`**, positions,
-  item id; an **eligibility** row (see §4); **capacity pips** (3 for PlayStyle+ in
-  gold, 8 for Basic in emerald) showing how many slots are used; and your current
-  PlayStyles as **chips**, split into a PlayStyle+ row and a Basic row.
-- **Evolutions** — position + role dropdowns and **✨ Suggest** (pre-ticks the
-  recommended PlayStyles: top 3 as PS+, the rest basic).
-- **PlayStyle+ / PlayStyle tabs** + the icon grid — tick the ones you want. Owned
-  ones are ticked-off/disabled, GK-only ones are hidden for outfielders, and each
-  type stops at its cap (3 PS+, 8 basic).
+  item id; an **eligibility** row (§4); **capacity pips** (3 for PlayStyle+ in gold,
+  8 for Basic in emerald) showing slots used; and current PlayStyles as **chips**,
+  split into a PlayStyle+ row and a Basic row.
+- **✨ Suggest** — position + role dropdowns that pre-tick the recommended PlayStyles
+  (top 3 as PS+, the rest basic).
+- **PlayStyle+ / PlayStyle tabs + icon grid** — tick the ones you want. Owned ones are
+  disabled, GK-only ones are hidden for outfielders, and each type stops at its cap
+  (3 PS+, 8 basic). A live counter shows how many you've picked.
 - **delay between applies (ms)** — pause between each apply (default 500). Bigger =
   gentler on the account.
-- **Apply selected / Stop** — runs the queue; **Stop** halts after the current one.
-- **status line** — progress and results.
+- **Apply selected / Stop** — runs the queue. Each PlayStyle tile **spins then ticks**
+  as it lands, and at the end you get an **"Added N to <player>"** summary of exactly
+  what went on. **Stop** halts after the current one.
 
 ---
 
@@ -181,6 +205,7 @@ last number (e.g. `.7`).
 - `fc26-tools.js` — the readable source. **Edit this.**
 - `bookmarklet.txt` — the one-line version for daily use (generated).
 - `minify.js` — rebuilds `bookmarklet.txt` from the source (`node minify.js`).
-- `RUNBOOK.md` — this file.
+- `RUNBOOK.md` — this file (how to run / maintain it).
+- `USER-GUIDE.md` — friendly feature guide for using the tool.
 - `CLAUDE.md` — standing build context. `PLAN.md` — scope + phases.
 - `reference-evo.js` — read-only reference script we borrowed proven bits from.
