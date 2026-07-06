@@ -53,8 +53,15 @@ comment every block. Don't assume front-end knowledge.
   flow. Never edit it; we're not shipping it.
 - `bookmarklet.txt` — the one-line bookmarklet version of fc26-tools.js for daily use.
 - `minify.js` — rebuilds `bookmarklet.txt` from the source (`node minify.js`).
+- `release.js` — cuts a new install-page version (`node release.js "note"`): rebuilds the
+  bookmarklet, then prepends it to `versions.js` as `MGFC_Justaino_vN` (keeps old ones).
+  Also `node release.js list` and `node release.js remove <n>` to view/delete versions.
+- `versions.js` — generated list of published bookmarklet versions (newest first); the
+  install page reads this. Never hand-edit except to trim old entries.
+- `index.html` — GitHub Pages install page; renders the latest bookmarklet + a "Previous
+  versions" list entirely from `versions.js`.
 - `RUNBOOK.md` — plain-English how-to-use/maintain guide (rarity numbers, editing the
-  eligible list, theming, rebuilding).
+  eligible list, theming, rebuilding, publishing versions §7a).
 
 ## Current status
 **Phase 1 (EVO assigner) is built and working in-game.** It does more than the
@@ -111,6 +118,15 @@ artifact (four themes → Emerald frosted glass chosen) before touching code:
   `bookmarklet.txt` and syntax-checks via `new Function(...)`.
 - Git: work on the **`dev`** branch; **`main`** is stable. Only merge dev→main when
   the user explicitly says so. Remote: github.com/justaino/FC26-Tools (private).
+- **REQUIRED before any commit that changed the bookmarklet:** whenever
+  `fc26-tools.js` (or `bookmarklet.txt`) has changed and the user asks to commit /
+  push, FIRST run `node release.js "<concise note of what changed>"` to cut a new
+  `MGFC_Justaino_vN` on the install page, then `git add versions.js bookmarklet.txt`
+  and include them in that same commit. Derive the note from the actual change (ask
+  the user if it isn't obvious). `release.js` no-ops if nothing changed, so it's safe
+  to run; only skip it for commits that don't touch the bookmarklet (e.g. docs-only,
+  or `index.html`/`release.js` changes). This keeps the install page's version
+  history in lock-step with every shipped bookmarklet change. See RUNBOOK §7a.
 
 **Next up:** revisit **eligible-player filtering** for the picker (only show players a
 selected evo can actually apply to). This was cut in Phase 1 because `canApplyTo(slot)`

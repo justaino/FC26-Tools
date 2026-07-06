@@ -185,6 +185,74 @@ last number (e.g. `.7`).
    testing, paste the readable `fc26-tools.js` straight into the Console).
 4. Just click the bookmark / paste again — it rebuilds itself, so no reset needed.
 
+`node minify.js` is your everyday rebuild — run it as often as you like while
+testing. It does **not** create a version.
+
+---
+
+## 7a. Publishing a new version to the install page
+
+The install page (`index.html`) shows the **latest** bookmarklet as the main
+install, and keeps every **previous** version listed underneath ("Previous
+versions"), each one copyable. Versions are labelled `MGFC_Justaino_v1`, `_v2`,
+`_v3`… and are stored in `versions.js`.
+
+### ⭐ THE RULE — do this EVERY time before you commit a bookmarklet change
+
+> **Changed `fc26-tools.js`? Before you `git commit`, run:**
+>
+> ```
+> node release.js "short note about what changed"
+> ```
+>
+> then commit `versions.js` **and** `bookmarklet.txt` together.
+
+If you skip it, the install page keeps showing the OLD bookmarklet — your change
+goes to GitHub but nobody can install it. So: **edit → test → `node release.js "…"`
+→ commit → push.** (Claude is also instructed to do this automatically whenever you
+ask it to commit a bookmarklet change — see CLAUDE.md — but this is the manual
+version so you can do it yourself and not forget.)
+
+The note is optional but nice — it shows next to that version on the page. You do
+**not** need to run `node minify.js` first; `release.js` does it for you.
+
+**What `node release.js "…"` does, step by step:**
+1. rebuilds `bookmarklet.txt` from `fc26-tools.js` (and syntax-checks it — if the
+   source is broken it stops and cuts **no** version, so you can't ship a broken one);
+2. stamps that fresh build as the **next** version number in `versions.js`, keeping
+   every older version intact;
+3. if nothing actually changed since the last version, it says so and does nothing
+   (safe to run anytime).
+
+Then commit `versions.js` (and `bookmarklet.txt`) and push. The install page updates
+itself from `versions.js` — you never hand-edit `index.html`.
+
+### Skip it when the bookmarklet DIDN'T change
+
+If a commit only touches docs, `index.html`, or `release.js` (not the tool itself),
+you don't need a new version — just commit normally.
+
+### Seeing and removing versions
+
+`release.js` has three more commands so you never have to hand-edit the big
+`versions.js` file:
+
+```
+node release.js list          # show every version on the page (newest first, with dates + notes)
+node release.js remove 3      # delete version 3 (the "3" in MGFC_Justaino_v3)
+node release.js help          # reminder of all commands
+```
+
+Use `list` first to find the number, then `remove N`. Notes:
+- Removing a version only changes what the **page** offers — it does **not** touch
+  `bookmarklet.txt` or your bookmark.
+- If you remove the **latest**, the page's main install falls back to the next
+  newest automatically (handy for rolling back a bad release on the page).
+- After a `remove`, commit `versions.js` and push.
+
+`versions.js` grows a little with each version (each one holds a full copy of the
+bookmarklet). If it ever feels big, prune a few old ones with `remove`.
+
 ---
 
 ## 8. Troubleshooting
@@ -205,6 +273,9 @@ last number (e.g. `.7`).
 - `fc26-tools.js` — the readable source. **Edit this.**
 - `bookmarklet.txt` — the one-line version for daily use (generated).
 - `minify.js` — rebuilds `bookmarklet.txt` from the source (`node minify.js`).
+- `release.js` — cuts a new install-page version (`node release.js "note"`, §7a).
+- `versions.js` — the list of published versions the install page reads (generated).
+- `index.html` — the install page (renders itself from `versions.js`).
 - `RUNBOOK.md` — this file (how to run / maintain it).
 - `USER-GUIDE.md` — friendly feature guide for using the tool.
 - `CLAUDE.md` — standing build context. `PLAN.md` — scope + phases.
