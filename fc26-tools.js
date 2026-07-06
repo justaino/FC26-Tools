@@ -310,8 +310,11 @@
   // Header bar: title left, minimize + close right. Lives OUTSIDE the scroll area
   // so the buttons are always reachable even with a long list.
   var header = document.createElement("div");
-  header.style.cssText = "display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--header-bg);border-bottom:1px solid var(--border)";
+  header.className = "fc26-header";   // the drag handle (see the drag code near the bottom)
+  // touch-action:none lets us drag on touch screens without the page trying to scroll.
+  header.style.cssText = "display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--header-bg);border-bottom:1px solid var(--border);touch-action:none";
   var title = document.createElement("div");
+  title.className = "fc26-title";
   title.textContent = "Men Gallant FC - Justaino PS Tool";
   title.style.cssText = "flex:1;font-weight:700;font-size:12px;line-height:1.2;color:var(--title)";
   var minBtn = document.createElement("button");
@@ -333,11 +336,14 @@
   // lets it shrink inside the flex panel so the inner scroll areas actually cap.
   body.style.cssText = "padding:12px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden";
 
-  // Minimize toggles the body (header stays); button flips between – and +.
+  // Minimize hides the body (header stays). On mobile, minimized also shrinks the panel
+  // to a small draggable "pill" (handled in applyPanelChrome below); expanding restores
+  // the full-width sheet.
   minBtn.addEventListener("click", function () {
-    var hidden = body.style.display === "none";
-    body.style.display = hidden ? "" : "none";
-    minBtn.textContent = hidden ? "–" : "+";  // "–" / "+"
+    state.minimized = !state.minimized;
+    body.style.display = state.minimized ? "none" : "";
+    minBtn.textContent = state.minimized ? "+" : "–";
+    applyPanelChrome();   // update size/position for the new minimized state
   });
 
   var status = document.createElement("div");
@@ -495,6 +501,7 @@
     updateWizWho();               // keep the wizard's mini header in sync
     // On mobile the picker is step 1 of the wizard; choosing a player moves to step 2.
     if (currentMode() === "mobile" && state.wizStep === 1) { goStep(2); }
+    reclampPanel();               // the right pane just grew - keep the whole panel on-screen
     console.log("[FC26] selected player", playerName(it), it.id);
   }
 
@@ -531,13 +538,17 @@
       var psHTML = psPlus.length
         ? "<span class='pl-ps'>" + psPlus.map(function (p) { return "<i class='ico icon_icontrait" + p.traitId + "'></i>"; }).join("") + "</span>"
         : "";
+      // The right-hand stuff (PS+ icons + GK + rarity) goes in a fixed-width "meta" zone
+      // so the NAME column is the SAME width on every row - a different number of PS+ icons
+      // no longer jitters how much of the name shows. (On mobile the zone just fits content.)
       row.innerHTML =
-        "<span style='font-weight:800;color:var(--gold);min-width:22px;text-align:center'>" +
-          (it.rating != null ? it.rating : "?") + "</span>" +
-        "<span style='flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>" + esc(playerName(it)) + "</span>" +
-        psHTML +
-        (isGKPlayer(it) ? "<span style='color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px'>GK</span>" : "") +
-        "<span style='font-size:10px;color:var(--muted)'>" + esc(rarityName(it)) + "</span>";
+        "<span class='pl-rate'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+        "<span class='pl-name'>" + esc(playerName(it)) + "</span>" +
+        "<span class='pl-meta'>" +
+          psHTML +
+          (isGKPlayer(it) ? "<span class='pl-gk'>GK</span>" : "") +
+          "<span class='pl-rar'>" + esc(rarityName(it)) + "</span>" +
+        "</span>";
       row.addEventListener("click", function () { selectPlayer(it); });
       playerList.appendChild(row);
     });
@@ -882,6 +893,19 @@
       none.textContent = "Nothing was added.";
       applyBox.appendChild(none);
     }
+    // "Back to players" - jump straight back to the player list to pick the next card.
+    // On mobile that's step 1 of the wizard; on desktop the list is always visible, so
+    // we just scroll it into view. Either way we redraw the list so its PlayStyle+ icons
+    // reflect what we just added.
+    var backBtn = document.createElement("button");
+    backBtn.className = "ap-back";
+    backBtn.textContent = "← Back to players";
+    backBtn.addEventListener("click", function () {
+      renderPlayers();
+      if (currentMode() === "mobile") { goStep(1); }
+      else { try { playerList.scrollIntoView({ block: "nearest" }); } catch (e) {} }
+    });
+    applyBox.appendChild(backBtn);
     // Stagger the pop-in (non-blocking so the club refresh can run underneath).
     chipEls.forEach(function (c, i) { setTimeout(function () { c.classList.add("show"); }, 90 * i); });
   }
@@ -899,6 +923,7 @@
     if (!slotIds.length) { status.textContent = "Nothing selected."; return; }
     state.running = true; state.abort = false; setRunning(true);
     var itemId = it.id, rareflag = it.rareflag, ok = 0, fail = 0;
+    var prevCount = currentPlayStyles(it).length;   // PlayStyles before this run (to detect the grant landing)
     var tiles = buildApplyTiles(slotIds);   // the animated queue under the buttons
     var okList = [];                         // evos that succeeded (for the summary)
     for (var i = 0; i < slotIds.length; i++) {
@@ -937,18 +962,28 @@
     // add it to the evo-eligible list (persisted). Grows the list over time.
     if (ok > 0) { setRarityEligible(rareflag, true); }
     refreshClub();                                            // also nudge the app's own views
-    // The apply/claim responses return the player as it was BEFORE the grant, so we
-    // can't read the new PlayStyle from them. Re-pull the club fresh from the server
-    // (the same data a manual page reload fetches) and re-select the player, so the
-    // preview + grid show the granted PlayStyles without reloading the page.
-    try {
-      status.textContent = "Refreshing player...";
-      await loadFullClub();
-      var fresh = findPlayerById(itemId);
-      if (fresh) state.player = fresh;
-    } catch (e) {}
+    // On this build the item entity we hold is NOT updated in place by the grant - only a
+    // fresh club search returns the new PlayStyles. So auto-do exactly what "Reload club"
+    // does, and RETRY until the grant actually shows: firing the search immediately after
+    // the apply can beat the server (it returns pre-grant data), which is why a manual
+    // reload a second later "worked" but the instant one didn't. We poll the re-pulled
+    // player's PlayStyle count until it grows (or we run out of tries), so the preview /
+    // pips refresh on their own - no manual Reload club needed.
+    if (ok > 0) {
+      for (var att = 0; att < 4; att++) {
+        try { await loadFullClub(); } catch (e) {}            // fresh pull (also redraws the list)
+        var fresh = findPlayerById(itemId);
+        if (fresh) state.player = fresh;
+        var nowCount = state.player ? currentPlayStyles(state.player).length : prevCount;
+        if (nowCount > prevCount) break;                      // grant is now visible - stop retrying
+        if (att < 3) { status.textContent = "Waiting for the grant to register..."; await sleep(700); }
+      }
+    } else {
+      try { var f0 = findPlayerById(itemId); if (f0) state.player = f0; } catch (e) {}
+    }
     state.selected = new Set();                               // applied ones are now owned
-    renderPreview(); renderEvos();                            // final redraw of the updated player
+    renderPreview(); renderEvos(); renderPlayers();           // redraw the updated player everywhere
+    if (currentMode() === "mobile") renderWizStep();          // force the wizard step to repaint too
     state.running = false; setRunning(false);
     status.textContent = "Done: " + ok + " ok, " + fail + " failed.";
   }
@@ -1018,6 +1053,15 @@
       // PlayStyle+ icons shown inline on each player row in the picker (gold).
       "#fc26-panel .pl-ps{display:inline-flex;gap:3px;align-items:center;flex:none}" +
       "#fc26-panel .pl-ps .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:14px;line-height:1;color:var(--gold)}" +
+      // Player row: rating | name (flexes) | meta zone (icons + GK + rarity).
+      "#fc26-panel .pl-rate{flex:none;min-width:22px;text-align:center;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .pl-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .pl-gk{flex:none;color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px}" +
+      "#fc26-panel .pl-meta{flex:none;display:flex;align-items:center;gap:5px;justify-content:flex-end;overflow:hidden}" +
+      "#fc26-panel .pl-meta .pl-rar{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:10px;color:var(--muted)}" +
+      "#fc26-panel.fc26-desktop .pl-meta{width:86px}" +          // fixed -> consistent name width
+      "#fc26-panel.fc26-mobile .pl-meta{max-width:52%}" +         // plenty of room -> size to content
+      "#fc26-panel.fc26-mobile .pl-name{flex:1 1 auto}" +
       "#fc26-panel .fc26-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}" +
       "#fc26-panel .fc26-ec{position:relative;background:var(--tile);border:1px solid var(--tile-border);border-radius:9px;padding:7px 4px;cursor:pointer;text-align:center;transition:.08s;user-select:none}" +
       "#fc26-panel .fc26-ec:hover{border-color:var(--accent)}" +
@@ -1051,9 +1095,19 @@
       "#fc26-panel .ap-chip.show{animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) forwards}" +
       "@keyframes fc26pop{to{opacity:1;transform:scale(1) translateY(0)}}" +
       "#fc26-panel .ap-fail{margin-top:9px;font-size:11px;color:#ff9e9e}" +
+      "#fc26-panel .ap-back{margin-top:12px;width:100%;padding:9px;border:1px solid var(--field-border);border-radius:8px;background:var(--tab);color:var(--ink);font-weight:700;font-size:12px;cursor:pointer}" +
+      "#fc26-panel .ap-back:hover{border-color:var(--accent);color:var(--accent)}" +
       // ---- responsive layout: Split Console (desktop) / Wizard sheet (mobile) ---
       "#fc26-panel.fc26-desktop{bottom:16px;right:16px;width:520px;max-width:calc(100vw - 24px);max-height:88vh;border-radius:var(--radius)}" +
       "#fc26-panel.fc26-mobile{left:0;right:0;bottom:0;width:100%;max-height:86vh;border-radius:16px 16px 0 0}" +
+      // Minimized (desktop OR mobile) = a small draggable pill in the bottom-right by
+      // default. These come AFTER the mode rules so they override the panel width/shape.
+      "#fc26-panel.fc26-min{left:auto;right:12px;bottom:12px;top:auto;width:auto;max-width:300px;max-height:none;border-radius:999px}" +
+      "#fc26-panel.fc26-min .fc26-header{border-bottom:0}" +
+      "#fc26-panel.fc26-min .fc26-title{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      // The header is the drag handle: show a move cursor where dragging is allowed
+      // (the desktop panel, and either pill — but not the docked mobile sheet).
+      "#fc26-panel.fc26-desktop .fc26-header,#fc26-panel.fc26-min .fc26-header{cursor:move}" +
       "#fc26-panel .fc26-cols{display:flex;gap:14px;flex:1;min-height:0}" +
       "#fc26-panel .fc26-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow-y:auto}" +
       "#fc26-panel .fc26-pane.l{width:46%;flex:none}" +
@@ -1108,6 +1162,101 @@
   var mq = window.matchMedia("(max-width: 620px)");            // "am I on a phone-ish screen?"
   function currentMode() { return mq.matches ? "mobile" : "desktop"; }
   state.wizStep = 1;                                            // which wizard step (mobile)
+  state.minimized = false;                                      // is the panel minimized?
+
+  // ---- MOVE / MINIMIZE ------------------------------------------------------
+  // Minimizing shrinks the panel to a small draggable "pill" (on BOTH desktop and
+  // mobile); maximizing restores the full panel. Everything is dragged by its header
+  // and always kept FULLY on-screen, so a maximized panel can never spill its content
+  // off the edge. Three positions are remembered separately (localStorage):
+  //   Max   = the maximized desktop panel
+  //   PillD = the desktop pill        PillM = the mobile pill
+  // (The mobile full-width sheet is always docked to the bottom, so it isn't dragged.)
+  function loadPos(k) { try { var r = window.localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  function savePos(k, p) { try { window.localStorage.setItem(k, JSON.stringify(p)); } catch (e) {} }
+  var positions = { Max: loadPos("FC26_posMax"), PillD: loadPos("FC26_posPillD"), PillM: loadPos("FC26_posPillM") };
+
+  // posSlot(): which remembered spot applies right now, or null when the panel is docked
+  // (the mobile full sheet) and therefore not draggable.
+  function posSlot() {
+    if (currentMode() === "mobile") return state.minimized ? "PillM" : null;
+    return state.minimized ? "PillD" : "Max";
+  }
+  function dragEnabled() { return posSlot() !== null; }
+
+  // clampOnScreen(left, top, w, h): keep the WHOLE box on-screen (this is what stops a
+  // maximized panel dropping its lower half off the bottom of the window).
+  function clampOnScreen(left, top, w, h) {
+    return {
+      left: Math.max(4, Math.min(left, window.innerWidth - w - 4)),
+      top: Math.max(4, Math.min(top, window.innerHeight - h - 4))
+    };
+  }
+
+  // applyPanelChrome(): set the panel's CSS class (mode + minimized) and its position
+  // (a remembered, clamped spot — or clear inline styles so the CSS default edge applies).
+  function applyPanelChrome() {
+    var m = currentMode();
+    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "");
+    var slot = posSlot();
+    var pos = slot ? positions[slot] : null;
+    if (pos) {
+      var r = panel.getBoundingClientRect();
+      var c = clampOnScreen(pos.left, pos.top, r.width || 300, r.height || 48);
+      panel.style.left = c.left + "px"; panel.style.top = c.top + "px";
+      panel.style.right = "auto"; panel.style.bottom = "auto";
+    } else {
+      panel.style.left = ""; panel.style.top = ""; panel.style.right = ""; panel.style.bottom = "";
+    }
+  }
+
+  // reclampPanel(): after the panel's HEIGHT changes (e.g. selecting a player fills the
+  // right pane, or the desktop layout is (re)built), nudge it back so the WHOLE box is
+  // on-screen. Only acts when the panel sits at an inline top (a dragged/pill spot) - the
+  // docked defaults anchor to a CSS edge and can't overflow. This is what makes the panel
+  // "auto-adjust" when you click a player instead of growing off the bottom of the window.
+  function reclampPanel() {
+    if (!panel.style.top) return;                       // anchored to a CSS edge -> nothing to do
+    var r = panel.getBoundingClientRect();
+    var c = clampOnScreen(r.left, r.top, r.width, r.height);
+    panel.style.left = c.left + "px"; panel.style.top = c.top + "px";
+  }
+
+  var dragState = null;
+  // endDrag(): finish a drag - save the resting position and clear the drag state.
+  // Called from pointerup AND pointercancel AND the "no button held" guard below, so a
+  // missed pointerup can never leave the panel stuck to the cursor.
+  function endDrag() {
+    if (!dragState) return;
+    var slot = posSlot();
+    if (slot) {
+      var r = panel.getBoundingClientRect();
+      positions[slot] = { left: r.left, top: r.top };
+      savePos("FC26_pos" + slot, positions[slot]);
+    }
+    if (dragState.pid != null) { try { header.releasePointerCapture(dragState.pid); } catch (_) {} }
+    dragState = null;
+  }
+  header.addEventListener("pointerdown", function (e) {
+    if (!dragEnabled()) return;
+    if (e.button !== 0 && e.pointerType === "mouse") return;                  // left mouse button only
+    if (e.target && e.target.closest && e.target.closest("button")) return;   // let –/× buttons work
+    var r = panel.getBoundingClientRect();
+    dragState = { dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width, h: r.height, pid: e.pointerId };
+    try { header.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+  });
+  header.addEventListener("pointermove", function (e) {
+    if (!dragState) return;
+    if (e.buttons === 0) { endDrag(); return; }   // button isn't actually held (missed pointerup) -> stop
+    var c = clampOnScreen(e.clientX - dragState.dx, e.clientY - dragState.dy, dragState.w, dragState.h);
+    panel.style.left = c.left + "px"; panel.style.top = c.top + "px";
+    panel.style.right = "auto"; panel.style.bottom = "auto";
+  });
+  header.addEventListener("pointerup", endDrag);
+  header.addEventListener("pointercancel", endDrag);
+  // Re-clamp on window resize / phone rotate so a saved spot never ends up off-screen.
+  window.addEventListener("resize", function () { applyPanelChrome(); reclampPanel(); });
 
   // Group 1 - Squad (search + eligible filter + player list). On desktop this becomes
   // a flex column (via .fc26-squad) so the player list flexes to fill the left pane.
@@ -1175,7 +1324,7 @@
   // applyLayout(): (re)build the whole layout for the current screen width.
   function applyLayout() {
     var m = currentMode();
-    panel.className = m === "mobile" ? "fc26-mobile" : "fc26-desktop";
+    applyPanelChrome();   // set the panel's class + position (mode + minimized + saved spot)
     // Desktop: the panes scroll (host doesn't). Mobile: the whole sheet scrolls.
     layoutHost.style.overflowX = "hidden";
     layoutHost.style.overflowY = m === "mobile" ? "auto" : "hidden";
@@ -1192,6 +1341,10 @@
       layoutHost.appendChild(stepper); layoutHost.appendChild(stepBody); layoutHost.appendChild(wizNav);
       renderWizStep();
     }
+    // applyPanelChrome (above) clamped using the height BEFORE this content was added, so
+    // re-clamp now that the real height is known - otherwise the tall panel can start
+    // partly off-screen and its scrollbar be unreachable.
+    reclampPanel();
   }
 
   // Rebuild the layout when the screen crosses the phone/desktop breakpoint (resize/rotate).
