@@ -337,6 +337,13 @@
     color: #04240f; background: var(--green);
     border-radius: 20px; padding: 2px 8px;
   }
+  /* "What's new" line under the latest-version stamp */
+  .vnew {
+    max-width: 460px; margin: -1.35rem auto 1.9rem;
+    text-align: center; font-size: 0.83rem;
+    color: var(--muted); line-height: 1.55;
+  }
+  .vnew .lbl { color: var(--gold); font-weight: 700; }
 
   /* ── Previous versions list (Direction B) ── */
   .versions { width: 100%; max-width: 520px; margin-top: 2.75rem; }
@@ -363,6 +370,7 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .vrow .vwhen { font-size: 0.75rem; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+  .vrow .vnote { font-size: 0.78rem; color: var(--text); opacity: 0.85; margin-top: 4px; line-height: 1.45; }
   .vcopy {
     flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
     font-family: 'Inter', sans-serif; font-size: 0.78rem; font-weight: 600;
@@ -385,6 +393,7 @@
 
 <!-- Device tabs -->
 <div class="vstamp" id="vstamp"></div>
+<div class="vnew" id="vnew" hidden></div>
 
 <div class="tabs">
   <button class="tab active" onclick="switchTab('desktop')">🖥 Desktop</button>
@@ -578,6 +587,16 @@
       if (stamp) stamp.innerHTML =
         'Installing <span class="vname">MGFC_Justaino_v' + latest.v + '</span>' +
         ' <span class="pill">Latest</span> <span>&middot; ' + fmtDate(latest.date) + '</span>';
+      // "What's new" line: the description of what this latest version added.
+      const vnew = document.getElementById("vnew");
+      if (vnew) {
+        if (latest.note) {
+          vnew.innerHTML = '<span class="lbl">What\'s new:</span> ' + escapeHtml(latest.note);
+          vnew.hidden = false;
+        } else {
+          vnew.hidden = true;
+        }
+      }
     }
     const prev = VS.slice(1);
     const sec = document.getElementById("versions");
@@ -589,7 +608,8 @@
         const meta = document.createElement("div"); meta.className = "vmeta";
         meta.innerHTML =
           '<div class="vname">MGFC_Justaino_v' + x.v + '</div>' +
-          '<div class="vwhen">' + fmtDate(x.date) + (x.note ? " &mdash; " + escapeHtml(x.note) : "") + '</div>';
+          '<div class="vwhen">' + fmtDate(x.date) + '</div>' +
+          (x.note ? '<div class="vnote">' + escapeHtml(x.note) + '</div>' : '');
         const btn = document.createElement("button");
         btn.className = "vcopy"; btn.type = "button"; btn.innerHTML = "📋 Copy";
         btn.addEventListener("click", function () { copyText(x.code, btn, "✓ Copied"); });
