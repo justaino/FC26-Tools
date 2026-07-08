@@ -1,4 +1,4 @@
-# Phase 1 — EVO assigner: Claude Code prompts
+# Phase 1 - EVO assigner: Claude Code prompts
 
 Paste these into Claude Code (running in ~/fc26-tools, with PLAN.md, fc26-tools.js
 and reference-evo.js in the folder), **one at a time, in order**.
@@ -8,7 +8,7 @@ output or red errors back BEFORE moving to the next prompt. Don't batch them.
 
 ---
 
-## 1.1 — Discover (no code yet)
+## 1.1 - Discover (no code yet)
 
 ```
 We're on Phase 1, step 1.1 (discovery) of PLAN.md. Don't write any feature code yet.
@@ -30,7 +30,7 @@ for my output.
 
 ---
 
-## 1.2 — Service plumbing (define helpers, don't call them)
+## 1.2 - Service plumbing (define helpers, don't call them)
 
 ```
 Step 1.2. Here are my Console results from 1.1:
@@ -52,7 +52,7 @@ click to test.
 
 ---
 
-## 1.3 — Catalog (reuse the reference, then verify)
+## 1.3 - Catalog (reuse the reference, then verify)
 
 ```
 Step 1.3 - the PlayStyle catalog. Read reference-evo.js in this folder; it has a
@@ -70,7 +70,7 @@ catalog. Don't build UI yet.
 
 ---
 
-## 1.4 — Player picker
+## 1.4 - Player picker
 
 ```
 Step 1.4 - the player picker. Add to the panel a way to pick one of my club players.
@@ -89,7 +89,7 @@ Keep existing features working. Plain-English comments. Tell me what to test.
 
 ---
 
-## 1.5 — Selection + caps (no applying yet)
+## 1.5 - Selection + caps (no applying yet)
 
 ```
 Step 1.5 - selecting evos with caps. For the currently selected player, show the
@@ -109,7 +109,7 @@ find the right property first, then wait. Plain-English comments.
 
 ---
 
-## 1.6 — Apply loop (the payoff)
+## 1.6 - Apply loop (the payoff)
 
 ```
 Step 1.6 - apply the selected evos. Add an "Apply selected" button that runs the queue.

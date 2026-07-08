@@ -10,7 +10,7 @@ Icon?
 *.swp
 *~
 
-# Node (only if you ever add tooling — none needed for the bookmarklet)
+# Node (only if you ever add tooling - none needed for the bookmarklet)
 node_modules/
 npm-debug.log*
 

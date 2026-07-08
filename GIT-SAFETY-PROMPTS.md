@@ -1,14 +1,14 @@
-# Git safety — Claude Code prompts (your "save points")
+# Git safety - Claude Code prompts (your "save points")
 
 You're a non-coder letting an AI rewrite your file over and over. Without save
-points, one bad edit can wipe a working feature with no undo. Git fixes that —
+points, one bad edit can wipe a working feature with no undo. Git fixes that -
 think of it like manual saves in a game: make one whenever you reach a checkpoint,
 reload an earlier one if you mess up. Claude Code runs all the commands; you just
 paste the prompts.
 
 ---
 
-## Step 1 — Turn on saving (one time)
+## Step 1 - Turn on saving (one time)
 
 ```
 Set up version control for this project so I can save working versions and roll
@@ -18,14 +18,14 @@ plain English, and tell me the single command to undo back to a save point if I 
 need it.
 ```
 
-(macOS may pop up a "install command line developer tools" box the first time —
+(macOS may pop up a "install command line developer tools" box the first time -
 click Install, wait, then re-run the prompt.)
 
 ---
 
-## Step 2 — Make a save point (after EVERY step that works)
+## Step 2 - Make a save point (after EVERY step that works)
 
-Do this the moment a step tests correctly — before starting the next one.
+Do this the moment a step tests correctly - before starting the next one.
 
 ```
 That works. Commit it as a save point with a short message describing what now
@@ -34,7 +34,7 @@ works (e.g. "EVO apply loop working"). Keep the message plain.
 
 ---
 
-## Step 3 — Reload an earlier save (when something breaks)
+## Step 3 - Reload an earlier save (when something breaks)
 
 ```
 That change broke things and I want to undo it. Show me my recent save points,

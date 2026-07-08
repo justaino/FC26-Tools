@@ -1,7 +1,7 @@
-# FC26 Personal Helper — Implementation Plan (lean)
+# FC26 Personal Helper - Implementation Plan (lean)
 
 A bookmarklet for **my own** use on the EA FC 26 Web App. Two tools in one
-floating panel. No Tampermonkey, no hosting, no auth — I'm signed in when I click
+floating panel. No Tampermonkey, no hosting, no auth - I'm signed in when I click
 it, so it borrows the live session. Built with Claude Code, one feature at a time.
 
 > Read this before each phase. Build in order. Don't start a phase until the
@@ -9,10 +9,10 @@ it, so it borrows the live session. Built with Claude Code, one feature at a tim
 
 ---
 
-## 1. Scope (locked — do not expand)
+## 1. Scope (locked - do not expand)
 
-- **Tool A — EVO assigner:** pick a club player → tick PlayStyles → apply all at once.
-- **Tool B — SBC builder:** open an SBC → auto-fill with my cheapest eligible club players.
+- **Tool A - EVO assigner:** pick a club player → tick PlayStyles → apply all at once.
+- **Tool B - SBC builder:** open an SBC → auto-fill with my cheapest eligible club players.
 
 Out of scope: sniping, auto-buying, prices, sharing, hosting, auto-update, mobile,
 Tampermonkey. One panel, one user, desktop.
@@ -33,14 +33,14 @@ Tampermonkey. One panel, one user, desktop.
 
 ## 3. Architecture (applies to every feature)
 
-1. **Drive the app's own service objects — never fake HTTP.** Use `window.services.*`
+1. **Drive the app's own service objects - never fake HTTP.** Use `window.services.*`
    and `window.repositories.*`; they're the functions the in-game buttons call,
    and they're already authenticated.
-2. **Service calls are async "observables"** — they notify when done. Wrap them in
+2. **Service calls are async "observables"** - they notify when done. Wrap them in
    a small promise helper so we can `await` them in a loop.
 3. **Hardcode small catalogs** of the IDs we need; discover IDs in DevTools, comment
    their source.
-4. **State-safe refresh:** after a change, mark data "dirty" so the app redraws —
+4. **State-safe refresh:** after a change, mark data "dirty" so the app redraws -
    no reload.
 5. **One readable file, every block commented in plain English** (I don't know JS).
 
@@ -51,15 +51,15 @@ Tampermonkey. One panel, one user, desktop.
 - Don't break the panel or existing features when adding one.
 - ONE feature per step, then stop so I can test.
 - When you need an ID/method I haven't given you, tell me the exact Console command
-  to find it — don't guess.
+  to find it - don't guess.
 - After each change: say what changed and what to click to test it.
 
 ---
 
-## 5. Phase 0 — Skeleton ✅
+## 5. Phase 0 - Skeleton ✅
 Bookmarklet installed, panel shows, "list services" prints the app's service names.
 
-## 6. Phase 1 — EVO assigner ✅ DONE (working in-game)
+## 6. Phase 1 - EVO assigner ✅ DONE (working in-game)
 
 Built and confirmed. The finished tool went beyond the original 1.1–1.6 list:
 - 1.1–1.6 as planned (discovery, plumbing, catalog, picker, selection+caps, apply loop).
@@ -94,9 +94,9 @@ github.com/justaino/FC26-Tools (private).
 *Exit:* pick a player, tick 4–5, apply, see them on the card without reloading.
 *(Cut for now: role auto-suggest. Add later only if wanted.)*
 
-## 6.5 Phase 1.5 — Panel redesign ✅ DONE
+## 6.5 Phase 1.5 - Panel redesign ✅ DONE
 
-Restyled the EVO panel's theme/look. **Visual only — no behaviour changes.**
+Restyled the EVO panel's theme/look. **Visual only - no behaviour changes.**
 
 Outcome: explored four themes in a Claude design artifact → chose **Emerald frosted
 glass**. Implemented as a CSS custom-property **token block** on `#fc26-panel` (all
@@ -109,15 +109,15 @@ Original brief:
 
 - Explore themes first via **Claude design artifacts** (a hosted page with 3–4 mockups
   of the panel) so the look can be reviewed before touching the real code.
-- Once a theme is picked, translate it into `fc26-tools.js` styles — the injected
-  `<style id="fc26-style">` block plus the inline `style.cssText` on each element —
+- Once a theme is picked, translate it into `fc26-tools.js` styles - the injected
+  `<style id="fc26-style">` block plus the inline `style.cssText` on each element -
   then regenerate `bookmarklet.txt` and test as usual.
-- Constraints: stay **self-contained** (bookmarklet — no external fonts/CDNs; the app's
+- Constraints: stay **self-contained** (bookmarklet - no external fonts/CDNs; the app's
   own `UltimateTeam-Icons` font is available on-page and must keep working for the evo
   grid). Keep every existing feature intact. The app is dark-only, so no light/dark
   theming needed unless we want it.
 
-## 7. Phase 2 — SBC builder (minimal; chemistry is the hard part — defer it)
+## 7. Phase 2 - SBC builder (minimal; chemistry is the hard part - defer it)
 
 2.1 **Discover:** find `services.SBC` and the open-challenge requirements object.
 2.2 **Show requirements** in the panel (read-only milestone).
@@ -130,7 +130,7 @@ Original brief:
 
 *Exit (v1):* with an SBC open, panel shows requirements and fills count+rating from
 cheap fodder, leaving me to review and submit.
-*(Later: chemistry-aware fill — a separate optimisation problem.)*
+*(Later: chemistry-aware fill - a separate optimisation problem.)*
 
 ---
 

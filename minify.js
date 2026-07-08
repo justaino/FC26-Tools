@@ -83,7 +83,7 @@ while (i < n) {
 }
 
 // tidy: drop spaces that are clearly unnecessary around punctuation is risky,
-// so we keep it conservative — the result is already a single line.
+// so we keep it conservative - the result is already a single line.
 out = out.trim();
 
 const bookmarklet = "javascript:" + out;

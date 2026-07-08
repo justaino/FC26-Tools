@@ -1,14 +1,14 @@
-# Phase 3 — Polish: Claude Code prompts (optional but recommended)
+# Phase 3 - Polish: Claude Code prompts (optional but recommended)
 
-Do these AFTER Phase 1 and Phase 2 both work. They're pure UI — no service or
-catalog changes — so they're low-risk. The point: once one panel holds two tools,
+Do these AFTER Phase 1 and Phase 2 both work. They're pure UI - no service or
+catalog changes - so they're low-risk. The point: once one panel holds two tools,
 it gets cluttered, so we tidy it.
 
 Same rules apply (CLAUDE.md). One prompt at a time; test after each.
 
 ---
 
-## 3.1 — Tabbed panel (EVO / SBC)
+## 3.1 - Tabbed panel (EVO / SBC)
 
 ```
 Phase 3, step 3.1 - tidy the panel into tabs. Right now both tools live in one
@@ -24,7 +24,7 @@ me how to test (switch tabs, confirm each tool still works).
 
 ---
 
-## 3.2 — Draggable, collapsible, closable
+## 3.2 - Draggable, collapsible, closable
 
 ```
 Step 3.2 - make the panel nicer to live with. reference-evo.js has working
@@ -41,7 +41,7 @@ Don't break tabs or either tool. Plain-English comments. Tell me how to test.
 
 ---
 
-## 3.3 — Small quality-of-life (optional)
+## 3.3 - Small quality-of-life (optional)
 
 ```
 Step 3.3 - optional niceties, only if easy and safe:

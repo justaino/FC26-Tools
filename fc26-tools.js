@@ -127,6 +127,12 @@
   //   - Caps per player: at most 3 PlayStyle+ and 8 basic PlayStyles.
   // ----------------------------------------------------------------------------
 
+  // Version shown as a little badge in the panel header. It stays "dev" here in the
+  // readable source (so a console/test build clearly reads "dev"); when you cut a
+  // release, release.js stamps the real "vN" into the built bookmarklet. So an
+  // INSTALLED copy shows exactly which published version it is, e.g. "v4".
+  var FC26_VERSION = "dev";
+
   var TRAIT_OFFSET = 301;   // traitId = rewardId - 301
   var CAP_PLUS = 3;         // a player can hold at most 3 PlayStyle+  (PS+)
   var CAP_BASIC = 8;        // a player can hold at most 8 basic PlayStyles (PS)
@@ -151,6 +157,7 @@
   window.FC26.PSP = PSP;
   window.FC26.ALL = ALL;
   window.FC26.CAPS = { plus: CAP_PLUS, basic: CAP_BASIC, traitOffset: TRAIT_OFFSET };
+  window.FC26.version = FC26_VERSION;   // check with: window.FC26.version
 
   // ----------------------------------------------------------------------------
   // STEP 1.4 - PLAYER PICKER (data + read-only helpers)
@@ -354,6 +361,13 @@
   title.className = "fc26-title";
   title.textContent = "Men Gallant FC - Justaino PS Tool";
   title.style.cssText = "flex:1;font-weight:700;font-size:12px;line-height:1.2;color:var(--title)";
+  // Small version badge next to the title, e.g. "v4" (or "dev" for an untracked build).
+  // Hover shows a reminder to check the install page for the newest version.
+  var verBadge = document.createElement("span");
+  verBadge.className = "fc26-ver";
+  verBadge.textContent = FC26_VERSION;
+  verBadge.title = "You're on " + FC26_VERSION + ". Check the install page for the latest version.";
+  verBadge.style.cssText = "flex:none;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--accent);background:var(--sel);border:1px solid var(--accent);border-radius:999px;padding:2px 7px;line-height:1;white-space:nowrap";
   var minBtn = document.createElement("button");
   minBtn.textContent = "–";
   minBtn.title = "Minimize / expand";
@@ -363,7 +377,7 @@
   closeBtn.title = "Close (re-click the bookmark to reopen)";
   closeBtn.style.cssText = "background:var(--btnx);color:var(--btnx-ink);border:0;border-radius:6px;width:24px;height:24px;cursor:pointer;font-weight:700;line-height:1";
   closeBtn.addEventListener("click", function () { panel.remove(); });
-  header.appendChild(title); header.appendChild(minBtn); header.appendChild(closeBtn);
+  header.appendChild(title); header.appendChild(verBadge); header.appendChild(minBtn); header.appendChild(closeBtn);
 
   // Scrollable body: everything except the header goes in here, so a long player
   // or evo list scrolls INSIDE the panel instead of running off the screen.
@@ -1539,7 +1553,7 @@
       "#fc26-panel.fc26-min .fc26-header{border-bottom:0}" +
       "#fc26-panel.fc26-min .fc26-title{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
       // The header is the drag handle: show a move cursor where dragging is allowed
-      // (the desktop panel, and either pill — but not the docked mobile sheet).
+      // (the desktop panel, and either pill - but not the docked mobile sheet).
       "#fc26-panel.fc26-desktop .fc26-header,#fc26-panel.fc26-min .fc26-header{cursor:move}" +
       "#fc26-panel .fc26-cols{display:flex;gap:14px;flex:1;min-height:0}" +
       "#fc26-panel .fc26-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow-y:auto}" +
@@ -1716,7 +1730,7 @@
   }
 
   // applyPanelChrome(): set the panel's CSS class (mode + minimized) and its position
-  // (a remembered, clamped spot — or clear inline styles so the CSS default edge applies).
+  // (a remembered, clamped spot - or clear inline styles so the CSS default edge applies).
   function applyPanelChrome() {
     var m = currentMode();
     panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "");

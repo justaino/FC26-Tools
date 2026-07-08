@@ -1,4 +1,4 @@
-# Phase 2 — SBC builder: Claude Code prompts
+# Phase 2 - SBC builder: Claude Code prompts
 
 The last build phase. Paste into Claude Code (running in ~/fc26-tools), **one at a
 time, in order**. CLAUDE.md already carries the rules (drive the app's services,
@@ -9,7 +9,7 @@ BEFORE the next one.
 
 > Honest heads-up: SBC is harder than the EVO tool. The data model (sets →
 > challenges → requirements → squad slots) is bigger, and I couldn't pre-confirm
-> the SBC service name the way I could for Academy — so 2.1 is discovery-heavy and
+> the SBC service name the way I could for Academy - so 2.1 is discovery-heavy and
 > may take a couple of rounds. Chemistry is the hard core and is deferred to the
 > OPTIONAL section at the bottom.
 
@@ -18,7 +18,7 @@ the squad screen is visible. The discovery steps read the *currently open* chall
 
 ---
 
-## 2.1 — Discover the SBC objects (no code yet)
+## 2.1 - Discover the SBC objects (no code yet)
 
 ```
 Phase 2, step 2.1 (discovery) - no feature code yet. I have an SBC open in the Web
@@ -39,7 +39,7 @@ For each command, tell me what a good result looks like. Then wait for my output
 
 ---
 
-## 2.2 — Show requirements (read-only milestone)
+## 2.2 - Show requirements (read-only milestone)
 
 ```
 Step 2.2. Here's what discovery returned:
@@ -60,7 +60,7 @@ SBC to open and what the panel should show versus what the game shows.
 
 ---
 
-## 2.3 — Fodder list (ranked from LOCAL data, no prices)
+## 2.3 - Fodder list (ranked from LOCAL data, no prices)
 
 ```
 Step 2.3 - the fodder list. Add a list of my cheapest club players to use as SBC
@@ -82,7 +82,7 @@ Plain-English comments. Tell me how to test.
 
 ---
 
-## 2.4 — Auto-fill v1 (fill + show pass/fail, I submit manually)
+## 2.4 - Auto-fill v1 (fill + show pass/fail, I submit manually)
 
 ```
 Step 2.4 - auto-fill v1. Add a "Fill with fodder" button for the open challenge.
@@ -109,17 +109,17 @@ test on a cheap, low-rating SBC first.
 ## Done = Phase 2 exit criteria
 
 With an SBC open, the panel shows its requirements, lists cheap local fodder, fills
-the empty slots, shows pass/fail per requirement, and can undo the fill — I review
+the empty slots, shows pass/fail per requirement, and can undo the fill - I review
 and submit manually. Then regenerate the bookmarklet ("give me the updated
 bookmarklet line"). That's the whole project: EVO assigner + SBC builder.
 
 ---
 ---
 
-# OPTIONAL APPENDIX — 2.5 Chemistry-aware fill
+# OPTIONAL APPENDIX - 2.5 Chemistry-aware fill
 
 Only attempt once 2.1–2.4 are solid. Full optimal SBC solving is a real
-optimisation problem and overkill for a personal tool — so this is a *heuristic*
+optimisation problem and overkill for a personal tool - so this is a *heuristic*
 (good enough), not a perfect solver. Skipping it is a valid choice.
 
 ```

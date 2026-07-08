@@ -2,7 +2,7 @@
 
 A personal **bookmarklet** for the EA FC 26 Web App. It adds a floating panel to
 pick a club player, tick PlayStyles / PlayStyle+, and apply them all at once. It
-drives the app's own logged-in services — no passwords, no servers.
+drives the app's own logged-in services - no passwords, no servers.
 
 > This README is the quick reference. Full detail lives in **RUNBOOK.md** (use +
 > maintain), **CLAUDE.md** (build context), **PLAN.md** (scope).
@@ -12,11 +12,11 @@ drives the app's own logged-in services — no passwords, no servers.
 - Install page: **https://justaino.github.io/FC26-Tools/** (drag on desktop, copy on mobile).
 - Or use the one line in `bookmarklet.txt` as a bookmark's URL.
 - Open the FC 26 Web App, let your club load, click the bookmark. Every click
-  rebuilds fresh — no reset needed after an update.
+  rebuilds fresh - no reset needed after an update.
 
 ## Ship a change (the important bit)
 
-Edit the readable source, test it, **then cut a version before committing** — this
+Edit the readable source, test it, **then cut a version before committing** - this
 is what puts your change on the install page:
 
 ```
@@ -38,10 +38,10 @@ git push origin dev
 
 Three separate things, easy to mix up:
 
-- **The source** (`fc26-tools.js`) — the code on your computer.
-- **The site** — the install page at **https://justaino.github.io/FC26-Tools/**, served
+- **The source** (`fc26-tools.js`) - the code on your computer.
+- **The site** - the install page at **https://justaino.github.io/FC26-Tools/**, served
   from the **`main`** branch. It reads its version list from `versions.js`.
-- **The bookmark button** in your browser — a saved copy of the code you click while
+- **The bookmark button** in your browser - a saved copy of the code you click while
   playing. It does **not** auto-update when the site changes.
 
 ### A. Is the latest version on my site?
@@ -57,7 +57,7 @@ git add fc26-tools.js bookmarklet.txt versions.js
 git commit -m "short note about what changed"
 git push origin dev                                 # save your working branch
 ```
-Then — **the step people forget** — the site is served from `main`, so pushing to `dev`
+Then - **the step people forget** - the site is served from `main`, so pushing to `dev`
 alone does nothing to the site. Go live with:
 ```
 git checkout main
@@ -74,7 +74,7 @@ The site being current does nothing until you refresh the button you click:
 - **Computer (or edit instead):** click **Copy** on the site → right-click your bookmark →
   **Edit** → clear the URL field → paste → save.
 - **Phone:** tap **Copy** on the site, then edit any bookmark and paste it as the URL.
-- **Check:** open the FC 26 Web App, let the club load, click the bookmark — it always
+- **Check:** open the FC 26 Web App, let the club load, click the bookmark - it always
   rebuilds fresh, so you're instantly on the new version.
 
 **One-liner to remember:** edit → `node release.js "note"` → commit+push `dev` →
@@ -92,7 +92,7 @@ node release.js remove 3  # delete version 3 from the install page
 
 | File | What |
 |---|---|
-| `fc26-tools.js` | The readable source — **edit this**. |
+| `fc26-tools.js` | The readable source - **edit this**. |
 | `bookmarklet.txt` | Generated one-line bookmarklet for daily use. |
 | `minify.js` | Rebuilds `bookmarklet.txt` from the source. |
 | `release.js` | Cuts / lists / removes install-page versions. |

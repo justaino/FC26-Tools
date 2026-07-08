@@ -1,15 +1,15 @@
-# Debugging — Claude Code prompts for when things break
+# Debugging - Claude Code prompts for when things break
 
-Not a phase — a grab-bag. When something goes wrong, find the matching section,
+Not a phase - a grab-bag. When something goes wrong, find the matching section,
 gather what it asks for, then paste the prompt. These work at any point in the build.
 
 **The one rule that matters:** paste the FULL red error text, exactly as it appears
-in the Console — don't summarise or retype it. The exact wording is what lets
+in the Console - don't summarise or retype it. The exact wording is what lets
 Claude Code find the cause. Right-click the red line → Copy, or screenshot it.
 
 ---
 
-## A — The panel doesn't appear at all
+## A - The panel doesn't appear at all
 
 Gather: open the Console (⌥⌘J) and look for red errors right after you click the
 bookmarklet (or paste the source).
@@ -26,7 +26,7 @@ page where document.body is ready. Tell me what to run and what a good result lo
 
 ---
 
-## B — A button throws an error when I click it
+## B - A button throws an error when I click it
 
 Gather: the full red error from the Console, and which button you clicked.
 
@@ -40,7 +40,7 @@ the cause before you change any code. Don't guess at a fix - verify first, then 
 
 ---
 
-## C — It "worked" but nothing changed in the game
+## C - It "worked" but nothing changed in the game
 
 ```
 The action reported success but I don't see the change in-game (the new PlayStyles
@@ -54,7 +54,7 @@ how to test.
 
 ---
 
-## D — The bookmarklet does nothing, but pasting the source in the Console works
+## D - The bookmarklet does nothing, but pasting the source in the Console works
 
 ```
 When I paste the source into the Console it works, but clicking the bookmarklet
@@ -68,9 +68,9 @@ page's security policy is blocking it, and what my fallback is.
 
 ---
 
-## E — EA updated the Web App and now it's broken
+## E - EA updated the Web App and now it's broken
 
-This is the big one — EA pushes updates that can rename internal objects or change
+This is the big one - EA pushes updates that can rename internal objects or change
 IDs. When a tool that *used* to work suddenly doesn't, suspect this first.
 
 Gather: run the discovery cheat-sheet from PLAN.md and copy the output.
@@ -92,5 +92,5 @@ command to find the new value before patching. Tell me how to test.
 
 ## When a fix makes things worse
 
-Stop and roll back to your last working save point — see GIT-SAFETY-PROMPTS.md.
+Stop and roll back to your last working save point - see GIT-SAFETY-PROMPTS.md.
 A clean known-good version beats debugging a tangle.
