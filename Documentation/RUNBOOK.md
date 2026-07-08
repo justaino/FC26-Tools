@@ -281,8 +281,12 @@ goes to GitHub but nobody can install it. So: **edit → test → `node release.
 ask it to commit a bookmarklet change - see CLAUDE.md - but this is the manual
 version so you can do it yourself and not forget.)
 
-The note is optional but nice - it shows next to that version on the page. You do
-**not** need to run `node minify.js` first; `release.js` does it for you.
+The note is optional but nice - it becomes the version's **"What's new" description**
+on the install page: the latest version shows it under the main install, and every
+previous version shows its own note in the list. So **write it in plain, friend-friendly
+language** (what changed, in words a mate would understand), not developer shorthand -
+that text is what people read to decide whether to grab a new version. You do **not**
+need to run `node minify.js` first; `release.js` does it for you.
 
 **What `node release.js "…"` does, step by step:**
 1. rebuilds `bookmarklet.txt` from `fc26-tools.js` (and syntax-checks it - if the
