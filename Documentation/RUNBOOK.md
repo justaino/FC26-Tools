@@ -47,22 +47,29 @@ The panel automatically picks a layout based on your screen width. **All the par
 below are the same** in both - they're just arranged differently.
 
 The **header bar** (shared by both layouts) shows the title, a small **version badge**
-(e.g. `v4`, so you know which build you're on - see §7a), and the minimise / close
-buttons.
+(e.g. `v5`, so you know which build you're on - see §7a), the **theme dropdown**
+(colourway picker, see §6), a **reset button** (the ⤢ icon - snaps the panel back to
+its default dock), and the minimise / close buttons.
 
-**On a computer (wide screen) → "Split Console" (two columns):**
-- **Left column = your squad:** the `↻ Reload club` button, a **search box**, the
-  **☑ Only evo-eligible** filter, and the **player list**. The list fills the whole
-  height and scrolls on its own.
-- **Right column = build & apply:** the selected player's **preview card**, the
-  **✨ Suggest** row, the **PlayStyle+ / PlayStyle tabs + grid**, and the **Apply**
-  button.
+**On a computer (wide screen) → "Broadcast console" (a wide bar docked to the bottom
+of the screen, three zones side by side):**
+- **Left = Lineup:** the `↻ Reload club` button, a **search box**, the
+  **☑ Only evo-eligible** filter, and the **player list**. Fills the height, scrolls on
+  its own.
+- **Middle = Spotlight:** the selected player's **preview card** (until you pick someone
+  it shows a "pick a player" placeholder).
+- **Right = PlayStyle Deck:** the **✨ Suggest** row, the **PlayStyle+ / Basic** tabs +
+  grid, and the **delay + Apply** row.
+- **Drag** it by the header, **resize** it with the corner grip, and hit the **⤢ reset**
+  button to re-dock. Make it narrow and it collapses to **two columns** (the spotlight
+  tucks on top of the deck).
 
-**On a phone (narrow screen) → "Wizard" (a bottom sheet, one step at a time):**
-- **Step ① Player** - search + filter + player list. Tap a player to move on.
-- **Step ② PlayStyles** - the ✨ Suggest row + tabs + grid. Tap **Next: Review →**.
-- **Step ③ Apply** - the preview card + the Apply button.
-- A **stepper** across the top shows where you are; tap it or **← Back** to move around.
+**On a phone (narrow screen) → "Channel tabs" (a bottom sheet):**
+- Tabs across the top: **Lineup → PlayStyle Deck → Review**. A **pinned mini-spotlight**
+  at the bottom always shows who you're building (rating, name, caps).
+- A **guide button** walks you through: it's disabled until the step is ready, and you
+  **can't reach Review until at least one PlayStyle is picked** (the Review tab stays
+  greyed out until then). Picking a player jumps you straight to PlayStyle Deck.
 
 ### The parts (both layouts)
 - **`↻ Reload club`** - loads every player in your club (not just your squad). Use it
@@ -72,22 +79,23 @@ buttons.
 - **player list** - each row shows rating, name, and - handy - the **PlayStyle+ icons
   the player already has** (gold, on the right), plus a GK badge and rarity. Click/tap
   a row to select.
-- **preview card** - name, OVR, GK; the **rarity name + `rarity #NN`**, positions,
-  item id; an **eligibility** row (§4); **capacity pips** (3 for PlayStyle+ in gold,
-  8 for Basic in emerald) showing slots used; and current PlayStyles as **chips**,
-  split into a PlayStyle+ row and a Basic row.
+- **preview card (Spotlight)** - a big rating number next to the name (+ GK); the
+  **rarity name + `rarity #NN`**, positions, item id; an **eligibility** row (§4);
+  two **segment meters** (3 for PlayStyle+ in gold, 8 for Basic in the accent colour)
+  showing slots used; and current PlayStyles as **chips**, split into a PlayStyle+ row
+  and a Basic row.
 - **✨ Suggest** - position + role dropdowns that pre-tick the recommended PlayStyles
   for that role, filling your **open** slots best-first: the top picks become **PS+**,
   the rest **basic**. If the player already **owns** a top pick, Suggest **falls through**
   to the next-best one instead of leaving the slot empty (it never re-ticks something
   owned), and when a role's own list runs out it keeps going down a general **position**
   list - so there's always a next-best pick. See §3b.
-- **PlayStyle+ / PlayStyle tabs + icon grid** - tick the ones you want. Owned ones are
+- **PlayStyle+ / Basic tabs + icon grid** - tick the ones you want. Owned ones are
   disabled, GK-only ones are hidden for outfielders, and each type stops at its cap
   (3 PS+, 8 basic). A live counter shows how many you've picked.
-- **delay between applies (ms)** - pause between each apply (default 500). Bigger =
-  gentler on the account.
-- **Apply selected / Stop** - runs the queue. Each PlayStyle tile **spins then ticks**
+- **delay chip + Apply / Stop** - the **DELAY (ms)** chip (default 500; bigger = gentler
+  on the account) sits **side by side** with the **Apply** button in one row; **Stop**
+  swaps into Apply's spot while a run is going. Each PlayStyle tile **spins then ticks**
   as it lands, and at the end you get an **"Added N to <player>"** summary of exactly
   what went on. **Stop** halts after the current one.
 
@@ -228,14 +236,22 @@ add it. (Find the number using §4a.)
 
 ## 6. Changing the theme / colours
 
-All colours live in ONE place: the **token block** at the top of the injected
-styles in `fc26-tools.js` - a chunk that starts with `#fc26-panel{ --radius:...`.
-Edit a value (e.g. the accent `--accent:#4fe3ac`) and rebuild (§7). You never need
-to hunt through the rest of the file; everything reads these `var(--name)` tokens.
+**In the app:** use the **theme dropdown** in the header to switch colourway. There are
+three, all frosted glass, and your pick is remembered:
+- **UCL Night** (default) - navy + cyan + FUT gold.
+- **Broadcast Yellow** - near-black + electric lime (PlayStyle+ goes magenta).
+- **Prime Teal** - dark teal + coral.
 
-Current theme: **Emerald frosted glass**. If text ever feels low-contrast over a
-busy screen, raise the panel tint's opacity: `--bg:rgba(18,42,35,.58)` → higher
-last number (e.g. `.7`).
+**In the code:** every colour is a `var(--name)` token, and each theme is just a set of
+those tokens. They live in the **`THEMES` map near the top of `fc26-tools.js`** (one entry
+per theme, each with a `label` + a `vars` object). To retune a theme, edit its `vars`
+(e.g. `"--accent": "#38e1ff"`); to add one, drop in another entry and list its id in
+`THEME_ORDER` - the header picker fills itself. Then rebuild (§7). The `#fc26-panel{ ... }`
+block in the injected styles just mirrors the **default** (UCL Night) as a fallback.
+
+If text ever feels low-contrast over a busy screen, raise a theme's panel tint opacity:
+bump the last number of its `--bg` (e.g. `rgba(13,20,36,.58)` → `.7`). You can also poke
+it live from the Console: `window.FC26.applyTheme("teal")`.
 
 ---
 

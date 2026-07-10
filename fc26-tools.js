@@ -160,6 +160,75 @@
   window.FC26.version = FC26_VERSION;   // check with: window.FC26.version
 
   // ----------------------------------------------------------------------------
+  // THEMES - "Broadcast" colourways (frosted glass)
+  // The panel stays frosted glass; a THEME is just a set of colour tokens. We apply
+  // the chosen theme by setting each token as an INLINE custom property on the panel
+  // (see applyTheme). Inline props beat the defaults in the injected <style> block,
+  // so switching theme re-colours every element instantly with NO rebuild - because
+  // every colour in this file is read via var(--name). UCL Night is the default.
+  //
+  // To ADD a theme: drop another entry in THEMES and list its id in THEME_ORDER; the
+  // header picker fills itself from that. To RE-SKIN one: edit its vars below.
+  // --radius and --shadow are the same for all themes, so they live in THEME_SHARED
+  // and applyTheme folds them in.
+  var THEME_KEY = "FC26_theme";   // localStorage key: which theme id is chosen
+  var DEFAULT_THEME = "ucl";
+  var THEME_SHARED = { "--radius": "12px", "--shadow": "0 16px 40px rgba(0,0,0,.55)" };
+  var THEMES = {
+    // UCL Night - deep navy glass, cyan accent, FUT gold for ratings + PS+. Default.
+    ucl: { label: "UCL Night", vars: {
+      "--bg": "rgba(13,20,36,.58)", "--border": "rgba(120,180,255,.16)", "--header-bg": "rgba(255,255,255,.05)",
+      "--ink": "#e8f2ff", "--muted": "rgba(160,200,255,.72)", "--title": "#ffffff",
+      "--accent": "#38e1ff", "--accent-ink": "#06131f", "--gold": "#ffd76a",
+      "--btn": "rgba(255,255,255,.10)", "--btn-ink": "#cfe6ff",
+      "--btnx": "rgba(255,120,120,.14)", "--btnx-ink": "#ffc2c2",
+      "--field": "rgba(0,0,0,.30)", "--field-border": "rgba(120,180,255,.18)",
+      "--card": "rgba(255,255,255,.05)", "--card-border": "rgba(120,180,255,.14)",
+      "--sel": "rgba(56,225,255,.16)", "--tab": "rgba(255,255,255,.05)", "--icon": "#dcf0ff",
+      "--tile": "rgba(255,255,255,.05)", "--tile-border": "rgba(120,180,255,.16)",
+      "--tile-psp": "rgba(255,215,106,.12)", "--tile-psp-border": "rgba(255,215,106,.34)",
+      "--apply": "rgba(56,225,255,.92)", "--apply-ink": "#06131f"
+    } },
+    // Broadcast Yellow - near-black glass, electric lime accent, magenta for PS+.
+    yellow: { label: "Broadcast Yellow", vars: {
+      "--bg": "rgba(16,16,16,.62)", "--border": "rgba(255,255,255,.14)", "--header-bg": "rgba(255,255,255,.05)",
+      "--ink": "#f4f6ea", "--muted": "#a6a996", "--title": "#ffffff",
+      "--accent": "#d9ff3d", "--accent-ink": "#1a1e00", "--gold": "#ff5ca8",
+      "--btn": "rgba(255,255,255,.10)", "--btn-ink": "#e8ead8",
+      "--btnx": "rgba(255,120,120,.16)", "--btnx-ink": "#ffb3b3",
+      "--field": "rgba(0,0,0,.34)", "--field-border": "rgba(255,255,255,.16)",
+      "--card": "rgba(255,255,255,.05)", "--card-border": "rgba(255,255,255,.12)",
+      "--sel": "rgba(217,255,61,.16)", "--tab": "rgba(255,255,255,.05)", "--icon": "#eef0e0",
+      "--tile": "rgba(255,255,255,.05)", "--tile-border": "rgba(255,255,255,.14)",
+      "--tile-psp": "rgba(255,92,168,.14)", "--tile-psp-border": "rgba(255,92,168,.40)",
+      "--apply": "rgba(217,255,61,.92)", "--apply-ink": "#1a1e00"
+    } },
+    // Prime Teal - dark teal glass, teal accent, coral for PS+.
+    teal: { label: "Prime Teal", vars: {
+      "--bg": "rgba(14,28,34,.58)", "--border": "rgba(120,220,205,.16)", "--header-bg": "rgba(255,255,255,.05)",
+      "--ink": "#e6f5f1", "--muted": "rgba(150,205,195,.72)", "--title": "#ffffff",
+      "--accent": "#2dd4bf", "--accent-ink": "#05201c", "--gold": "#ff9e6b",
+      "--btn": "rgba(255,255,255,.10)", "--btn-ink": "#cfeee7",
+      "--btnx": "rgba(255,120,120,.14)", "--btnx-ink": "#ffc2c2",
+      "--field": "rgba(0,0,0,.30)", "--field-border": "rgba(120,220,205,.18)",
+      "--card": "rgba(255,255,255,.05)", "--card-border": "rgba(120,220,205,.14)",
+      "--sel": "rgba(45,212,191,.16)", "--tab": "rgba(255,255,255,.05)", "--icon": "#d8f2ec",
+      "--tile": "rgba(255,255,255,.05)", "--tile-border": "rgba(120,220,205,.16)",
+      "--tile-psp": "rgba(255,158,107,.14)", "--tile-psp-border": "rgba(255,158,107,.36)",
+      "--apply": "rgba(45,212,191,.92)", "--apply-ink": "#05201c"
+    } }
+  };
+  var THEME_ORDER = ["ucl", "yellow", "teal"];   // the order the picker lists them in
+
+  // loadTheme(): the saved theme id, or the default the first time / if it's unknown.
+  function loadTheme() {
+    try { var t = window.localStorage.getItem(THEME_KEY); if (t && THEMES[t]) return t; } catch (e) {}
+    return DEFAULT_THEME;
+  }
+  // saveTheme(id): remember the choice across reloads.
+  function saveTheme(id) { try { window.localStorage.setItem(THEME_KEY, id); } catch (e) {} }
+
+  // ----------------------------------------------------------------------------
   // STEP 1.4 - PLAYER PICKER (data + read-only helpers)
   // Small helpers that turn a club item into the bits we show: name, OVR, rarity,
   // GK?, and current PlayStyles. Discovery confirmed every club player has these
@@ -221,7 +290,8 @@
   //   batch    = a Map of id -> club item: the players TICKED for batch apply. The
   //              active player (state.player) is NOT auto-added; when the batch is
   //              empty, Apply targets just the active player (unchanged single flow).
-  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map() };
+  //   theme    = chosen colourway id (see THEMES); applied by applyTheme, remembered
+  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme() };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
@@ -347,9 +417,25 @@
   panel.style.cssText =
     "position:fixed;z-index:99999;" +
     "display:flex;flex-direction:column;overflow:hidden;" +
-    "background:var(--bg);color:var(--ink);font:13px system-ui,sans-serif;" +
+    "background:var(--bg);color:var(--ink);font:13px 'Avenir Next Condensed','Arial Narrow',system-ui,sans-serif;" +
     "backdrop-filter:blur(16px) saturate(1.25);-webkit-backdrop-filter:blur(16px) saturate(1.25);" +
     "box-shadow:var(--shadow);border:1px solid var(--border)";
+
+  // applyTheme(id): paint the chosen colourway onto the panel. It sets every colour
+  // token as an INLINE custom property on #fc26-panel; those override the defaults in
+  // the injected <style> block, so the whole UI re-colours live (no rebuild). Unknown
+  // ids fall back to the default. Called once at build, and again from the picker.
+  function applyTheme(id) {
+    var chosen = THEMES[id] ? id : DEFAULT_THEME;
+    state.theme = chosen;
+    var t = THEMES[chosen];
+    var k;
+    for (k in THEME_SHARED) { panel.style.setProperty(k, THEME_SHARED[k]); }
+    for (k in t.vars) { panel.style.setProperty(k, t.vars[k]); }
+    saveTheme(chosen);
+  }
+  window.FC26.applyTheme = applyTheme;   // e.g. window.FC26.applyTheme("teal")
+  applyTheme(state.theme);               // paint the saved (or default) theme now
 
   // Header bar: title left, minimize + close right. Lives OUTSIDE the scroll area
   // so the buttons are always reachable even with a long list.
@@ -360,7 +446,7 @@
   var title = document.createElement("div");
   title.className = "fc26-title";
   title.textContent = "Men Gallant FC - Justaino PS Tool";
-  title.style.cssText = "flex:1;font-weight:700;font-size:12px;line-height:1.2;color:var(--title)";
+  title.style.cssText = "flex:1;font-weight:700;font-size:12px;line-height:1.2;color:var(--title);text-transform:uppercase;letter-spacing:.06em";
   // Small version badge next to the title, e.g. "v4" (or "dev" for an untracked build).
   // Hover shows a reminder to check the install page for the newest version.
   var verBadge = document.createElement("span");
@@ -368,6 +454,28 @@
   verBadge.textContent = FC26_VERSION;
   verBadge.title = "You're on " + FC26_VERSION + ". Check the install page for the latest version.";
   verBadge.style.cssText = "flex:none;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--accent);background:var(--sel);border:1px solid var(--accent);border-radius:999px;padding:2px 7px;line-height:1;white-space:nowrap";
+  // Theme picker: a compact dropdown of the Broadcast colourways. Changing it recolours
+  // the panel live (applyTheme sets the tokens) and remembers the choice. Fills itself
+  // from THEME_ORDER, so adding a theme needs no change here.
+  var themeSel = document.createElement("select");
+  themeSel.className = "fc26-theme";
+  themeSel.title = "Colour theme";
+  themeSel.innerHTML = THEME_ORDER.map(function (id) {
+    return "<option value='" + id + "'" + (id === state.theme ? " selected" : "") + ">" + esc(THEMES[id].label) + "</option>";
+  }).join("");
+  themeSel.style.cssText = "flex:none;max-width:112px;font-size:10px;font-weight:700;color:var(--btn-ink);background:var(--btn);border:1px solid var(--field-border);border-radius:6px;padding:3px 5px;cursor:pointer";
+  themeSel.addEventListener("change", function () { applyTheme(themeSel.value); });
+
+  // Reset button: snap the dock back to its default full-width bottom position and size
+  // (clears any dragged spot / resized size). Only useful on the desktop dock; hidden on
+  // the mobile sheet and the minimized pill (see CSS).
+  var resetBtn = document.createElement("button");
+  resetBtn.className = "fc26-reset";
+  resetBtn.textContent = "⤢";
+  resetBtn.title = "Reset size & position (re-dock)";
+  resetBtn.style.cssText = "background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;width:24px;height:24px;cursor:pointer;font-weight:700;line-height:1;font-size:13px";
+  resetBtn.addEventListener("click", function () { resetDock(); });
+
   var minBtn = document.createElement("button");
   minBtn.textContent = "–";
   minBtn.title = "Minimize / expand";
@@ -377,7 +485,7 @@
   closeBtn.title = "Close (re-click the bookmark to reopen)";
   closeBtn.style.cssText = "background:var(--btnx);color:var(--btnx-ink);border:0;border-radius:6px;width:24px;height:24px;cursor:pointer;font-weight:700;line-height:1";
   closeBtn.addEventListener("click", function () { panel.remove(); });
-  header.appendChild(title); header.appendChild(verBadge); header.appendChild(minBtn); header.appendChild(closeBtn);
+  header.appendChild(title); header.appendChild(verBadge); header.appendChild(themeSel); header.appendChild(resetBtn); header.appendChild(minBtn); header.appendChild(closeBtn);
 
   // Scrollable body: everything except the header goes in here, so a long player
   // or evo list scrolls INSIDE the panel instead of running off the screen.
@@ -407,8 +515,9 @@
   var pickerHead = document.createElement("div");
   pickerHead.style.cssText = "display:flex;align-items:center;gap:8px";
   var pickerTitle = document.createElement("div");
-  pickerTitle.textContent = "Players";
-  pickerTitle.style.cssText = "flex:1;font-weight:600";
+  pickerTitle.textContent = "Lineup";
+  pickerTitle.className = "fc26-lab";
+  pickerTitle.style.cssText = "flex:1";
   var refreshBtn = document.createElement("button");
   refreshBtn.textContent = "↻ Reload club";
   refreshBtn.title = "Load your full club (every player, not just the squad)";
@@ -509,6 +618,13 @@
   var preview = document.createElement("div");
   preview.style.cssText = "margin-top:8px;padding:8px;border-radius:8px;background:var(--card);border:1px solid var(--card-border);display:none";
 
+  // Placeholder shown in the desktop dock's middle "spotlight" zone until a player is
+  // picked, so that column never sits empty. renderPreview toggles it opposite to the
+  // preview card. (Only added to the DOM on desktop; harmless if absent.)
+  var spotHint = document.createElement("div");
+  spotHint.className = "fc26-spothint";
+  spotHint.textContent = "Pick a player from the lineup to spotlight them here.";
+
   // renderPreview(): redraw the selected-player card. Same info as before -
   // name/OVR/rarity, caps used, and current PlayStyles - but laid out visually:
   //   - two "capacity pip" trackers (3 pips for PS+, 8 for Basic) that fill up
@@ -518,6 +634,7 @@
   // uses, so the preview and the picker share one look.
   function renderPreview() {
     var it = state.player;
+    if (spotHint) spotHint.style.display = it ? "none" : "block";   // show the placeholder only when nothing is picked
     if (!it) { preview.style.display = "none"; preview.innerHTML = ""; return; }
     preview.style.display = "block";
 
@@ -536,13 +653,14 @@
     var pUsed = (np != null) ? np : plus.length;
     var bUsed = (nb != null) ? nb : basic.length;
 
-    // pipsHTML(label, used, cap, kindClass): a labelled row of filled/empty pips.
-    function pipsHTML(label, used, cap, kindClass) {
-      var pips = "";
-      for (var i = 0; i < cap; i++) { pips += "<span class='pv-pip" + (i < used ? " on" : "") + "'></span>"; }
-      return "<div class='pv-cap " + kindClass + "'>" +
-        "<div class='pv-lab'><span>" + label + "</span><b>" + used + "/" + cap + "</b></div>" +
-        "<div class='pv-pips'>" + pips + "</div></div>";
+    // meterHTML(label, used, cap, kind): a labelled broadcast-style segment meter - one
+    // skewed segment per slot, filled up to "used" (PS+ segments gold, Basic segments accent).
+    function meterHTML(label, used, cap, kind) {
+      var segs = "";
+      for (var i = 0; i < cap; i++) { segs += "<span class='pv-seg" + (i < used ? " on" : "") + "'></span>"; }
+      return "<div class='pv-meter " + kind + "'>" +
+        "<div class='pv-mlab'><span>" + label + "</span><b>" + used + "/" + cap + "</b></div>" +
+        "<div class='pv-segrow'>" + segs + "</div></div>";
     }
 
     // groupHTML(label, list, isPlus): one "PlayStyle+"/"Basic" chip row (hidden
@@ -573,16 +691,19 @@
       "</div>";
 
     preview.innerHTML =
-      "<div class='pv-head'>" +
-        "<span class='pv-name'>" + esc(playerName(it)) + "</span>" +
-        "<span class='pv-ovr'>" + (it.rating != null ? it.rating : "?") + "</span>" +
-        (isGKPlayer(it) ? "<span class='pv-gk'>GK</span>" : "") +
+      // Broadcast "spotlight": giant rating number next to the name, like a lower-third.
+      "<div class='pv-hero'>" +
+        "<span class='pv-num'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+        "<div class='pv-herowho'>" +
+          "<div class='pv-nm'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='pv-gk'>GK</span>" : "") + "</div>" +
+          "<div class='pv-sub'>" + esc(rarityName(it)) + posLine + "</div>" +
+        "</div>" +
       "</div>" +
-      "<div class='pv-meta'>" + esc(rarityName(it)) + " &middot; rarity #" + it.rareflag + posLine + " &middot; item " + it.id + "</div>" +
+      "<div class='pv-metaline'>rarity #" + it.rareflag + " &middot; item " + it.id + "</div>" +
       eligHTML +
-      "<div class='pv-caps'>" +
-        pipsHTML("PlayStyle+", pUsed, CAP_PLUS, "plus") +
-        pipsHTML("Basic", bUsed, CAP_BASIC, "basic") +
+      "<div class='pv-meters'>" +
+        meterHTML("PlayStyle+", pUsed, CAP_PLUS, "plus") +
+        meterHTML("Basic", bUsed, CAP_BASIC, "basic") +
       "</div>" +
       noneMsg +
       groupHTML("PlayStyle+", plus, true) +
@@ -656,9 +777,7 @@
     players.forEach(function (it) {
       var selected = state.player && state.player.id === it.id;
       var row = document.createElement("div");
-      row.style.cssText =
-        "display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:7px;cursor:pointer;border:1px solid " +
-        (selected ? "var(--accent)" : "var(--card-border)") + ";background:" + (selected ? "var(--sel)" : "var(--card)");
+      row.className = "pl-row" + (selected ? " on" : "");   // styling lives in CSS (.pl-row / .pl-row.on)
       // The PlayStyle+ icons the player already has (isIcon = the "+" version), so you
       // can see a card's PS+ at a glance without opening it. Uses the game icon font.
       var psPlus = currentPlayStyles(it).filter(function (p) { return p.isIcon; });
@@ -716,8 +835,9 @@
 
   // "Evolutions" heading.
   var evoTitle = document.createElement("div");
-  evoTitle.textContent = "Evolutions";
-  evoTitle.style.cssText = "margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-weight:600";
+  evoTitle.textContent = "PlayStyle Deck";
+  evoTitle.className = "fc26-lab";
+  evoTitle.style.cssText = "margin-top:14px";
 
   // ---- STEP 1.9 suggest row: position + role dropdowns and a Suggest button ----
   var suggestRow = document.createElement("div");
@@ -846,16 +966,16 @@
 
   // Two tabs: PlayStyle+ and basic PlayStyle.
   var tabs = document.createElement("div");
-  tabs.style.cssText = "display:flex;gap:6px;margin-top:6px";
+  tabs.style.cssText = "display:flex;margin-top:8px;border:1px solid var(--field-border);border-radius:7px;overflow:hidden";
   function makeTab(label, kind) {
     var b = document.createElement("button");
     b.textContent = label;
-    b.style.cssText = "flex:1;padding:6px;border:1px solid var(--field-border);border-radius:7px;color:var(--ink);cursor:pointer;font-weight:600;background:var(--tab)";
+    b.style.cssText = "flex:1;padding:7px 4px;border:0;color:var(--muted);cursor:pointer;font-weight:700;font-size:10px;letter-spacing:.14em;text-transform:uppercase;background:transparent";
     b.addEventListener("click", function () { setTab(kind); });
     return b;
   }
-  var tabPlus = makeTab("PlayStyle+ (36)", "PS+");
-  var tabBase = makeTab("PlayStyle (36)", "PS");
+  var tabPlus = makeTab("PlayStyle+", "PS+");
+  var tabBase = makeTab("Basic", "PS");
   tabs.appendChild(tabPlus); tabs.appendChild(tabBase);
 
   // Live count of what's ticked.
@@ -872,6 +992,7 @@
   function updateEvoCount() {
     var sp = selectedCount("PS+"), sb = selectedCount("PS");
     evoCount.textContent = (sp + sb) + " selected (" + sp + " PS+, " + sb + " PS)";
+    if (typeof updateGuide === "function") updateGuide();   // keep the mobile guide button / Review gate live
   }
 
   // setTab(kind): switch tab and redraw.
@@ -897,10 +1018,10 @@
   //   - once a kind's cap is reached, remaining unticked ones of that kind -> disabled
   function renderEvos() {
     // Active tab uses the emerald accent with dark text; inactive stays a faint wash.
-    tabPlus.style.background = state.tab === "PS+" ? "var(--accent)" : "var(--tab)";
-    tabPlus.style.color = state.tab === "PS+" ? "var(--accent-ink)" : "var(--ink)";
-    tabBase.style.background = state.tab === "PS" ? "var(--accent)" : "var(--tab)";
-    tabBase.style.color = state.tab === "PS" ? "var(--accent-ink)" : "var(--ink)";
+    tabPlus.style.background = state.tab === "PS+" ? "var(--accent)" : "transparent";
+    tabPlus.style.color = state.tab === "PS+" ? "var(--accent-ink)" : "var(--muted)";
+    tabBase.style.background = state.tab === "PS" ? "var(--accent)" : "transparent";
+    tabBase.style.color = state.tab === "PS" ? "var(--accent-ink)" : "var(--muted)";
     evoList.innerHTML = "";
     var it = state.player;
     if (!it) { evoList.innerHTML = "<div style='opacity:.7'>Select a player above to choose evolutions.</div>"; updateEvoCount(); return; }
@@ -1010,30 +1131,32 @@
 
   // "claim & finish" toggle.
   var optRow = document.createElement("div");
-  optRow.style.cssText = "margin-top:8px;display:flex;align-items:center;gap:6px";
+  optRow.style.cssText = "margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:8px";
 
   // Delay control: how long to wait BETWEEN each apply, in milliseconds. A bigger,
   // human-ish gap is safer for the account. (Claiming now happens automatically
   // after every apply - PlayStyle evos grant on apply, so there's no reason to
   // ever skip it, hence no toggle.)
   var delayWrap = document.createElement("label");
-  delayWrap.style.cssText = "display:flex;align-items:center;gap:4px;font-size:11px";
-  delayWrap.appendChild(document.createTextNode("delay between applies (ms)"));
+  delayWrap.style.cssText = "flex:none;display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--field-border);border-radius:6px;padding:5px 9px";
+  delayWrap.appendChild(document.createTextNode("delay"));
   var delayInput = document.createElement("input");
   delayInput.type = "number"; delayInput.value = "500"; delayInput.min = "0"; delayInput.step = "100";
-  delayInput.style.cssText = "width:64px;padding:4px 6px;border-radius:6px;border:1px solid var(--field-border);background:var(--field);color:var(--ink)";
+  // Borderless so it reads as part of the chip ("DELAY 500 MS"), like the mockup.
+  delayInput.style.cssText = "width:42px;padding:0;border:0;background:transparent;color:var(--ink);font-weight:700;font-size:11px;text-align:center;font-variant-numeric:tabular-nums";
   delayWrap.appendChild(delayInput);
+  delayWrap.appendChild(document.createTextNode("ms"));
   optRow.appendChild(delayWrap);
 
   // Apply (green) and Stop (red) buttons - only one shows at a time.
   var applyBtn = document.createElement("button");
   applyBtn.textContent = "Apply selected";
-  applyBtn.style.cssText = "width:100%;margin-top:8px;padding:9px;border:none;border-radius:8px;cursor:pointer;background:var(--apply);color:var(--apply-ink);font-weight:700";
+  applyBtn.style.cssText = "flex:1;min-width:140px;padding:10px;border:none;border-radius:7px;cursor:pointer;background:var(--apply);color:var(--apply-ink);font-weight:800;font-size:12px;letter-spacing:.14em;text-transform:uppercase";
   applyBtn.addEventListener("click", runApply);
 
   var stopBtn = document.createElement("button");
   stopBtn.textContent = "Stop";
-  stopBtn.style.cssText = "width:100%;margin-top:8px;padding:9px;border:none;border-radius:8px;cursor:pointer;background:#c0392b;color:#fff;font-weight:700;display:none";
+  stopBtn.style.cssText = "flex:1;min-width:140px;padding:10px;border:none;border-radius:7px;cursor:pointer;background:#c0392b;color:#fff;font-weight:800;font-size:12px;letter-spacing:.14em;text-transform:uppercase;display:none";
   stopBtn.addEventListener("click", function () { state.abort = true; status.textContent = "Stopping after current evo..."; });
 
   // setRunning(on): swap Apply <-> Stop while a run is in progress.
@@ -1413,46 +1536,66 @@
     var st = document.createElement("style");
     st.id = "fc26-style";
     st.textContent =
-      // ---- THEME TOKENS ("Emerald frosted glass") ------------------------------
-      // The ONE place colours live. Every element below and every inline style in
-      // this file reads these via var(--name), so re-skinning = edit this block only.
-      // Values are mostly translucent (rgba) on purpose: the panel is frosted glass,
-      // so the live app shows through, softened by the blur set on the panel itself.
+      // ---- THEME TOKENS (default = "UCL Night" frosted glass) ------------------
+      // Every element below and every inline style in this file reads colours via
+      // var(--name). The LIVE source of truth for those values is the THEMES map near
+      // the top of this file: applyTheme() writes the chosen theme's tokens as inline
+      // props on #fc26-panel, which override the block below. This block just mirrors
+      // the DEFAULT theme (UCL Night) so the panel looks right even before applyTheme
+      // runs. To change colours, edit THEMES (not here). Values are translucent (rgba)
+      // on purpose: the panel is frosted glass, so the app shows through, blurred.
       "#fc26-panel{" +
         "--radius:12px;" +                                          // corner rounding
-        "--bg:rgba(18,42,35,.58);" +                                // panel glass tint (deep emerald)
-        "--border:rgba(255,255,255,.15);" +                         // hairline edges
-        "--header-bg:rgba(255,255,255,.06);" +                      // title bar wash
-        "--ink:#eaf6f0;--muted:#a2c9ba;--title:#ffffff;" +          // text: normal / dim / heading
-        "--accent:#4fe3ac;--accent-ink:#04241a;" +                  // emerald accent + dark text for on-accent
-        "--gold:#ffd98a;" +                                         // ratings + PlayStyle+ (FUT gold)
-        "--btn:rgba(255,255,255,.10);--btn-ink:#d6f4e8;" +          // secondary buttons
+        "--bg:rgba(13,20,36,.58);" +                                // panel glass tint (deep navy)
+        "--border:rgba(120,180,255,.16);" +                         // hairline edges
+        "--header-bg:rgba(255,255,255,.05);" +                      // title bar wash
+        "--ink:#e8f2ff;--muted:rgba(160,200,255,.72);--title:#ffffff;" + // text: normal / dim / heading
+        "--accent:#38e1ff;--accent-ink:#06131f;" +                  // cyan accent + dark text for on-accent
+        "--gold:#ffd76a;" +                                         // ratings + PlayStyle+ (FUT gold)
+        "--btn:rgba(255,255,255,.10);--btn-ink:#cfe6ff;" +          // secondary buttons
         "--btnx:rgba(255,120,120,.14);--btnx-ink:#ffc2c2;" +        // close (×) button
-        "--field:rgba(0,0,0,.28);--field-border:rgba(255,255,255,.14);" + // inputs / dropdowns
-        "--card:rgba(255,255,255,.06);--card-border:rgba(255,255,255,.12);" + // sub-panels (rows, preview)
-        "--sel:rgba(79,227,172,.18);" +                             // selected / highlighted fill
-        "--tab:rgba(255,255,255,.06);--icon:#dcf4ea;" +             // inactive tab + evo icon colour
-        "--tile:rgba(255,255,255,.05);--tile-border:rgba(255,255,255,.12);" + // basic evo tiles
-        "--tile-psp:rgba(255,217,138,.12);--tile-psp-border:rgba(255,217,138,.34);" + // PS+ tiles (gold tint)
-        "--apply:rgba(79,227,172,.92);--apply-ink:#04241a;" +      // Apply button
-        "--shadow:0 16px 40px rgba(0,0,0,.5);" +                    // drop shadow
+        "--field:rgba(0,0,0,.30);--field-border:rgba(120,180,255,.18);" + // inputs / dropdowns
+        "--card:rgba(255,255,255,.05);--card-border:rgba(120,180,255,.14);" + // sub-panels (rows, preview)
+        "--sel:rgba(56,225,255,.16);" +                             // selected / highlighted fill
+        "--tab:rgba(255,255,255,.05);--icon:#dcf0ff;" +             // inactive tab + evo icon colour
+        "--tile:rgba(255,255,255,.05);--tile-border:rgba(120,180,255,.16);" + // basic evo tiles
+        "--tile-psp:rgba(255,215,106,.12);--tile-psp-border:rgba(255,215,106,.34);" + // PS+ tiles (gold tint)
+        "--apply:rgba(56,225,255,.92);--apply-ink:#06131f;" +      // Apply button
+        "--shadow:0 16px 40px rgba(0,0,0,.55);" +                   // drop shadow
       "}" +
+      // Theme picker in the header: keep the open dropdown readable on every OS, and
+      // hide it when the panel is minimized to a pill (no room).
+      "#fc26-panel .fc26-theme option{color:#111827;background:#ffffff}" +
+      "#fc26-panel.fc26-min .fc26-theme{display:none}" +
+      "#fc26-panel.fc26-min .fc26-reset,#fc26-panel.fc26-mobile .fc26-reset{display:none}" +
+      // Broadcast section labels (LINEUP / STYLE DECK): uppercase, letter-spaced, with a
+      // trailing hairline, like a lower-third caption.
+      "#fc26-panel .fc26-lab{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}" +
+      "#fc26-panel .fc26-lab::after{content:'';flex:1;height:1px;background:var(--border)}" +
+      // Lineup rows: transparent card, an accent left-edge on hover / when selected.
+      "#fc26-panel .pl-row{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:5px;cursor:pointer;border-left:3px solid transparent;background:var(--card)}" +
+      "#fc26-panel .pl-row:hover{border-left-color:var(--accent)}" +
+      "#fc26-panel .pl-row.on{border-left-color:var(--accent);background:var(--sel)}" +
       // ---- preview card (selected player) --------------------------------------
       // Header line: name + OVR + optional GK badge.
-      "#fc26-panel .pv-head{display:flex;align-items:baseline;gap:8px}" +
-      "#fc26-panel .pv-name{font-weight:800;font-size:15px;color:var(--ink)}" +
-      "#fc26-panel .pv-ovr{color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}" +
-      "#fc26-panel .pv-gk{margin-left:auto;color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px}" +
-      "#fc26-panel .pv-meta{color:var(--muted);font-size:11px;margin-top:2px}" +
-      // Capacity pips: one filled pip per slot used (PS+ = gold, Basic = emerald).
-      "#fc26-panel .pv-caps{display:flex;gap:14px;margin-top:11px}" +
-      "#fc26-panel .pv-cap{flex:1;min-width:0}" +
-      "#fc26-panel .pv-lab{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}" +
-      "#fc26-panel .pv-lab b{color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:0}" +
-      "#fc26-panel .pv-pips{display:flex;gap:4px}" +
-      "#fc26-panel .pv-pip{height:6px;flex:1;border-radius:3px;background:rgba(255,255,255,.12)}" +
-      "#fc26-panel .pv-cap.plus .pv-pip.on{background:var(--gold)}" +
-      "#fc26-panel .pv-cap.basic .pv-pip.on{background:var(--accent)}" +
+      // Spotlight hero: giant rating number + name/sub line (broadcast lower-third).
+      "#fc26-panel .pv-hero{display:flex;align-items:center;gap:12px}" +
+      "#fc26-panel .pv-num{flex:none;font-weight:800;font-size:46px;line-height:.9;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .pv-herowho{min-width:0}" +
+      "#fc26-panel .pv-nm{display:flex;align-items:center;gap:6px;font-weight:800;font-size:17px;color:var(--ink);line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .pv-gk{flex:none;color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px}" +
+      "#fc26-panel .pv-sub{color:var(--muted);font-size:11px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .pv-metaline{color:var(--muted);font-size:10px;opacity:.7;margin-top:4px}" +
+      // Capacity meters: skewed broadcast segments, one per slot, filled up to "used"
+      // (PS+ segments gold, Basic segments accent).
+      "#fc26-panel .pv-meters{display:flex;flex-direction:column;gap:9px;margin-top:12px}" +
+      "#fc26-panel .pv-meter{min-width:0}" +
+      "#fc26-panel .pv-mlab{display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}" +
+      "#fc26-panel .pv-mlab b{color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:0}" +
+      "#fc26-panel .pv-segrow{display:flex;gap:3px;padding:0 2px}" +
+      "#fc26-panel .pv-seg{height:9px;flex:1;background:rgba(255,255,255,.12);transform:skewX(-14deg);border-radius:1px}" +
+      "#fc26-panel .pv-meter.plus .pv-seg.on{background:var(--gold)}" +
+      "#fc26-panel .pv-meter.basic .pv-seg.on{background:var(--accent)}" +
       // Grouped chips: current PlayStyles, split into a PS+ row and a Basic row.
       "#fc26-panel .pv-group{margin-top:12px}" +
       "#fc26-panel .pv-gl{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}" +
@@ -1469,10 +1612,10 @@
       "#fc26-panel .pv-elig-state.off{color:var(--muted)}" +
       "#fc26-panel .pv-elig-btn{margin-left:auto;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:10px;font-weight:600}" +
       // reset / remove PlayStyles row (preview card)
-      "#fc26-panel .pv-reset{display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}" +
-      "#fc26-panel .pv-rm-one{flex:none;background:var(--btn);color:var(--btn-ink);border:0;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-weight:600}" +
+      "#fc26-panel .pv-reset{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}" +
+      "#fc26-panel .pv-rm-one{flex:1 1 auto;min-width:0;background:var(--btn);color:var(--btn-ink);border:0;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-weight:600}" +
       "#fc26-panel .pv-rm-one:hover{color:var(--accent)}" +
-      "#fc26-panel .pv-rm-all{flex:none;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-weight:600}" +
+      "#fc26-panel .pv-rm-all{flex:1 1 auto;min-width:0;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-weight:600}" +
       "#fc26-panel .pv-rm-all:hover{background:rgba(255,120,120,.22)}" +
       // removal loader + summary (shown in the apply box while clearing/removing evos)
       "#fc26-panel .rm-load{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink)}" +
@@ -1490,8 +1633,9 @@
       "#fc26-panel .pl-ps{display:inline-flex;gap:3px;align-items:center;flex:none}" +
       "#fc26-panel .pl-ps .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:14px;line-height:1;color:var(--gold)}" +
       // Player row: rating | name (flexes) | meta zone (icons + GK + rarity).
-      "#fc26-panel .pl-rate{flex:none;min-width:22px;text-align:center;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" +
-      "#fc26-panel .pl-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .pl-rate{flex:none;min-width:24px;text-align:center;font-weight:700;font-size:15px;color:var(--accent);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .pl-row.on .pl-rate{color:var(--ink)}" +
+      "#fc26-panel .pl-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13.5px;letter-spacing:.03em;text-transform:uppercase}" +
       "#fc26-panel .pl-gk{flex:none;color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px}" +
       "#fc26-panel .pl-meta{flex:none;display:flex;align-items:center;gap:5px;justify-content:flex-end;overflow:hidden}" +
       "#fc26-panel .pl-meta .pl-rar{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:10px;color:var(--muted)}" +
@@ -1508,7 +1652,7 @@
       "#fc26-panel .fc26-ec.dis:hover{border-color:var(--tile-border)}" +
       "#fc26-panel .fc26-ec .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:24px;line-height:1;display:block;margin-bottom:4px;color:var(--icon)}" +
       "#fc26-panel .fc26-ec.psp .ico{color:var(--gold)}" +
-      "#fc26-panel .fc26-ec .nm{font-size:9.5px;line-height:1.15;color:var(--muted);word-break:break-word}" +
+      "#fc26-panel .fc26-ec .nm{font-size:9px;line-height:1.15;color:var(--ink);opacity:.85;word-break:break-word;text-transform:uppercase;letter-spacing:.03em}" +
       "#fc26-panel .fc26-ec .own{position:absolute;top:3px;right:4px;font-size:10px;color:#67e08a}" +
       // ---- apply progress (tiles spin -> tick) + result summary ----------------
       "#fc26-panel .fc26-ec .ap-badge{position:absolute;top:3px;right:4px;width:14px;height:14px;border-radius:50%;display:grid;place-items:center;font-size:9px;opacity:0;transform:scale(.4)}" +
@@ -1544,25 +1688,37 @@
       "#fc26-panel .bx-stat{flex:none;font-size:10px;color:var(--muted)}" +
       "#fc26-panel .bx-none{font-size:11px;color:var(--muted);opacity:.8}" +
       "#fc26-panel .bx-skip{margin-top:6px;font-size:10px;color:var(--muted);opacity:.85}" +
-      // ---- responsive layout: Split Console (desktop) / Wizard sheet (mobile) ---
-      "#fc26-panel.fc26-desktop{bottom:16px;right:16px;width:520px;max-width:calc(100vw - 24px);max-height:88vh;border-radius:var(--radius)}" +
+      // ---- responsive layout: Broadcast dock (desktop) / Wizard sheet (mobile) ---
+      // Desktop = a wide "production console" docked to the bottom edge, with a bright
+      // top rule (the LIVE strip look). Three zones sit side by side inside it (lineup
+      // rail | spotlight | style deck), each scrolling on its own. Small side insets
+      // (10px) and an explicit width give it room to be dragged (header) and resized
+      // (corner grip) into a free-floating console without overflowing the page.
+      "#fc26-panel.fc26-desktop{left:10px;bottom:0;width:calc(100vw - 20px);max-width:none;height:52vh;min-height:340px;max-height:520px;border-radius:16px 16px 0 0;border-top:2px solid var(--accent)}" +
       "#fc26-panel.fc26-mobile{left:0;right:0;bottom:0;width:100%;max-height:86vh;border-radius:16px 16px 0 0}" +
       // Minimized (desktop OR mobile) = a small draggable pill in the bottom-right by
       // default. These come AFTER the mode rules so they override the panel width/shape.
-      "#fc26-panel.fc26-min{left:auto;right:12px;bottom:12px;top:auto;width:auto;max-width:300px;max-height:none;border-radius:999px}" +
+      "#fc26-panel.fc26-min{left:auto;right:12px;bottom:12px;top:auto;width:auto;height:auto;min-height:0;max-width:300px;max-height:none;border-top:0;border-radius:999px}" +
       "#fc26-panel.fc26-min .fc26-header{border-bottom:0}" +
       "#fc26-panel.fc26-min .fc26-title{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
       // The header is the drag handle: show a move cursor where dragging is allowed
-      // (the desktop panel, and either pill - but not the docked mobile sheet).
+      // (the desktop dock, and either pill - but not the docked mobile sheet).
       "#fc26-panel.fc26-desktop .fc26-header,#fc26-panel.fc26-min .fc26-header{cursor:move}" +
+      // Three zones of the Broadcast dock: lineup rail (l), spotlight (m), style deck (r).
       "#fc26-panel .fc26-cols{display:flex;gap:14px;flex:1;min-height:0}" +
-      "#fc26-panel .fc26-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow-y:auto}" +
-      "#fc26-panel .fc26-pane.l{width:46%;flex:none}" +
-      "#fc26-panel .fc26-pane.r{flex:1;border-left:1px solid var(--border);padding-left:14px}" +
-      // The right pane is the desktop scroller. Force its children (preview / build / apply)
-      // to keep their natural height (flex:none) so tall content OVERFLOWS and the pane
-      // scrolls, instead of the flex column squishing them to fit (which killed the scroll).
-      "#fc26-panel .fc26-pane.r > *{flex:0 0 auto}" +
+      "#fc26-panel .fc26-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto}" +
+      "#fc26-panel .fc26-pane.l{flex:0 0 30%;min-width:230px}" +
+      "#fc26-panel .fc26-pane.m{flex:1 1 auto;min-width:200px;border-left:1px solid var(--border);padding-left:14px}" +
+      "#fc26-panel .fc26-pane.r{flex:0 0 300px;border-left:1px solid var(--border);padding-left:14px}" +
+      // Narrow desktop (dock resized small): two columns - lineup on the left, and a single
+      // flexible right pane (r2) with the spotlight stacked ON TOP of the style deck.
+      "#fc26-panel .fc26-pane.r2{flex:1 1 auto;min-width:0;border-left:1px solid var(--border);padding-left:14px}" +
+      // The spotlight + deck panes are scrollers. Force their children to keep natural
+      // height (flex:none) so tall content OVERFLOWS and the pane scrolls, instead of the
+      // flex column squishing them to fit (which killed the scroll).
+      "#fc26-panel .fc26-pane.m > *,#fc26-panel .fc26-pane.r > *,#fc26-panel .fc26-pane.r2 > *{flex:0 0 auto}" +
+      // Placeholder in the empty spotlight zone (before a player is picked).
+      "#fc26-panel .fc26-spothint{margin-top:8px;padding:20px 10px;border:1px dashed var(--card-border);border-radius:10px;text-align:center;font-size:12px;color:var(--muted);opacity:.8}" +
       // list heights: capped on mobile; on desktop the squad list flexes to fill its
       // pane and the evo list is uncapped (the whole right pane scrolls as one).
       "#fc26-panel .fc26-plist{max-height:210px}" +
@@ -1582,16 +1738,24 @@
       "#fc26-panel .fc26-grip{position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;z-index:4;touch-action:none;opacity:.5;" +
         "background:linear-gradient(135deg,transparent 0 45%,var(--muted) 45% 55%,transparent 55% 66%,var(--muted) 66% 76%,transparent 76%)}" +
       "#fc26-panel .fc26-grip:hover{opacity:.95}" +
-      "#fc26-panel .fc26-stepper{display:flex;gap:6px;margin-bottom:12px}" +
-      "#fc26-panel .fc26-step{flex:1;text-align:center;font-size:10px;color:var(--muted);cursor:pointer;user-select:none}" +
-      "#fc26-panel .fc26-step .c{width:22px;height:22px;border-radius:50%;margin:0 auto 4px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);font-weight:700;font-size:11px}" +
-      "#fc26-panel .fc26-step.done .c{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" +
-      "#fc26-panel .fc26-step.now .c{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 3px rgba(79,227,172,.15)}" +
-      "#fc26-panel .fc26-step.now{color:var(--ink);font-weight:700}" +
+      // Mobile channel tabs (Lineup / Style deck / Review) + the scrolling section body.
+      "#fc26-panel .fc26-chtabs{flex:none;display:flex;gap:6px;margin-bottom:10px}" +
+      "#fc26-panel .fc26-chtab{flex:1;text-align:center;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:9px 4px;border-radius:8px;color:var(--muted);background:var(--tab);border:1px solid var(--field-border);cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+      "#fc26-panel .fc26-chtab.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}" +
+      "#fc26-panel .fc26-chtab.dis{opacity:.4;cursor:not-allowed}" +
+      "#fc26-panel .fc26-stepbody{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto}" +
+      // Mobile guide button (Next: PlayStyle Deck / Review), disabled until the step is ready.
+      "#fc26-panel .fc26-guidebtn{flex:none;width:100%;margin-top:10px;padding:11px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}" +
+      "#fc26-panel .fc26-guidebtn.dis{opacity:.4;cursor:not-allowed}" +
       "#fc26-panel .fc26-wizwho{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--card);border:1px solid var(--card-border);margin-bottom:11px;font-size:13px}" +
-      "#fc26-panel .fc26-wviznav{display:flex;gap:8px;margin-top:12px}" +
-      "#fc26-panel .fc26-wizbtn{padding:10px 12px;border-radius:8px;border:1px solid var(--field-border);background:var(--tab);color:var(--ink);font-weight:600;font-size:12px;cursor:pointer}" +
-      "#fc26-panel .fc26-wizbtn.next{flex:1;background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" +
+      // Pinned mobile mini-spotlight (rating + name + caps), always visible below the tabs.
+      "#fc26-panel .fc26-spot{flex:none;display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--card);border:1px solid var(--card-border)}" +
+      "#fc26-panel .fc26-spot .sp-r{flex:none;font-weight:800;font-size:26px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .fc26-spot .sp-w{min-width:0}" +
+      "#fc26-panel .fc26-spot .sp-n{font-weight:800;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .fc26-spot .sp-n.sp-none{color:var(--muted);font-weight:600}" +
+      "#fc26-panel .fc26-spot .sp-gk{color:var(--accent);font-size:8px;border:1px solid var(--accent);border-radius:4px;padding:0 3px}" +
+      "#fc26-panel .fc26-spot .sp-s{font-size:10px;color:var(--muted);margin-top:2px}" +
       "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
   }
@@ -1647,7 +1811,8 @@
   grip.title = "Drag to resize";
   panel.appendChild(grip);
 
-  // canResize(): only the maximized desktop panel is resizable.
+  // canResize(): the desktop dock is resizable (drag the bottom-right grip); the mobile
+  // sheet and the minimized pill are not.
   function canResize() { return currentMode() === "desktop" && !state.minimized; }
 
   // clampSize(w,h): keep the box within sensible min sizes and the viewport.
@@ -1708,12 +1873,15 @@
     var w = Math.max(340, Math.min(e.clientX - resizeState.left, maxW));
     var h = Math.max(260, Math.min(e.clientY - resizeState.top, maxH));
     panel.style.width = w + "px"; panel.style.height = h + "px";
+    maybeReflowDesktop();   // collapse to 2 columns (or back to 3) as we cross the width threshold
   });
   grip.addEventListener("pointerup", endResize);
   grip.addEventListener("pointercancel", endResize);
 
   // posSlot(): which remembered spot applies right now, or null when the panel is docked
-  // (the mobile full sheet) and therefore not draggable.
+  // (the mobile full sheet) and therefore not draggable. The desktop dock IS draggable:
+  // it starts docked full-width at the bottom, but the header lifts it into a floating
+  // console, and that spot is remembered under "Max".
   function posSlot() {
     if (currentMode() === "mobile") return state.minimized ? "PillM" : null;
     return state.minimized ? "PillD" : "Max";
@@ -1759,6 +1927,17 @@
     panel.style.left = c.left + "px"; panel.style.top = c.top + "px";
   }
 
+  // resetDock(): forget any dragged spot / resized size and snap back to the default
+  // full-width bottom dock. Clears the saved values (memory + localStorage), un-minimizes,
+  // then rebuilds - applyPanelChrome/applyPanelSize then fall back to the CSS dock defaults.
+  function resetDock() {
+    savedSize = null;
+    positions.Max = null;
+    try { window.localStorage.removeItem("FC26_size"); window.localStorage.removeItem("FC26_posMax"); } catch (e) {}
+    if (state.minimized) { state.minimized = false; body.style.display = "flex"; minBtn.textContent = "–"; }
+    applyLayout();
+  }
+
   var dragState = null;
   // endDrag(): finish a drag - save the resting position and clear the drag state.
   // Called from pointerup AND pointercancel AND the "no button held" guard below, so a
@@ -1777,7 +1956,7 @@
   header.addEventListener("pointerdown", function (e) {
     if (!dragEnabled()) return;
     if (e.button !== 0 && e.pointerType === "mouse") return;                  // left mouse button only
-    if (e.target && e.target.closest && e.target.closest("button")) return;   // let –/× buttons work
+    if (e.target && e.target.closest && e.target.closest("button, select, input")) return;   // let the –/× buttons and the theme dropdown work
     var r = panel.getBoundingClientRect();
     dragState = { dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width, h: r.height, pid: e.pointerId };
     try { header.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1793,7 +1972,7 @@
   header.addEventListener("pointerup", endDrag);
   header.addEventListener("pointercancel", endDrag);
   // Re-clamp on window resize / phone rotate so a saved spot never ends up off-screen.
-  window.addEventListener("resize", function () { applyPanelChrome(); reclampPanel(); });
+  window.addEventListener("resize", function () { applyPanelChrome(); reclampPanel(); maybeReflowDesktop(); });
 
   // Group 1 - Squad (search + eligible filter + player list). On desktop this becomes
   // a flex column (via .fc26-squad) so the player list flexes to fill the left pane.
@@ -1803,9 +1982,11 @@
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList);
-  // Group 3 - Apply (delay + Apply/Stop + the animation/summary box + status line).
+  // Group 3 - Apply. The "run row" (optRow) holds the delay chip + Apply/Stop side by side
+  // (Apply and Stop swap in the same slot), then the animation/summary box + status line.
+  optRow.appendChild(applyBtn); optRow.appendChild(stopBtn);
   var applyMod = document.createElement("div");
-  applyMod.appendChild(batchList); applyMod.appendChild(optRow); applyMod.appendChild(applyBtn); applyMod.appendChild(stopBtn); applyMod.appendChild(applyBox); applyMod.appendChild(status);
+  applyMod.appendChild(batchList); applyMod.appendChild(optRow); applyMod.appendChild(applyBox); applyMod.appendChild(status);
 
   // Compact "selected player" header, shown atop the wizard's PlayStyles step.
   var wizWho = document.createElement("div");
@@ -1822,67 +2003,156 @@
     wizWho.innerHTML = it
       ? "<span style='color:var(--gold);font-weight:800'>" + (it.rating != null ? it.rating : "?") + "</span> <b>" + esc(playerName(it)) + "</b>"
       : "<span style='color:var(--muted)'>No player selected</span>";
+    if (typeof updateStickySpot === "function") updateStickySpot();   // keep the pinned mobile spotlight in sync
   }
 
-  // Wizard scaffolding (used only on mobile).
+  // Mobile scaffolding: a broadcast "channel" layout. A fixed tab bar up top (Lineup /
+  // Style deck / Review), the current section scrolling in the middle, and a sticky
+  // mini-spotlight pinned to the bottom that always shows who you're building.
   var layoutHost = document.createElement("div");             // the one box we rebuild the layout into
   layoutHost.style.cssText = "flex:1;min-height:0;display:flex;flex-direction:column";
-  var stepper = document.createElement("div"); stepper.className = "fc26-stepper";
-  var stepBody = document.createElement("div");
-  var wizNav = document.createElement("div"); wizNav.className = "fc26-wviznav";
-  var wizBack = document.createElement("button"); wizBack.className = "fc26-wizbtn"; wizBack.textContent = "← Back";
-  var wizNext = document.createElement("button"); wizNext.className = "fc26-wizbtn next"; wizNext.textContent = "Next →";
-  wizNav.appendChild(wizBack); wizNav.appendChild(wizNext);
-  wizBack.addEventListener("click", function () { goStep(state.wizStep - 1); });
-  wizNext.addEventListener("click", function () { goStep(state.wizStep + 1); });
-  var STEP_LABELS = ["Player", "PlayStyles", "Apply"];
+  var stepper = document.createElement("div"); stepper.className = "fc26-chtabs";      // the channel tab bar
+  var stepBody = document.createElement("div"); stepBody.className = "fc26-stepbody";   // the scrolling section
+  var stickySpot = document.createElement("div"); stickySpot.className = "fc26-spot";   // pinned mini-spotlight
+  var STEP_LABELS = ["Lineup", "PlayStyle Deck", "Review"];   // channel-tab labels (1 / 2 / 3)
 
-  // goStep(n): change wizard step (clamped 1-3) and redraw, on mobile.
-  function goStep(n) { state.wizStep = Math.max(1, Math.min(3, n)); if (currentMode() === "mobile") renderWizStep(); }
+  // Mobile "guide" button: walks the user Lineup -> PlayStyle Deck -> Review. It's gated:
+  // you can't leave Lineup without a player, and you can't reach Review without at least one
+  // PlayStyle picked (the Review tab is dimmed + blocked in the same case). updateGuide()
+  // keeps its label/enabled state live (called on every render and every evo change).
+  var guideBtn = document.createElement("button");
+  guideBtn.className = "fc26-guidebtn";
+  guideBtn.addEventListener("click", function () { goStep(state.wizStep + 1); });
+  var reviewTabEl = null;   // the Review tab element, so updateGuide can dim/undim it live
+  function updateGuide() {
+    var deckReady = state.selected.size >= 1;                 // at least one PlayStyle ticked
+    if (reviewTabEl) reviewTabEl.classList.toggle("dis", !deckReady);
+    if (!guideBtn) return;
+    if (state.wizStep >= 3) { guideBtn.style.display = "none"; return; }   // Review uses the Apply button
+    guideBtn.style.display = "";
+    var can, label;
+    if (state.wizStep === 1) {
+      can = !!state.player || state.batch.size > 0;
+      label = can ? "Next: PlayStyle Deck →" : "Pick a player first";
+    } else {                                                   // step 2 (PlayStyle Deck)
+      can = deckReady;
+      label = can ? "Next: Review →" : "Pick a PlayStyle to continue";
+    }
+    guideBtn.textContent = label;
+    guideBtn.disabled = !can;
+    guideBtn.classList.toggle("dis", !can);
+  }
+
+  // updateStickySpot(): refresh the pinned mini-spotlight - rating + name + caps for the
+  // selected player, a count when a batch is ticked, or an empty prompt. Kept in sync by
+  // updateWizWho (fires on select / batch changes) and every mobile render.
+  function updateStickySpot() {
+    if (!stickySpot) return;
+    var it = state.player;
+    if (state.batch.size > 1) {
+      stickySpot.innerHTML = "<span class='sp-r'>👥</span><div class='sp-w'><div class='sp-n'>" + state.batch.size + " players</div><div class='sp-s'>batch apply</div></div>";
+      return;
+    }
+    if (!it) {
+      stickySpot.innerHTML = "<div class='sp-w'><div class='sp-n sp-none'>No player selected</div><div class='sp-s'>pick one from the Lineup tab</div></div>";
+      return;
+    }
+    stickySpot.innerHTML = "<span class='sp-r'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+      "<div class='sp-w'><div class='sp-n'>" + esc(playerName(it)) + (isGKPlayer(it) ? " <span class='sp-gk'>GK</span>" : "") + "</div>" +
+      "<div class='sp-s'>PS+ " + numPlus(it) + "/" + CAP_PLUS + " &middot; BASIC " + numBasic(it) + "/" + CAP_BASIC + "</div></div>";
+  }
+
+  // goStep(n): change wizard step (clamped 1-3) and redraw, on mobile. Guarded: you can't
+  // land on Review (3) until at least one PlayStyle is selected (a no-op otherwise, so both
+  // the guide button and a direct Review-tab tap are blocked).
+  function goStep(n) {
+    n = Math.max(1, Math.min(3, n));
+    if (n === 3 && state.selected.size === 0) return;         // no PlayStyle picked -> stay put
+    state.wizStep = n;
+    if (currentMode() === "mobile") renderWizStep();
+  }
 
   // renderWizStep(): draw the stepper + show the current step's modules + set nav buttons.
   function renderWizStep() {
+    updateStickySpot();   // refresh the pinned mini-spotlight for the current player
     stepper.innerHTML = "";
+    reviewTabEl = null;
     for (var i = 1; i <= 3; i++) {
       (function (n) {
         var s = document.createElement("div");
-        s.className = "fc26-step" + (n === state.wizStep ? " now" : (n < state.wizStep ? " done" : ""));
-        s.innerHTML = "<span class='c'>" + (n < state.wizStep ? "✓" : n) + "</span>" + STEP_LABELS[n - 1];
+        s.className = "fc26-chtab" + (n === state.wizStep ? " on" : "");   // active channel highlighted
+        s.textContent = STEP_LABELS[n - 1];
         s.addEventListener("click", function () { goStep(n); });
         stepper.appendChild(s);
+        if (n === 3) reviewTabEl = s;   // remembered so updateGuide can dim it until ready
       })(i);
     }
     stepBody.innerHTML = "";
-    if (state.wizStep === 1) {                                 // Step 1: pick a player
+    if (state.wizStep === 1) {                                 // Lineup: pick a player
       stepBody.appendChild(squadMod);
-    } else if (state.wizStep === 2) {                          // Step 2: choose PlayStyles
+    } else if (state.wizStep === 2) {                          // PlayStyle Deck: choose PlayStyles
       updateWizWho(); stepBody.appendChild(wizWho); stepBody.appendChild(buildMod);
-    } else {                                                    // Step 3: review + apply
+    } else {                                                    // Review: preview + apply
       stepBody.appendChild(preview); stepBody.appendChild(applyMod);
     }
-    wizBack.style.visibility = state.wizStep === 1 ? "hidden" : "visible";
-    wizNext.style.display = state.wizStep === 3 ? "none" : "";  // step 3 uses the Apply button, not Next
-    wizNext.textContent = state.wizStep === 1 ? "Next: PlayStyles →" : "Next: Review →";
+    updateGuide();   // set the guide button label/enabled + Review-tab dim for this step
+  }
+
+  // NARROW_DESKTOP: below this PANEL width (px) the desktop dock drops from three columns
+  // to two, so a small dock never squeezes the style deck. (The panel is resizable, so this
+  // is measured off the panel, not the viewport.)
+  var NARROW_DESKTOP = 840;
+  // desktopColMode(): 3 columns when the dock is wide, 2 when it's been resized narrow.
+  function desktopColMode() {
+    var w = panel.getBoundingClientRect().width || window.innerWidth;
+    return w < NARROW_DESKTOP ? 2 : 3;
+  }
+  // buildDesktop(): (re)draw the desktop columns for the current width.
+  //   WIDE (3 cols): lineup rail | spotlight (preview) | style deck (build + apply).
+  //   NARROW (2 cols): lineup rail | one right pane with the spotlight stacked ON TOP of
+  //     the deck (like the old two-pane layout), so nothing gets crushed sideways.
+  // Same element instances are just re-parented, so all state/listeners survive.
+  function buildDesktop() {
+    state.desktopCols = desktopColMode();
+    layoutHost.innerHTML = "";
+    var cols = document.createElement("div"); cols.className = "fc26-cols";
+    var l = document.createElement("div"); l.className = "fc26-pane l";
+    l.appendChild(squadMod);
+    cols.appendChild(l);
+    if (state.desktopCols === 3) {
+      var mid = document.createElement("div"); mid.className = "fc26-pane m";
+      mid.appendChild(preview); mid.appendChild(spotHint);
+      var r = document.createElement("div"); r.className = "fc26-pane r";
+      r.appendChild(buildMod); r.appendChild(applyMod);
+      cols.appendChild(mid); cols.appendChild(r);
+    } else {
+      // Narrow: spotlight stacks on top of the deck in a single flexible right pane.
+      var r2 = document.createElement("div"); r2.className = "fc26-pane r2";
+      r2.appendChild(preview); r2.appendChild(buildMod); r2.appendChild(applyMod);
+      cols.appendChild(r2);
+    }
+    layoutHost.appendChild(cols);
+  }
+  // maybeReflowDesktop(): while resizing (or on a window resize) re-split the columns only
+  // when the width actually crosses the wide/narrow threshold - cheap, no needless rebuilds.
+  function maybeReflowDesktop() {
+    if (currentMode() !== "desktop") return;
+    if (desktopColMode() !== state.desktopCols) buildDesktop();
   }
 
   // applyLayout(): (re)build the whole layout for the current screen width.
   function applyLayout() {
     var m = currentMode();
     applyPanelChrome();   // set the panel's class + position (mode + minimized + saved spot)
-    // Desktop: the panes scroll (host doesn't). Mobile: the whole sheet scrolls.
+    // In BOTH modes an inner element scrolls, not the host: desktop = the panes; mobile =
+    // the section body (fc26-stepbody), so the tab bar + pinned spotlight stay put.
     layoutHost.style.overflowX = "hidden";
-    layoutHost.style.overflowY = m === "mobile" ? "auto" : "hidden";
+    layoutHost.style.overflowY = "hidden";
     layoutHost.innerHTML = "";
     if (m === "desktop") {
-      var cols = document.createElement("div"); cols.className = "fc26-cols";
-      var l = document.createElement("div"); l.className = "fc26-pane l";
-      var r = document.createElement("div"); r.className = "fc26-pane r";
-      l.appendChild(squadMod);
-      r.appendChild(preview); r.appendChild(buildMod); r.appendChild(applyMod);
-      cols.appendChild(l); cols.appendChild(r);
-      layoutHost.appendChild(cols);
+      buildDesktop();   // 3 or 2 columns depending on the dock's current width
     } else {
-      layoutHost.appendChild(stepper); layoutHost.appendChild(stepBody); layoutHost.appendChild(wizNav);
+      layoutHost.appendChild(stepper); layoutHost.appendChild(stepBody); layoutHost.appendChild(guideBtn); layoutHost.appendChild(stickySpot);
       renderWizStep();
     }
     // applyPanelChrome (above) clamped using the height BEFORE this content was added, so

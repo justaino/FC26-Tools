@@ -5,6 +5,46 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v5 - 2026-07-10
+
+A full visual redesign of the panel: the "Broadcast" look, with switchable colour
+themes. Everything the tool did before still works the same way; this is layout and
+styling (plus the theme picker). The old Emerald frosted-glass skin is retired.
+
+### Switchable colour themes
+There's now a **theme dropdown** in the panel header with three frosted-glass
+colourways, and it remembers your pick:
+- **UCL Night** (the default) - deep navy with a cyan accent and FUT gold.
+- **Broadcast Yellow** - near-black with an electric lime accent.
+- **Prime Teal** - dark teal with a coral accent.
+
+### Broadcast layout (desktop)
+- The panel is now a **wide console docked to the bottom of the screen** with a bright
+  top edge, split into three zones: the **Lineup** (your players), the **Spotlight**
+  (the selected player), and the **PlayStyle Deck** (choose + apply).
+- You can still **drag it and resize it** by the corner, and there's a new **reset
+  button** (the little expand icon in the header) that snaps it back to the default dock.
+- Resize it narrow and it drops to **two columns** (the spotlight tucks above the deck)
+  so nothing gets squashed.
+
+### Redesigned player spotlight
+The selected-player card is now a broadcast-style "lower third": a big rating number
+next to the name, with the PlayStyle+ (3) and Basic (8) caps drawn as **segment meters**
+instead of dots. Same info as before.
+
+### Guided mobile flow
+On a phone the wizard is now **channel tabs** (Lineup / PlayStyle Deck / Review) with a
+**pinned mini-spotlight** at the bottom that always shows who you're building. A **guide
+button** walks you through the steps, and you **can't reach Review until you've picked at
+least one PlayStyle** (the Review tab stays greyed out until then).
+
+### Type + naming
+- The whole panel now uses a **condensed, uppercase broadcast typeface**.
+- "Evolutions" is renamed **"PlayStyle Deck"**; the delay control and Apply button now
+  sit **side by side** in one row.
+
+---
+
 ## v4 - 2026-07-08
 
 ### Version badge in the panel header
