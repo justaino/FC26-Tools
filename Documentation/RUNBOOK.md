@@ -275,6 +275,45 @@ from the two toggle handlers, `renderPlayers`, `renderWizStep` (Lineup step) and
 
 ---
 
+## 3g. New in v13 - Gauntlet squad builder (display only)
+
+A **▸ Gauntlet squad builder** section under the player list (below Meta rating) that drafts
+several complete squads from your club with **no player shared between them** - the Gauntlet
+rule. It only shows the squads; it does not touch your game.
+
+**How to use it:**
+- Open **▸ Gauntlet squad builder**, pick a **formation** (4-3-3, 4-4-2, 4-2-3-1 or 3-5-2)
+  and how many **squads** (3, 4 or 5), then click **Build**.
+- Each squad shows 11 starters (by position) with the XI average, a **Bench** of 7 subs, and
+  a **Chem clusters** line. Tap any row to spotlight that player in the preview.
+
+**How it builds (the moving parts):**
+- `buildGauntlet(formationName, n)` does the work and returns `{ squads, depth, ... }`. Each
+  squad has `slots` (11 starters, by the formation's position order) and `subs` (7), and each
+  filled cell is `{ group, player, score }` where `player` is the real club item.
+- **Depth check first (`gauntletDepth`).** It needs `n × 18` distinct usable players and
+  enough cover per position group. If not, `renderGauntlet` shows a red warning listing the
+  exact shortages (need vs have) and **builds nothing** - no broken squads.
+- **Snake draft.** Starters are filled position by position, hardest-to-fill position first;
+  each round alternates direction (1..N then N..1) so no single squad hoards the best players.
+  Each pick is the best available club player for that position group by the Justaino score
+  (`scorePlayer`); subs are then drafted by each player's best position (`bestJustaino`).
+- **Light chem tiebreaker (`chemPick` + `CHEM_EPSILON`).** Among players within a few points
+  of the best score, it prefers one who shares a **league** or **nation** already common in
+  that squad (read straight off the item: `it.leagueId`, `it.nationId`), then higher rating.
+  `chemSummary` produces the "up to X share a league / Y share a nation" line per squad.
+- Picked players are removed from the pool as they go, so **no player appears in two squads**.
+
+**Console helpers (read-only):**
+`window.FC26.buildGauntlet("4-3-3", 3)`, `window.FC26.gauntletDepth(...)`,
+`window.FC26.FORMATIONS`.
+
+**Display only:** this version does not create or change any squad in the web app. Creating
+these drafted squads for real (a "Create in game" button, fully reversible) is the next
+feature - see `SQUAD-CREATION-SPEC.md`.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

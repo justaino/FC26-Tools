@@ -5,6 +5,33 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v13 - 2026-07-10
+
+**Gauntlet squad builder (display only).**
+
+- New **▸ Gauntlet squad builder** section under the player list (below Meta rating). Pick a
+  formation (4-3-3, 4-4-2, 4-2-3-1 or 3-5-2) and how many squads (3, 4 or 5), then **Build**.
+- It drafts that many complete squads from your club with **no player shared** between them:
+  11 starters plus 7 subs each (18 per squad), each slot filled by the best available player
+  for that position on the Justaino rating (a snake draft, so the squads stay balanced).
+- **Depth check first:** if your club cannot fill that many full squads it tells you exactly
+  which positions are short and builds nothing, instead of making broken teams.
+- Each squad shows its starting-XI average, its bench, and a light **chem clusters** line
+  (how many players share a league or a nation). Tap any player row to spotlight that card.
+- This is **display only** - it does not create or change anything in your game. (Creating
+  these squads in the web app for real is the next feature.)
+
+---
+
+## v12 - 2026-07-10
+
+**Crash fix.**
+
+- Guarded `currentMode` on load so the panel can no longer crash while it is still working
+  out whether to show the desktop or mobile layout.
+
+---
+
 ## v11 - 2026-07-10
 
 **Safer eligible-rarity manager: nothing changes until you Save.**

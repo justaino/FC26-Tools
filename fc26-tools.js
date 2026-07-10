@@ -758,6 +758,244 @@
   window.FC26.STAT_WEIGHTS = STAT_WEIGHTS;
   window.FC26.PLAYSTYLE_WEIGHTS = PLAYSTYLE_WEIGHTS;
 
+  // ============================================================================
+  // FEATURE 3 - GAUNTLET SQUAD BUILDER (display only)
+  // Given a formation + N (3-5), build N squads from the club with ZERO shared
+  // players (the "Gauntlet" rule: each objective wants a different XI), each as
+  // strong as possible, via a snake draft on the Justaino meta score
+  // (scorePlayer). We never place anyone in the game - this is just a plan.
+  // ============================================================================
+
+  // A formation is just an ordered list of 11 position GROUPS (the same group
+  // strings scorePlayer/playerPositionGroups already speak: GK, CB, RB / LB,
+  // CDM, CM, RM / LM, CAM, RW / LW, ST). Left/right are merged into one group,
+  // exactly like the rest of the tool, so a "RB / LB" slot accepts either side.
+  var FORMATIONS = {
+    "4-3-3":   ["GK", "RB / LB", "CB", "CB", "RB / LB", "CM", "CM", "CM", "RW / LW", "ST", "RW / LW"],
+    "4-4-2":   ["GK", "RB / LB", "CB", "CB", "RB / LB", "RM / LM", "CM", "CM", "RM / LM", "ST", "ST"],
+    "4-2-3-1": ["GK", "RB / LB", "CB", "CB", "RB / LB", "CDM", "CDM", "RM / LM", "CAM", "RM / LM", "ST"],
+    "3-5-2":   ["GK", "CB", "CB", "CB", "RM / LM", "CM", "CM", "CM", "RM / LM", "ST", "ST"]
+  };
+  var FORMATION_ORDER = ["4-3-3", "4-4-2", "4-2-3-1", "3-5-2"];
+  // A full Gauntlet squad is 18 players: 11 starters + 7 subs on the bench.
+  var SUBS_PER_SQUAD = 7;
+  var SQUAD_SIZE = 11 + SUBS_PER_SQUAD;     // 18
+
+  // Which club players can be used at all: anyone with at least one position
+  // group we know how to score. (playerPositionGroups already maps the item's
+  // positions into our group strings.)
+  function gauntletPool() {
+    return getClubPlayers().filter(function (it) {
+      return playerPositionGroups(it).length > 0;
+    });
+  }
+
+  // Can this player fill this formation slot? True if the slot's group is one of
+  // the player's own position groups.
+  function canPlayGroup(it, group) {
+    return playerPositionGroups(it).indexOf(group) !== -1;
+  }
+
+  // DEPTH CHECK - run BEFORE building so we never show broken squads.
+  // Two tests:
+  //   1. Total: the club needs at least 11 * N usable players.
+  //   2. Per group: each group needs (times it appears in the formation) * N
+  //      candidates who can play it. Players overlap groups, so passing this is
+  //      necessary but not a hard guarantee; a FAILURE, though, is a real,
+  //      specific shortage worth reporting by name.
+  function gauntletDepth(formationSlots, n) {
+    var players = gauntletPool();
+    // Count how many of each group the formation asks for.
+    var need = {};
+    formationSlots.forEach(function (g) { need[g] = (need[g] || 0) + 1; });
+    var shortages = [];
+    Object.keys(need).forEach(function (g) {
+      var required = need[g] * n;
+      var have = players.filter(function (it) { return canPlayGroup(it, g); }).length;
+      if (have < required) shortages.push({ group: g, required: required, have: have });
+    });
+    return {
+      totalNeeded: SQUAD_SIZE * n,       // 18 per squad (11 starters + 7 subs)
+      totalHave: players.length,
+      totalOk: players.length >= SQUAD_SIZE * n,
+      shortages: shortages,          // per-group gaps for the STARTING slots (subs are position-free)
+      ok: players.length >= SQUAD_SIZE * n && shortages.length === 0
+    };
+  }
+
+  // ---- Chemistry tiebreaker (light) ----------------------------------------
+  // A club item exposes its league and nation as plain numbers: it.leagueId and
+  // it.nationId (discovered live; e.g. Ochoa = league 78, nation 83). We use them
+  // ONLY to break near-ties: between candidates whose Justaino scores are within
+  // CHEM_EPSILON of the best available, we prefer the one who shares a league or
+  // nation with players already in that squad. Small epsilon = rating still leads.
+  var CHEM_EPSILON = 3;
+  // Every already-placed player in a squad (starters + subs drafted so far).
+  function squadPlaced(squad) {
+    var arr = [];
+    squad.slots.forEach(function (c) { if (c && c.player) arr.push(c.player); });
+    squad.subs.forEach(function (c) { if (c && c.player) arr.push(c.player); });
+    return arr;
+  }
+  // How many "links" a candidate would add: +1 per squad-mate sharing its league,
+  // +1 per squad-mate sharing its nation.
+  function chemAffinity(placed, cand) {
+    var lg = cand.leagueId, nt = cand.nationId, a = 0;
+    for (var i = 0; i < placed.length; i++) {
+      var p = placed[i];
+      if (lg != null && p.leagueId === lg) a++;
+      if (nt != null && p.nationId === nt) a++;
+    }
+    return a;
+  }
+  // From a list of {i, score, group} candidates (i = index into pool), keep those
+  // within CHEM_EPSILON of the top score, then choose the best by chem affinity,
+  // then score, then OVR. Returns the winning candidate (with .i/.score/.group) or null.
+  function chemPick(cands, squad, pool) {
+    if (!cands.length) return null;
+    var bestScore = -1;
+    cands.forEach(function (c) { if (c.score > bestScore) bestScore = c.score; });
+    var placed = squadPlaced(squad);
+    var best = null;
+    cands.forEach(function (c) {
+      if (c.score < bestScore - CHEM_EPSILON) return;         // too far below the top to consider
+      var aff = chemAffinity(placed, pool[c.i]);
+      var rating = pool[c.i].rating || 0;
+      if (!best || aff > best.aff ||
+          (aff === best.aff && c.score > best.score) ||
+          (aff === best.aff && c.score === best.score && rating > best.rating)) {
+        best = { i: c.i, score: c.score, group: c.group, aff: aff, rating: rating };
+      }
+    });
+    return best;
+  }
+  // Per-squad readout: the biggest single-league and single-nation cluster in it,
+  // so the chemistry effect is visible without needing league/nation NAMES.
+  function chemSummary(placed) {
+    var lg = {}, nt = {};
+    placed.forEach(function (p) {
+      if (p.leagueId != null) lg[p.leagueId] = (lg[p.leagueId] || 0) + 1;
+      if (p.nationId != null) nt[p.nationId] = (nt[p.nationId] || 0) + 1;
+    });
+    function max(o) { var m = 0; Object.keys(o).forEach(function (k) { if (o[k] > m) m = o[k]; }); return m; }
+    return { maxLeague: max(lg), maxNation: max(nt) };
+  }
+
+  // THE SNAKE DRAFT.
+  // Fill the formation slot by slot (one "round" per slot). In each round every
+  // squad drafts one player for that slot's group; the draft ORDER flips each
+  // round (1..N, then N..1, then 1..N, ...) so no single squad always gets first
+  // pick. Each pick takes the best still-available player (highest scorePlayer
+  // for that group), then removes them from the shared pool so no player is ever
+  // reused across squads. We fill the SCARCEST groups first (fewest candidates)
+  // so tight positions get served before the pool is thinned by easy ones.
+  function buildGauntlet(formationName, n) {
+    var formationSlots = FORMATIONS[formationName];
+    if (!formationSlots) return { error: "Unknown formation: " + formationName };
+    n = Math.max(1, Math.min(5, n | 0));
+
+    var depth = gauntletDepth(formationSlots, n);
+
+    // Pool of available players (we splice out of a working copy as we draft).
+    var pool = gauntletPool().slice();
+
+    // Order the 11 slots scarcest-first. We keep each slot's ORIGINAL index so
+    // the finished squad can be shown back in normal formation order (GK first).
+    var slotOrder = formationSlots.map(function (group, idx) {
+      var cand = pool.filter(function (it) { return canPlayGroup(it, group); }).length;
+      return { group: group, idx: idx, cand: cand };
+    }).sort(function (a, b) { return a.cand - b.cand; });
+
+    // Prepare N empty squads. Each has 11 starter slots (by original index) plus a
+    // bench that we fill after the XIs are done.
+    var squads = [];
+    for (var s = 0; s < n; s++) {
+      squads.push({ slots: new Array(formationSlots.length), fillCount: 0, subs: [] });
+    }
+
+    // Draft, round by round (one round per formation slot).
+    slotOrder.forEach(function (slot, round) {
+      // Flip direction every other round (the "snake").
+      var order = [];
+      for (var i = 0; i < n; i++) order.push(i);
+      if (round % 2 === 1) order.reverse();
+
+      order.forEach(function (squadIdx) {
+        var squad = squads[squadIdx];
+        // Every available player who can play this slot's group, with their score.
+        var cands = [];
+        for (var pi = 0; pi < pool.length; pi++) {
+          if (!canPlayGroup(pool[pi], slot.group)) continue;
+          cands.push({ i: pi, score: scorePlayer(pool[pi], slot.group).total, group: slot.group });
+        }
+        // Pick the best by score, with the chem tiebreaker for near-ties.
+        var pick = chemPick(cands, squad, pool);
+        if (!pick) {
+          // No one left who can fill this slot for this squad.
+          squad.slots[slot.idx] = { group: slot.group, player: null, score: null };
+        } else {
+          var picked = pool.splice(pick.i, 1)[0];   // remove from the shared pool
+          squad.slots[slot.idx] = { group: slot.group, player: picked, score: pick.score };
+          squad.fillCount++;
+        }
+      });
+    });
+
+    // BENCH DRAFT. After every XI is complete, hand out 7 subs per squad, still
+    // snaking so no squad hogs the leftovers. Bench slots aren't position-locked
+    // (a FUT bench takes anyone), so each pick is simply the best remaining player
+    // by their STRONGEST role (bestJustaino), removed from the shared pool so the
+    // no-overlap rule holds across all 18 x N players.
+    for (var sr = 0; sr < SUBS_PER_SQUAD; sr++) {
+      var subOrder = [];
+      for (var so = 0; so < n; so++) subOrder.push(so);
+      if (sr % 2 === 1) subOrder.reverse();
+
+      subOrder.forEach(function (squadIdx) {
+        var squad = squads[squadIdx];
+        // Every available player, scored at their strongest role.
+        var cands = [];
+        for (var pi = 0; pi < pool.length; pi++) {
+          var bj = bestJustaino(pool[pi]);
+          if (!bj) continue;
+          cands.push({ i: pi, score: bj.score.total, group: bj.group });
+        }
+        var pick = chemPick(cands, squad, pool);
+        if (!pick) {
+          squad.subs.push({ group: null, player: null, score: null });
+        } else {
+          var picked = pool.splice(pick.i, 1)[0];
+          squad.subs.push({ group: pick.group, player: picked, score: pick.score });
+        }
+      });
+    }
+
+    // Averages per squad (over filled slots only), for balance visibility - one for
+    // the starting XI, one for the bench.
+    squads.forEach(function (sq) {
+      var sum = 0, filled = 0;
+      sq.slots.forEach(function (cell) {
+        if (cell && cell.player) { sum += cell.score; filled++; }
+      });
+      sq.avg = filled ? Math.round((sum / filled) * 10) / 10 : 0;
+      sq.filled = filled;
+      var ssum = 0, sfilled = 0;
+      sq.subs.forEach(function (cell) {
+        if (cell && cell.player) { ssum += cell.score; sfilled++; }
+      });
+      sq.subAvg = sfilled ? Math.round((ssum / sfilled) * 10) / 10 : 0;
+      sq.subFilled = sfilled;
+      sq.chem = chemSummary(squadPlaced(sq));    // biggest league/nation cluster in the 18
+    });
+
+    return { formation: formationName, n: n, slots: formationSlots, squads: squads, depth: depth };
+  }
+
+  // Console helpers: window.FC26.buildGauntlet("4-3-3", 3), .FORMATIONS
+  window.FC26.buildGauntlet = buildGauntlet;
+  window.FC26.gauntletDepth = gauntletDepth;
+  window.FC26.FORMATIONS = FORMATIONS;
+
   // The floating panel. A flex column: fixed header on top, scrollable body below.
   var panel = document.createElement("div");
   panel.id = "fc26-panel";
@@ -2365,6 +2603,30 @@
       "#fc26-panel .meta-score b{color:var(--accent);font-size:14px;font-variant-numeric:tabular-nums}" +
       "#fc26-panel .meta-split{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .meta-note{margin-top:7px;font-size:10px;color:var(--muted);opacity:.85}" +
+      // ---- Feature 3: Gauntlet squad builder -----------------------------------
+      "#fc26-panel .gt-build{flex:none;background:var(--accent);color:var(--accent-ink);border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.04em}" +
+      "#fc26-panel .gt-out{margin-top:8px;display:flex;flex-direction:column;gap:10px}" +
+      "#fc26-panel .gt-warn{padding:9px 11px;border-radius:8px;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.34)}" +
+      "#fc26-panel .gt-warn-t{font-weight:800;font-size:12px;color:#ffc2c2;margin-bottom:6px}" +
+      "#fc26-panel .gt-warn-l{font-size:11px;color:var(--ink);opacity:.9;line-height:1.4;margin-top:3px}" +
+      "#fc26-panel .gt-warn-l b{color:#ffd7d7}" +
+      "#fc26-panel .gt-squad{border-radius:10px;background:var(--card);border:1px solid var(--card-border);overflow:hidden}" +
+      "#fc26-panel .gt-head{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--sel);border-bottom:1px solid var(--card-border)}" +
+      "#fc26-panel .gt-head b{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}" +
+      "#fc26-panel .gt-avg{margin-left:auto;font-size:10px;color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .gt-rows{display:flex;flex-direction:column}" +
+      "#fc26-panel .gt-row{display:flex;align-items:center;gap:8px;padding:4px 10px;cursor:pointer;border-left:3px solid transparent}" +
+      "#fc26-panel .gt-row:hover{border-left-color:var(--accent);background:var(--sel)}" +
+      "#fc26-panel .gt-row.on{border-left-color:var(--accent);background:var(--sel)}" +
+      "#fc26-panel .gt-row.empty{cursor:default;opacity:.7}" +
+      "#fc26-panel .gt-row.empty:hover{border-left-color:transparent;background:transparent}" +
+      "#fc26-panel .gt-pos{flex:none;min-width:56px;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}" +
+      "#fc26-panel .gt-ovr{flex:none;min-width:22px;text-align:center;font-weight:800;font-size:13px;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .gt-nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:12px}" +
+      "#fc26-panel .gt-empty{color:var(--muted);font-weight:500;font-style:italic}" +
+      "#fc26-panel .gt-sc{flex:none;font-weight:800;font-size:13px;color:var(--accent);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .gt-bench-lab{padding:5px 10px;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:rgba(0,0,0,.14);border-top:1px solid var(--card-border);border-bottom:1px solid var(--card-border)}" +
+      "#fc26-panel .gt-chem{padding:6px 10px;font-size:10px;color:var(--muted);border-top:1px solid var(--card-border);background:rgba(0,0,0,.08)}" +
       // ---- Feature 4b: GH 4th PlayStyle+ (one-off) section ---------------------
       "#fc26-panel .gh-toggle{width:100%;text-align:left;background:var(--tile-psp);color:var(--gold);border:1px solid var(--tile-psp-border);border-radius:7px;padding:7px 9px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.04em}" +
       "#fc26-panel .gh-box{margin-top:6px;padding:9px;border-radius:8px;background:var(--card);border:1px solid var(--tile-psp-border)}" +
@@ -2905,9 +3167,157 @@
   }
   updateMetaToggle();
 
+  // --------------------------------------------------------------------------
+  // GAUNTLET SQUAD BUILDER (Feature 3) - a collapsible section, same shape as the
+  // Meta rating one. Pick a formation + how many squads (N), press Build, and get
+  // N non-overlapping XIs drafted off the Justaino score. Display only.
+  // --------------------------------------------------------------------------
+  var gtSection = document.createElement("div");
+  gtSection.className = "meta-section";           // reuse the same outer spacing
+  var gtToggle = document.createElement("button");
+  gtToggle.type = "button";
+  gtToggle.className = "meta-toggle";
+  var gtBox = document.createElement("div");
+  gtBox.className = "meta-box";
+  gtBox.style.display = "none";
+  // controls: formation, N (3-5), Build
+  var gtControls = document.createElement("div");
+  gtControls.className = "meta-controls";
+  var gtForm = document.createElement("select");
+  gtForm.className = "meta-pos";
+  gtForm.innerHTML = FORMATION_ORDER.map(function (f) { return "<option>" + esc(f) + "</option>"; }).join("");
+  var gtN = document.createElement("select");
+  gtN.className = "meta-count";
+  gtN.innerHTML = [3, 4, 5].map(function (n) { return "<option value='" + n + "'" + (n === 3 ? " selected" : "") + ">" + n + " squads</option>"; }).join("");
+  var gtBuild = document.createElement("button");
+  gtBuild.type = "button";
+  gtBuild.className = "gt-build";
+  gtBuild.textContent = "Build";
+  gtControls.appendChild(gtForm);
+  gtControls.appendChild(gtN);
+  gtControls.appendChild(gtBuild);
+  var gtOut = document.createElement("div");
+  gtOut.className = "gt-out";
+  var gtNote = document.createElement("div");
+  gtNote.className = "meta-note";
+  gtBox.appendChild(gtControls);
+  gtBox.appendChild(gtOut);
+  gtBox.appendChild(gtNote);
+  gtSection.appendChild(gtToggle);
+  gtSection.appendChild(gtBox);
+
+  var gtOpen = false;
+  function updateGtToggle() { gtToggle.textContent = (gtOpen ? "▾ " : "▸ ") + "Gauntlet squad builder (N no-overlap XIs)"; }
+  gtToggle.addEventListener("click", function () {
+    gtOpen = !gtOpen;
+    gtBox.style.display = gtOpen ? "block" : "none";
+    updateGtToggle();
+    lineupPeek = false;                                        // opening/closing re-collapses the list on mobile
+    if (typeof updateLineupCollapse === "function") updateLineupCollapse();
+  });
+  gtBuild.addEventListener("click", renderGauntlet);
+
+  // renderGauntlet(): run the draft for the chosen formation + N and draw the result.
+  // If the club is too thin, it reports the exact shortage instead of building.
+  function renderGauntlet() {
+    var players = getClubPlayers();
+    gtOut.innerHTML = "";
+    if (!players.length) { gtNote.textContent = "No club players yet - load your club first (↻ Reload club)."; return; }
+
+    var formation = gtForm.value;
+    var n = parseInt(gtN.value, 10) || 3;
+    var res = buildGauntlet(formation, n);
+    var depth = res.depth;
+
+    // DEPTH CHECK FIRST: if the club can't fill N x 11 (or a group is short),
+    // show the specific shortage and build nothing (spec: no broken squads).
+    if (!depth.ok) {
+      var warn = document.createElement("div");
+      warn.className = "gt-warn";
+      var lines = [];
+      if (!depth.totalOk) {
+        lines.push("Your club has <b>" + depth.totalHave + "</b> usable players but " + n +
+          " full 18-player squads need <b>" + depth.totalNeeded + "</b> (18 x " + n +
+          ", i.e. 11 starters + 7 subs each), all different.");
+      }
+      if (depth.shortages.length) {
+        var bits = depth.shortages.map(function (s) {
+          return s.group + " (need " + s.required + ", have " + s.have + ")";
+        }).join(", ");
+        lines.push("Not enough cover at: <b>" + esc(bits) + "</b>.");
+      }
+      lines.push("Try fewer squads, a different formation, or load more of your club.");
+      warn.innerHTML = "<div class='gt-warn-t'>Can't build " + n + " full " + esc(formation) + " squads</div>" +
+        lines.map(function (l) { return "<div class='gt-warn-l'>" + l + "</div>"; }).join("");
+      gtOut.appendChild(warn);
+      gtNote.textContent = "Depth check failed - nothing was built. Zero players are shared between squads by design.";
+      return;
+    }
+
+    // One row (starter or sub) -> a clickable DOM element. Empty cells (pool ran
+    // dry) render as a muted placeholder. Group label falls back to "SUB".
+    function gtRowEl(cell) {
+      var row = document.createElement("div");
+      if (cell && cell.player) {
+        var it = cell.player;
+        row.className = "gt-row" + (state.player && state.player.id === it.id ? " on" : "");
+        row.innerHTML =
+          "<span class='gt-pos'>" + esc(cell.group || "SUB") + "</span>" +
+          "<span class='gt-ovr'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+          "<span class='gt-nm'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='meta-gk'>GK</span>" : "") + "</span>" +
+          "<span class='gt-sc'>" + cell.score + "</span>";
+        row.title = playerName(it) + " (" + (cell.group || "sub") + ", Justaino " + cell.score + "). Tap to spotlight.";
+        row.addEventListener("click", (function (item) { return function () { selectPlayer(item); }; })(it));
+      } else {
+        row.className = "gt-row empty";
+        row.innerHTML =
+          "<span class='gt-pos'>" + esc((cell && cell.group) || "SUB") + "</span>" +
+          "<span class='gt-nm gt-empty'>no player available</span>";
+      }
+      return row;
+    }
+
+    // Draw each squad as a card: the XI, then the bench, each with its own average.
+    res.squads.forEach(function (sq, si) {
+      var card = document.createElement("div");
+      card.className = "gt-squad";
+      var head = document.createElement("div");
+      head.className = "gt-head";
+      head.innerHTML = "<b>Squad " + (si + 1) + "</b>" +
+        "<span class='gt-avg'>XI avg " + sq.avg + " &middot; " + sq.filled + "/11</span>";
+      card.appendChild(head);
+
+      var rows = document.createElement("div");
+      rows.className = "gt-rows";
+      sq.slots.forEach(function (cell) { rows.appendChild(gtRowEl(cell)); });
+      card.appendChild(rows);
+
+      // Bench: a divider label, then the 7 subs.
+      var benchLab = document.createElement("div");
+      benchLab.className = "gt-bench-lab";
+      benchLab.innerHTML = "Bench &middot; " + sq.subFilled + " sub" + (sq.subFilled === 1 ? "" : "s") +
+        (sq.subFilled ? " &middot; avg " + sq.subAvg : "");
+      card.appendChild(benchLab);
+      var subRows = document.createElement("div");
+      subRows.className = "gt-rows";
+      sq.subs.forEach(function (cell) { subRows.appendChild(gtRowEl(cell)); });
+      card.appendChild(subRows);
+
+      // Chemistry readout: the biggest same-league / same-nation cluster in the 18.
+      var chemLine = document.createElement("div");
+      chemLine.className = "gt-chem";
+      chemLine.textContent = "Chem clusters: up to " + sq.chem.maxLeague + " share a league, " + sq.chem.maxNation + " share a nation";
+      card.appendChild(chemLine);
+
+      gtOut.appendChild(card);
+    });
+    gtNote.textContent = "Snake draft on the Justaino score: 11 starters by position, then 7 subs by best role. Near-ties break toward shared league/nation. No player appears in more than one squad. Tap any row to spotlight.";
+  }
+  updateGtToggle();
+
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaSection);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaSection); squadMod.appendChild(gtSection);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); buildMod.appendChild(ghSection);
