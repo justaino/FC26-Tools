@@ -430,6 +430,74 @@
     "GK": TAIL_GK
   };
 
+  // ----------------------------------------------------------------------------
+  // FEATURE 2 - MY OWN META RATING: two tunable tables
+  // These two tables are the ONLY things you edit to re-tune the rating. The
+  // scoring logic (scorePlayer, further down) just reads them. Higher number =
+  // "matters more for this position". Everything is my own opinion of the current
+  // FC26 meta - change freely.
+  //
+  //  scorePlayer(player, group) = STAT part  +  PLAYSTYLE part
+  //    STAT part      : a weighted average of the stats that matter for the
+  //                     position (0-99-ish), using STAT_WEIGHTS below.
+  //    PLAYSTYLE part : bonus points for meta PlayStyles the player ALREADY has,
+  //                     using PLAYSTYLE_WEIGHTS below (a PlayStyle+ counts double).
+  // ----------------------------------------------------------------------------
+
+  // The 6 numbers in it.attributes, in the order the app stores them. Proven live
+  // on real cards (Tavernier / Ochoa). Outfielders read them as the 6 face stats;
+  // a goalkeeper's 6 mean the GK stats instead, so GKs are read under GK names.
+  var FACE_STATS = ["pace", "shooting", "passing", "dribbling", "defending", "physical"];
+  var GK_STATS   = ["diving", "handling", "kicking", "reflexes", "speed", "positioning"];
+
+  // STAT_WEIGHTS: for each position group, how much each stat counts. The meta
+  // right now rewards pace and dribbling on attackers, defending/physical at the
+  // back, so those carry the biggest weights. Numbers are relative (the code
+  // divides by their total), so only the RATIOS matter, not the scale.
+  var STAT_WEIGHTS = {
+    "ST":      { pace: 8,  shooting: 10, passing: 4, dribbling: 8, defending: 1,  physical: 6 },
+    "RW / LW": { pace: 10, shooting: 7,  passing: 5, dribbling: 9, defending: 1,  physical: 4 },
+    "CAM":     { pace: 7,  shooting: 7,  passing: 9, dribbling: 9, defending: 2,  physical: 4 },
+    "RM / LM": { pace: 9,  shooting: 6,  passing: 7, dribbling: 8, defending: 3,  physical: 4 },
+    "CM":      { pace: 6,  shooting: 5,  passing: 9, dribbling: 7, defending: 6,  physical: 6 },
+    "CDM":     { pace: 6,  shooting: 3,  passing: 7, dribbling: 5, defending: 9,  physical: 8 },
+    "RB / LB": { pace: 9,  shooting: 2,  passing: 6, dribbling: 6, defending: 8,  physical: 6 },
+    "CB":      { pace: 7,  shooting: 1,  passing: 4, dribbling: 3, defending: 10, physical: 9 },
+    // GK weights the 6 GK stats (reflexes + diving matter most in the current meta).
+    "GK":      { diving: 9, handling: 8, kicking: 4, reflexes: 10, speed: 4, positioning: 8 }
+  };
+
+  // PLAYSTYLE_WEIGHTS: bonus points for meta PlayStyles a player ALREADY owns, per
+  // position group. A PlayStyle+ is worth DOUBLE its base number (handled in code).
+  // Seeded from the current-FC26 meta consensus (July 2026): Finesse Shot / Low
+  // Driven Shot / Rapid / Technical / Quick Step / Trickster for attacking;
+  // Incisive Pass / Tiki Taka / Pinged Pass for creation; Anticipate / Intercept /
+  // Block / Bruiser / Jockey for defending; Far Reach / Footwork / 1v1 Close Down
+  // for keepers. Sources noted in RUNBOOK section 7b. Anything not listed = 0.
+  var PLAYSTYLE_WEIGHTS = {
+    "ST":      { "Finesse Shot": 4, "Low Driven Shot": 4, "Rapid": 3, "Quick Step": 3, "Technical": 3, "Trickster": 2, "First Touch": 2, "Power Shot": 1, "Chip Shot": 1, "Acrobatic": 1, "Precision Header": 1, "Incisive Pass": 1, "Dead Ball": 1 },
+    "RW / LW": { "Finesse Shot": 4, "Rapid": 4, "Quick Step": 3, "Technical": 3, "Trickster": 3, "Low Driven Shot": 3, "Incisive Pass": 2, "First Touch": 2, "Tiki Taka": 1, "Pinged Pass": 1, "Whipped Pass": 1 },
+    "CAM":     { "Incisive Pass": 4, "Finesse Shot": 4, "Tiki Taka": 3, "Technical": 3, "Rapid": 2, "Low Driven Shot": 2, "Pinged Pass": 2, "Trickster": 2, "First Touch": 2, "Quick Step": 2 },
+    "RM / LM": { "Rapid": 4, "Quick Step": 3, "Finesse Shot": 3, "Technical": 3, "Pinged Pass": 2, "Incisive Pass": 2, "Tiki Taka": 2, "Whipped Pass": 2, "Low Driven Shot": 2, "Trickster": 2, "First Touch": 1 },
+    "CM":      { "Incisive Pass": 4, "Tiki Taka": 3, "Pinged Pass": 3, "Press Proven": 2, "Intercept": 2, "Technical": 2, "First Touch": 2, "Anticipate": 2, "Finesse Shot": 2, "Long Ball Pass": 1, "Relentless": 1, "Bruiser": 1 },
+    "CDM":     { "Intercept": 4, "Pinged Pass": 3, "Anticipate": 3, "Bruiser": 3, "Tiki Taka": 2, "Jockey": 2, "Block": 2, "Press Proven": 2, "Incisive Pass": 2, "Slide Tackle": 1, "Long Ball Pass": 1, "Aerial Fortress": 1 },
+    "RB / LB": { "Quick Step": 4, "Rapid": 3, "Intercept": 3, "Anticipate": 3, "Bruiser": 2, "Jockey": 2, "Pinged Pass": 2, "Whipped Pass": 2, "Tiki Taka": 2, "Block": 1, "Relentless": 1, "Press Proven": 1 },
+    "CB":      { "Anticipate": 4, "Intercept": 4, "Block": 3, "Bruiser": 3, "Jockey": 3, "Aerial Fortress": 2, "Slide Tackle": 2, "Quick Step": 2, "Pinged Pass": 1, "Press Proven": 1 },
+    "GK":      { "Far Reach": 4, "Footwork": 3, "1v1 Close Down": 3, "Cross Claimer": 2, "Deflector": 2, "Far Throw": 1, "Pinged Pass": 1, "Long Ball Pass": 1 }
+  };
+
+  // How the two parts blend into the final 0-100 "Justaino rating". These MUST add
+  // up to 1. STAT_MIX is how much raw stats drive the rating; PS_MIX is how much
+  // PlayStyles drive it. Raise PS_MIX (and lower STAT_MIX by the same amount) to
+  // make PlayStyles swing the rating more. At 0.30, a player with NONE of the meta
+  // PlayStyles tops out around 70 no matter how good their stats are, and only a
+  // near-perfect card in both halves approaches 100.
+  var STAT_MIX = 0.70;
+  var PS_MIX   = 0.30;
+
+  // The order the position dropdown offers, and the value the app has no group for.
+  var META_GROUPS = ["ST", "RW / LW", "CAM", "RM / LM", "CM", "CDM", "RB / LB", "CB", "GK"];
+
   // Look up an evo by playstyle name. pspByName is keyed by the BASE name (no "+").
   var psByName = {}, pspByName = {};
   PS.forEach(function (x) { psByName[x.n] = x; });
@@ -544,6 +612,123 @@
     });
     return groups;
   }
+
+  // ----------------------------------------------------------------------------
+  // FEATURE 2 - the scoring engine (reads the two tables above)
+  // ----------------------------------------------------------------------------
+
+  // readStats(it): the player's 6 stats as a {name: value} object. GK cards get
+  // GK stat names; everyone else gets outfield face-stat names.
+  function readStats(it) {
+    var a = [];
+    try { a = it.attributes || []; } catch (e) {}
+    var keys = isGKPlayer(it) ? GK_STATS : FACE_STATS;
+    var o = {};
+    for (var i = 0; i < keys.length; i++) o[keys[i]] = (a[i] != null ? a[i] : 0);
+    return o;
+  }
+
+  // psMaxForGroup(group): a realistic "ceiling" of raw PlayStyle bonus points for a
+  // position - the best 3 meta PlayStyles owned as PS+ (doubled) plus the next 5 as
+  // basic. We divide a player's raw bonus by this to get a 0-100 PlayStyle score, so
+  // "full marks" means owning the best meta PlayStyles this position can want.
+  function psMaxForGroup(group) {
+    var pw = PLAYSTYLE_WEIGHTS[group] || {};
+    var vals = Object.keys(pw).map(function (k) { return pw[k]; }).sort(function (a, b) { return b - a; });
+    var top3 = 0, next5 = 0, i;
+    for (i = 0; i < 3 && i < vals.length; i++) top3 += vals[i];   // best 3 as PS+
+    for (i = 3; i < 8 && i < vals.length; i++) next5 += vals[i];  // next 5 as basic
+    return (top3 * 2 + next5) || 1;                                // never zero
+  }
+
+  // scorePlayer(it, group): my meta score for a club item played in a position
+  // group, as a single 0-100 "Justaino rating". Returns a breakdown so the UI can
+  // show WHY:
+  //   total     = the Justaino rating (0-100). 100 is near-impossible: it needs an
+  //               almost-perfect card in BOTH stats and meta PlayStyles.
+  //   statPart  = how many of those points came from stats  (= STAT_MIX x statScore)
+  //   psPart    = how many came from PlayStyles             (= PS_MIX  x psScore)
+  //   stat      = the raw weighted stat average (0-99), before the blend
+  //   psScore   = the raw PlayStyle score (0-100), before the blend
+  //   playstyle = raw PlayStyle bonus points
+  //   hits      = which owned PlayStyles scored, for display
+  //   statsUsed = the named stats + values that fed the stat part (self-checks order)
+  function scorePlayer(it, group) {
+    var sw = STAT_WEIGHTS[group];
+    var pw = PLAYSTYLE_WEIGHTS[group] || {};
+    if (!sw) return { stat: 0, playstyle: 0, psScore: 0, statPart: 0, psPart: 0, total: 0, hits: [], statsUsed: {}, group: group };
+
+    // --- stat part: weighted average of the stats this position cares about (0-99) ---
+    var stats = readStats(it);
+    var wsum = 0, vsum = 0, used = {};
+    for (var k in sw) { wsum += sw[k]; vsum += sw[k] * (stats[k] || 0); used[k] = (stats[k] || 0); }
+    var statScore = wsum ? (vsum / wsum) : 0;
+
+    // --- playstyle part: raw bonus for owned meta PlayStyles (PS+ = double) ---
+    var psRaw = 0, hits = [];
+    currentPlayStyles(it).forEach(function (p) {
+      var name = traitName[p.traitId];        // base name (traitName has no "+")
+      var base = name ? (pw[name] || 0) : 0;
+      if (!base) return;
+      var val = p.isIcon ? base * 2 : base;   // "+" version is worth double
+      psRaw += val;
+      hits.push({ name: name, isIcon: !!p.isIcon, val: val });
+    });
+    // turn raw bonus points into a 0-100 PlayStyle score vs this position's ceiling
+    var psScore = Math.min(1, psRaw / psMaxForGroup(group)) * 100;
+
+    // --- blend the two 0-100 halves into one 0-100 rating (mix knobs up top) ---
+    var statPart = STAT_MIX * statScore;
+    var psPart = PS_MIX * psScore;
+    var total = Math.min(100, statPart + psPart);
+
+    return {
+      stat: Math.round(statScore * 10) / 10,   // raw weighted stat average (0-99)
+      playstyle: psRaw,                          // raw PlayStyle bonus points
+      psScore: Math.round(psScore * 10) / 10,    // PlayStyle score (0-100) before blend
+      statPart: Math.round(statPart),            // stat's contribution to the rating
+      psPart: Math.round(psPart),                // PlayStyle's contribution to the rating
+      total: Math.round(total),                  // the Justaino rating, 0-100
+      hits: hits,
+      statsUsed: used,
+      group: group
+    };
+  }
+
+  // metaTop(group, n): the top-N club players for a position group, best first.
+  function metaTop(group, n) {
+    n = n || 20;
+    return getClubPlayers()
+      // only rank players who can actually play this position group (a CDM list
+      // shouldn't include players who can't play CDM).
+      .filter(function (it) { return playerPositionGroups(it).indexOf(group) !== -1; })
+      .map(function (it) { return { it: it, score: scorePlayer(it, group) }; })
+      .sort(function (a, b) { return b.score.total - a.score.total; })
+      .slice(0, n);
+  }
+
+  // bestJustaino(it): the player's highest Justaino rating across the positions they
+  // can play, for the preview-card pill. Returns { group, score } or null.
+  function bestJustaino(it) {
+    var groups = playerPositionGroups(it);
+    if (!groups.length) return null;
+    var best = null;
+    groups.forEach(function (g) {
+      var s = scorePlayer(it, g);
+      if (!best || s.total > best.score.total) best = { group: g, score: s };
+    });
+    return best;
+  }
+
+  // Console helpers so the tables can be poked/tuned without the UI:
+  //   window.FC26.scorePlayer(it, "ST")   -> full breakdown for one item
+  //   window.FC26.metaTop("CB", 10)       -> top 10 CBs in the loaded club
+  //   window.FC26.STAT_WEIGHTS / .PLAYSTYLE_WEIGHTS -> the live tables
+  window.FC26.scorePlayer = scorePlayer;
+  window.FC26.metaTop = metaTop;
+  window.FC26.bestJustaino = bestJustaino;
+  window.FC26.STAT_WEIGHTS = STAT_WEIGHTS;
+  window.FC26.PLAYSTYLE_WEIGHTS = PLAYSTYLE_WEIGHTS;
 
   // The floating panel. A flex column: fixed header on top, scrollable body below.
   var panel = document.createElement("div");
@@ -937,10 +1122,17 @@
       "<button class='pv-elig-btn'>" + (elig ? "Remove" : "Mark eligible") + "</button>" +
       "</div>";
 
+    // Justaino rating pill: the player's BEST 0-100 meta score across the positions
+    // they can play, shown right under the big OVR number.
+    var jr = null; try { jr = bestJustaino(it); } catch (e) {}
+    var jrHTML = jr
+      ? "<span class='pv-jr' title='Justaino rating (0-100) as " + esc(jr.group) + ": stats " + jr.score.statPart + " + PlayStyles " + jr.score.psPart + "'>JUSTAINO " + jr.score.total + " &middot; " + esc(jr.group) + "</span>"
+      : "";
+
     preview.innerHTML =
       // Broadcast "spotlight": giant rating number next to the name, like a lower-third.
       "<div class='pv-hero'>" +
-        "<span class='pv-num'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+        "<div class='pv-numwrap'><span class='pv-num'>" + (it.rating != null ? it.rating : "?") + "</span>" + jrHTML + "</div>" +
         "<div class='pv-herowho'>" +
           "<div class='pv-nm'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='pv-gk'>GK</span>" : "") + "</div>" +
           "<div class='pv-sub'>" + esc(rarityName(it)) + posLine + "</div>" +
@@ -989,6 +1181,7 @@
     state.selected = new Set();   // a fresh player starts with nothing ticked
     if (typeof applyBox !== "undefined" && applyBox) { applyBox.style.display = "none"; applyBox.innerHTML = ""; }  // clear any old apply summary
     renderPlayers();
+    try { renderMetaRating(); } catch (e) {}   // keep the Meta rating highlight in sync
     renderPreview();
     populatePositions();          // dropdowns now reflect this player's positions
     renderEvos();
@@ -1504,6 +1697,7 @@
     }
     state.clubItems = all;
     renderPlayers();
+    try { renderMetaRating(); } catch (e) {}   // refresh the Meta rating list if it's open
     status.textContent = "Club loaded: " + getClubPlayers().length + " players.";
   }
 
@@ -1958,7 +2152,9 @@
       // Header line: name + OVR + optional GK badge.
       // Spotlight hero: giant rating number + name/sub line (broadcast lower-third).
       "#fc26-panel .pv-hero{display:flex;align-items:center;gap:12px}" +
-      "#fc26-panel .pv-num{flex:none;font-weight:800;font-size:46px;line-height:.9;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .pv-numwrap{flex:none;display:flex;flex-direction:column;align-items:center;gap:5px}" +
+      "#fc26-panel .pv-num{font-weight:800;font-size:46px;line-height:.9;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .pv-jr{font-size:9px;font-weight:800;letter-spacing:.04em;color:var(--accent-ink);background:var(--accent);border-radius:999px;padding:2px 7px;line-height:1.2;white-space:nowrap;text-align:center}" +
       "#fc26-panel .pv-herowho{min-width:0}" +
       "#fc26-panel .pv-nm{display:flex;align-items:center;gap:6px;font-weight:800;font-size:17px;color:var(--ink);line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
       "#fc26-panel .pv-gk{flex:none;color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px}" +
@@ -2002,6 +2198,29 @@
       "#fc26-panel .elig-nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
       "#fc26-panel .elig-id{flex:none;font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .elig-mgr-note{margin-top:7px;font-size:10px;color:var(--muted);opacity:.85}" +
+      // ---- Feature 2: Meta rating section --------------------------------------
+      "#fc26-panel .meta-section{margin-top:8px}" +
+      "#fc26-panel .meta-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:600}" +
+      "#fc26-panel .meta-box{margin-top:6px;padding:8px;border-radius:8px;background:var(--card);border:1px solid var(--card-border)}" +
+      "#fc26-panel .meta-controls{display:flex;gap:6px}" +
+      "#fc26-panel .meta-pos,#fc26-panel .meta-count{padding:5px;border-radius:6px;border:1px solid var(--field-border);background:var(--field);color:var(--ink);font-size:11px}" +
+      "#fc26-panel .meta-pos{flex:1;min-width:0}" +
+      "#fc26-panel .meta-count{flex:none}" +
+      "#fc26-panel .meta-pos option,#fc26-panel .meta-count option{color:#111827;background:#ffffff}" +
+      "#fc26-panel .meta-list{max-height:260px;overflow:auto;margin-top:8px;display:flex;flex-direction:column;gap:3px}" +
+      "#fc26-panel .meta-row{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:5px;cursor:pointer;border-left:3px solid transparent;background:var(--tile)}" +
+      "#fc26-panel .meta-row:hover{border-left-color:var(--accent)}" +
+      "#fc26-panel .meta-row.on{border-left-color:var(--accent);background:var(--sel)}" +
+      "#fc26-panel .meta-rank{flex:none;min-width:18px;text-align:right;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .meta-ovr{flex:none;min-width:22px;text-align:center;font-weight:800;font-size:14px;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .meta-nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:12.5px}" +
+      "#fc26-panel .meta-gk{margin-left:5px;color:var(--accent);font-size:8px;border:1px solid var(--accent);border-radius:4px;padding:0 3px}" +
+      "#fc26-panel .meta-ps{flex:none;display:inline-flex;gap:2px;align-items:center;overflow:hidden;max-width:70px}" +
+      "#fc26-panel .meta-ps .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:12px;line-height:1;color:var(--gold)}" +
+      "#fc26-panel .meta-score{flex:none;display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}" +
+      "#fc26-panel .meta-score b{color:var(--accent);font-size:14px;font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .meta-split{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .meta-note{margin-top:7px;font-size:10px;color:var(--muted);opacity:.85}" +
       // ---- Feature 4b: GH 4th PlayStyle+ (one-off) section ---------------------
       "#fc26-panel .gh-toggle{width:100%;text-align:left;background:var(--tile-psp);color:var(--gold);border:1px solid var(--tile-psp-border);border-radius:7px;padding:7px 9px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.04em}" +
       "#fc26-panel .gh-box{margin-top:6px;padding:9px;border-radius:8px;background:var(--card);border:1px solid var(--tile-psp-border)}" +
@@ -2379,9 +2598,86 @@
 
   // Group 1 - Squad (search + eligible filter + player list). On desktop this becomes
   // a flex column (via .fc26-squad) so the player list flexes to fill the left pane.
+  // --------------------------------------------------------------------------
+  // FEATURE 2 - the "Meta rating" panel: a collapsible section that ranks the
+  // whole club for a chosen position by scorePlayer(). This is the on-screen
+  // results view (no console needed) for tuning the two weight tables.
+  // --------------------------------------------------------------------------
+  var metaSection = document.createElement("div");
+  metaSection.className = "meta-section";
+  var metaToggle = document.createElement("button");
+  metaToggle.type = "button";
+  metaToggle.className = "meta-toggle";
+  var metaBox = document.createElement("div");
+  metaBox.className = "meta-box";
+  metaBox.style.display = "none";
+  // controls: which position to rank as, and how many to show
+  var metaControls = document.createElement("div");
+  metaControls.className = "meta-controls";
+  var metaPos = document.createElement("select");
+  metaPos.className = "meta-pos";
+  metaPos.innerHTML = META_GROUPS.map(function (g) { return "<option>" + esc(g) + "</option>"; }).join("");
+  var metaCount = document.createElement("select");
+  metaCount.className = "meta-count";
+  metaCount.innerHTML = [10, 20, 30, 50].map(function (n) { return "<option value='" + n + "'" + (n === 20 ? " selected" : "") + ">top " + n + "</option>"; }).join("");
+  metaControls.appendChild(metaPos);
+  metaControls.appendChild(metaCount);
+  var metaList = document.createElement("div");
+  metaList.className = "meta-list";
+  var metaNote = document.createElement("div");
+  metaNote.className = "meta-note";
+  metaBox.appendChild(metaControls);
+  metaBox.appendChild(metaList);
+  metaBox.appendChild(metaNote);
+  metaSection.appendChild(metaToggle);
+  metaSection.appendChild(metaBox);
+
+  var metaOpen = false;
+  function updateMetaToggle() { metaToggle.textContent = (metaOpen ? "▾ " : "▸ ") + "Meta rating (rank my club by position)"; }
+  metaToggle.addEventListener("click", function () {
+    metaOpen = !metaOpen;
+    metaBox.style.display = metaOpen ? "block" : "none";
+    if (metaOpen) renderMetaRating();
+    updateMetaToggle();
+  });
+  metaPos.addEventListener("change", renderMetaRating);
+  metaCount.addEventListener("change", renderMetaRating);
+
+  // renderMetaRating(): rank the loaded club for the chosen position and draw the
+  // rows. Safe to call any time - it no-ops while the section is closed.
+  function renderMetaRating() {
+    if (!metaOpen) return;
+    var group = metaPos.value;
+    var n = parseInt(metaCount.value, 10) || 20;
+    var players = getClubPlayers();
+    if (!players.length) { metaList.innerHTML = ""; metaNote.textContent = "No club players yet - load your club first (↻ Reload club)."; return; }
+    var rows = metaTop(group, n);
+    metaList.innerHTML = "";
+    rows.forEach(function (r, i) {
+      var it = r.it, sc = r.score;
+      var row = document.createElement("div");
+      row.className = "meta-row" + (state.player && state.player.id === it.id ? " on" : "");
+      // strip of the player's actual PlayStyle+ icons only (same as the lineup list),
+      // so it honestly shows how many PS+ they have - NOT every owned meta PlayStyle.
+      var psPlus = currentPlayStyles(it).filter(function (p) { return p.isIcon; });
+      var psHTML = psPlus.map(function (p) { return "<i class='ico icon_icontrait" + p.traitId + "'></i>"; }).join("");
+      row.innerHTML =
+        "<span class='meta-rank'>" + (i + 1) + "</span>" +
+        "<span class='meta-ovr'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+        "<span class='meta-nm'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='meta-gk'>GK</span>" : "") + "</span>" +
+        "<span class='meta-ps'>" + psHTML + "</span>" +
+        "<span class='meta-score'><b>" + sc.total + "</b><span class='meta-split'>" + sc.statPart + " + " + sc.psPart + "</span></span>";
+      row.title = playerName(it) + " as " + group + " (out of 100): stats " + sc.statPart + " + PlayStyles " + sc.psPart + " = " + sc.total + "  [raw stat avg " + sc.stat + ", PlayStyle score " + sc.psScore + "]";
+      row.addEventListener("click", function () { selectPlayer(it); });
+      metaList.appendChild(row);
+    });
+    metaNote.textContent = "Ranked " + rows.length + " as " + group + ". Score = stat fit + meta PlayStyle bonus (PS+ = double). Tap a row to spotlight that player.";
+  }
+  updateMetaToggle();
+
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(metaSection);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); buildMod.appendChild(ghSection);

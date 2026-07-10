@@ -190,6 +190,37 @@ Support for the **4th PlayStyle+** (the limited "GH 4th" Glory Hunters evos):
 
 ---
 
+## 3d. New in v8 - the Meta rating ("Justaino Rating")
+
+A self-computed **0-100 score per player per position**, worked out entirely from the
+player's real stats and PlayStyles (no external data, no player database).
+
+**Where you see it:**
+- A green **`JUSTAINO xx · <pos>`** pill under the big OVR on the preview card. It shows
+  the player's BEST score across the positions they can play.
+- A **▸ Meta rating** section under the player list: pick a position and it ranks the
+  players in your club who can play there, best first, each with the `stat + PlayStyle`
+  split behind the score.
+
+**How the score works (two halves blended):**
+- **Stat fit (0-99)** = a weighted average of the six stats, using `STAT_WEIGHTS[pos]`.
+- **PlayStyle fit (0-100)** = points for the meta PlayStyles the player owns
+  (`PLAYSTYLE_WEIGHTS[pos]`, a **PlayStyle+ counts double**), measured against that
+  position's best-case loadout.
+- **Rating** = `STAT_MIX × statFit + PS_MIX × playStyleFit` (currently 0.70 / 0.30). The
+  0.30 means a stats-monster with none of the meta PlayStyles tops out around 70; only a
+  near-perfect card in both halves approaches 100.
+
+**Console helpers (read-only):**
+`window.FC26.scorePlayer(it, "ST")`, `window.FC26.metaTop("CB", 10)`,
+`window.FC26.bestJustaino(it)`, and the live tables `window.FC26.STAT_WEIGHTS` /
+`window.FC26.PLAYSTYLE_WEIGHTS`.
+
+**Re-tuning it:** see §7b. The public transparency page (`meta-rating.html`) shows every
+weight and is generated from these same tables.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
@@ -398,6 +429,39 @@ bookmarklet). If it ever feels big, prune a few old ones with `remove`.
 
 ---
 
+## 7b. Re-tuning the meta rating each season
+
+The meta rating (§3d) is **my opinion of the current FC 26 meta**, frozen in a few
+places at the top of `fc26-tools.js`. Player data is read live, so new/better cards score
+themselves automatically - you only touch these when the *game's* meta shifts (a patch, a
+new season):
+
+1. **`STAT_WEIGHTS`** - how much each stat counts per position. Numbers are relative, so
+   only the ratios matter.
+2. **`PLAYSTYLE_WEIGHTS`** - the meta PlayStyles per position and their points. Add a
+   `"PlayStyle Name": 3` line to value a new one; delete a line to drop one. (The 0-100
+   PlayStyle "ceiling" is derived from these automatically - nothing else to change.)
+3. **`STAT_MIX` / `PS_MIX`** - how hard PlayStyles swing overall. They must add to 1.0.
+
+**After editing any of the above, do BOTH:**
+```
+node meta-page.js     # regenerate the public transparency page (meta-rating.html)
+node minify.js        # rebuild the bookmarklet (then release.js when shipping - §7a)
+```
+`meta-page.js` reads the tables straight out of `fc26-tools.js`, so the site page can
+never drift from the tool. If you forget it, the tool is still correct but the page is
+stale.
+
+**Note:** if EA adds a brand-new PlayStyle to the *game*, it also needs a line in the
+`PS` / `PSP` catalogs (so the tool knows it exists) before you can weight it. Renaming or
+reweighting existing ones is just editing numbers.
+
+The easy path: ask Claude to *"refresh the FC 26 meta"* and it will re-research the
+current consensus, propose a before/after of the weight changes, and on approval do the
+edits + regenerate + rebuild for you.
+
+---
+
 ## 8. Troubleshooting
 
 | Symptom | Fix |
@@ -419,6 +483,9 @@ bookmarklet). If it ever feels big, prune a few old ones with `remove`.
 - `release.js` - cuts a new install-page version (`node release.js "note"`, §7a).
 - `versions.js` - the list of published versions the install page reads (generated).
 - `index.html` - the install page (renders itself from `versions.js`).
+- `features.html` - the "what it does" page (linked from the install page).
+- `meta-rating.html` - the meta-rating transparency page (generated - see below).
+- `meta-page.js` - regenerates `meta-rating.html` from the live weight tables (`node meta-page.js`, §7b).
 - `Documentation/RUNBOOK.md` - this file (how to run / maintain it).
 - `Documentation/USER-GUIDE.md` - friendly feature guide for using the tool.
 - `CHANGELOG.md` - plain-English per-version log of what changed (add an entry each release).

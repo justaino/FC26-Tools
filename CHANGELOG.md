@@ -5,6 +5,34 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v8 - 2026-07-10
+
+**The Meta rating ("Justaino Rating") - my own 0-100 player score.**
+
+### A score per player, per position
+- Every player now gets a **0-100 rating** for each position, worked out entirely from
+  their **real stats and PlayStyles** (no external data or player database).
+- It shows as a green **`JUSTAINO xx · <pos>`** pill under the OVR on the preview card
+  (the player's best position), and as a new **▸ Meta rating** list under the player
+  picker that ranks the players in your club who can play a chosen position, best first.
+- Each row shows the score split as `stats + PlayStyles`, so you can see why.
+
+### How it's scored
+- **Stats** are a weighted average tuned per position (shooting for strikers, defending
+  for centre-backs, and so on), and **PlayStyles** add points for the meta ones a player
+  owns - a **PlayStyle+ counts double**. The two blend 70/30 (stats/PlayStyles), so a
+  card with elite stats but none of the meta PlayStyles tops out around 70, and only a
+  near-perfect card approaches 100.
+- The PlayStyle weights are seeded from the current FC 26 meta consensus and are meant to
+  be re-tuned each season.
+
+### Full transparency page
+- A new **"How the meta rating works"** page on the site (`meta-rating.html`, linked from
+  the install and features pages) lays out **every weight for every position**. It's
+  generated straight from the tool's own tables, so it can't drift out of sync.
+
+---
+
 ## v7 - 2026-07-10
 
 **4th PlayStyle+ support (the limited "GH 4th" Glory Hunters evos).**
