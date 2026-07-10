@@ -435,6 +435,100 @@
   PS.forEach(function (x) { psByName[x.n] = x; });
   PSP.forEach(function (x) { pspByName[x.n.replace(/\+$/, "")] = x; });
 
+  // ----------------------------------------------------------------------------
+  // FEATURE 4b - limited "one-off" PlayStyle+ reward evos (e.g. the GH 4th PlayStyle+)
+  // Discovered live: the Academy groups evolutions into CATEGORIES; the "Rewards"
+  // category (id 9) holds slots whose slotName IS a PlayStyle+ name ("Intercept+",
+  // "Finesse Shot+", ...). Each is a 1-level, instant-grant evo that "adds <PS+> to any
+  // qualified player" - and the GH ("Glory Hunters") ones add it as a 4TH PlayStyle+,
+  // beyond the normal cap of 3. They are LIMITED / one-off: applying one consumes it.
+  //
+  // Mechanically, applying is the SAME call we already use for normal PlayStyles -
+  // addItemToSlot(slotId, itemId) + claim - so applyEvo/claimEvo above work unchanged;
+  // only the slotId is different (the Rewards slot's own id, e.g. 2119 for Intercept+).
+  //
+  // We deliberately do NOT auto-classify which are "4th" vs normal (their slotName/desc
+  // are identical, and there's no reliable flag). Instead the UI lists the available ones
+  // and YOU pick the one you know is the GH 4th; the game enforces cap/eligibility and we
+  // surface any rejection. Applying is always explicit + confirmed (never batch/Suggest).
+  var REWARDS_CATEGORY_ID = 9;   // Academy "Rewards" category (discovered live)
+
+  // pspByPlusName: PSP catalog keyed by FULL plus-name ("Intercept+") so we can map a
+  // reward slot (whose slotName is that name) back to our PS+ entry (icon / trait).
+  var pspByPlusName = {};
+  PSP.forEach(function (e) { pspByPlusName[e.n] = e; });
+
+  // academySlots(): the Academy slot collection as a plain array (empty until loaded).
+  function academySlots() {
+    try {
+      var rA = window.repositories && window.repositories.Academy;
+      var s = rA && (rA.getSlots ? rA.getSlots() : rA.slots);
+      if (!s) return [];
+      if (Array.isArray(s)) return s;
+      if (typeof s.values === "function") return Array.from(s.values());
+      return Array.from(s);
+    } catch (e) { return []; }
+  }
+
+  // isGHFourth(s): true for a "GH 4th <PlayStyle+>" reward slot - the Glory Hunters evo that
+  // adds a 4TH PS+. Confirmed live: these are named with a "GH 4th" prefix AND their
+  // description says "...any qualified Glory Hunters player. Only Glory Hunter items are
+  // eligible...". We match either signal. Normal PS+ reward evos (name just "Finesse Shot+",
+  // desc "any qualified player") do NOT match, so a non-4th is never offered as a 4th.
+  function isGHFourth(s) {
+    if (!s || s.categoryId !== REWARDS_CATEGORY_ID) return false;
+    return /gh\s*4th/i.test(s.slotName || "") || /glory hunter/i.test(s.slotDescription || "");
+  }
+  // ghPsp(slotName): map a GH-4th slot to our PS+ catalog entry (for its icon/trait) by
+  // stripping the "GH 4th " prefix and matching the remainder ("Quick Step+", ...); falls
+  // back to any catalog PS+ name found inside the slot name. null if none matches.
+  function ghPsp(slotName) {
+    var nm = slotName || "";
+    var stripped = nm.replace(/^\s*GH\s*4th\s*/i, "").trim();
+    if (pspByPlusName[stripped]) return pspByPlusName[stripped];
+    for (var i = 0; i < PSP.length; i++) { if (nm.indexOf(PSP[i].n) !== -1) return PSP[i]; }
+    return null;
+  }
+  // rewardEvosFromCache(): the GH-4th reward evos currently cached, as [{ slotId, name, psp }].
+  // No network - reads whatever the Academy repo already holds for the Rewards category.
+  function rewardEvosFromCache() {
+    return academySlots().filter(isGHFourth).map(function (s) {
+      return { slotId: s.id, name: s.slotName, psp: ghPsp(s.slotName) };
+    });
+  }
+
+  // loadRewardEvos(): best-effort ask the app to load the Rewards category, then return
+  // rewardEvosFromCache(). The request can reject on some pages, but if you've opened
+  // Evolutions -> Rewards in the app the slots are already cached, so we just read them.
+  async function loadRewardEvos() {
+    var svcA = getServices() && getServices().Academy;
+    try {
+      if (svcA && svcA.requestSlotsByCategory) {
+        // Discovered live: the DAO reads categoryId/count/offset/sort OFF this object and
+        // fetches /academy/category/9 - so we can load the Rewards category COLD (no need to
+        // visit that screen first). Passing the bare id 9 returns a 500; it MUST be this
+        // criteria shape. Confirmed: this takes cat-9 slots from 0 -> 61 from a cold start.
+        var o = svcA.requestSlotsByCategory({ categoryId: REWARDS_CATEGORY_ID, count: 100, offset: 0, sort: null });
+        if (o && typeof o.observe === "function") { await awaitService(o); }
+        else if (o && typeof o.then === "function") { await o; }
+      }
+    } catch (e) { /* ignore - fall back to whatever is already cached */ }
+    return rewardEvosFromCache();
+  }
+
+  // applyRewardEvo(slotId, itemId): apply ONE limited reward evo to a player - same mechanic
+  // as a normal PlayStyle (addItemToSlot + claim). The CALLER must confirm first (one-off).
+  async function applyRewardEvo(slotId, itemId) {
+    await applyEvo(slotId, itemId);
+    try { await claimEvo(slotId); } catch (e) { /* PS grants on apply; claim often 460, harmless */ }
+  }
+
+  // Console helpers (list/load only - apply is intentionally NOT exposed here, so a stray
+  // console call can't spend a one-off; the panel UI applies it behind a confirm):
+  //   await window.FC26.fourthEvos.load()   -> load Rewards + list [{slotId,name,psp}]
+  //   window.FC26.fourthEvos.list()         -> list what's already cached
+  window.FC26.fourthEvos = { list: rewardEvosFromCache, load: loadRewardEvos };
+
   // playerPositionGroups(it): the role groups this player can fill (preferred
   // position first, then alternates), deduped - used to fill the position dropdown.
   function playerPositionGroups(it) {
@@ -796,6 +890,16 @@
     var pUsed = (np != null) ? np : plus.length;
     var bUsed = (nb != null) ? nb : basic.length;
 
+    // FEATURE 4a - dynamic cap DISPLAY. The item exposes no "max PlayStyles" (discovered
+    // live - there's no getMaxPlusPlayStyles), so we can't read a real cap. Normal cards
+    // hold up to 3 PS+ / 8 basic, but a player granted the limited "GH 4th PlayStyle+" evo
+    // ends up with 4 PS+. So the DISPLAYED cap grows to whatever the player actually holds:
+    // a normal card still shows 3/3 + 8/8, a GH-4th card shows 4/4 instead of an overflowing
+    // 4/3. (Our SELECTION caps stay 3/8 - see toggleEvo/renderEvos - because the 4th comes
+    // from a different, limited evo set we don't apply from our own catalog.)
+    var plusCap = Math.max(CAP_PLUS, pUsed);
+    var basicCap = Math.max(CAP_BASIC, bUsed);
+
     // meterHTML(label, used, cap, kind): a labelled broadcast-style segment meter - one
     // skewed segment per slot, filled up to "used" (PS+ segments gold, Basic segments accent).
     function meterHTML(label, used, cap, kind) {
@@ -845,8 +949,8 @@
       "<div class='pv-metaline'>rarity #" + it.rareflag + " &middot; item " + it.id + "</div>" +
       eligHTML +
       "<div class='pv-meters'>" +
-        meterHTML("PlayStyle+", pUsed, CAP_PLUS, "plus") +
-        meterHTML("Basic", bUsed, CAP_BASIC, "basic") +
+        meterHTML("PlayStyle+", pUsed, plusCap, "plus") +
+        meterHTML("Basic", bUsed, basicCap, "basic") +
       "</div>" +
       noneMsg +
       groupHTML("PlayStyle+", plus, true) +
@@ -1167,6 +1271,7 @@
     tabBase.style.color = state.tab === "PS" ? "var(--accent-ink)" : "var(--muted)";
     evoList.innerHTML = "";
     var it = state.player;
+    if (typeof updateGhVisibility === "function") { try { updateGhVisibility(); } catch (e) {} }   // show/hide the GH-4th section for this player
     if (!it) { evoList.innerHTML = "<div style='opacity:.7'>Select a player above to choose evolutions.</div>"; updateEvoCount(); return; }
     var gk = isGKPlayer(it);
     var list = state.tab === "PS+" ? PSP : PS;
@@ -1197,7 +1302,137 @@
     });
     evoList.appendChild(grid);
     updateEvoCount();
+    if (typeof ghOpen !== "undefined" && ghOpen) { try { renderGHList(); } catch (e) {} }   // keep GH tiles' enabled/note in sync with the selected player
   }
+
+  // ---- FEATURE 4b UI: GH 4th PlayStyle+ (one-off) --------------------------
+  // A collapsible section (in the PlayStyle Deck) that lists ONLY the real GH-4th evos.
+  // Tapping one applies that 4th PS+ to the SELECTED player after a strong confirm. These
+  // are limited one-offs, so this is deliberately kept OUT of batch apply and Suggest, and
+  // never fires without an explicit tap + confirm. The game enforces the real rules
+  // (Glory Hunters card, already has 3 PS+); we surface its rejection if it says no.
+  var ghSection = document.createElement("div");
+  ghSection.style.cssText = "margin-top:14px;display:none";   // hidden until an eligible GH player is picked
+  var ghToggle = document.createElement("button");
+  ghToggle.type = "button";
+  ghToggle.className = "gh-toggle";
+  var ghBox = document.createElement("div");
+  ghBox.className = "gh-box";
+  ghBox.style.display = "none";
+  var ghHead = document.createElement("div");
+  ghHead.className = "gh-head";
+  ghHead.innerHTML = "One-off Glory Hunters evos: adds a <b>4th</b> PlayStyle+ to the selected GH player (needs 3 PS+ already). Applied one at a time, always confirmed - never part of batch or Suggest.";
+  var ghBar = document.createElement("div");
+  ghBar.style.cssText = "display:flex;gap:6px;margin-top:8px";
+  var ghLoadBtn = document.createElement("button");
+  ghLoadBtn.type = "button"; ghLoadBtn.className = "gh-load"; ghLoadBtn.textContent = "↻ Load / refresh";
+  ghBar.appendChild(ghLoadBtn);
+  var ghList = document.createElement("div"); ghList.className = "gh-list";
+  var ghNote = document.createElement("div"); ghNote.className = "gh-note";
+  ghBox.appendChild(ghHead); ghBox.appendChild(ghBar); ghBox.appendChild(ghList); ghBox.appendChild(ghNote);
+  ghSection.appendChild(ghToggle); ghSection.appendChild(ghBox);
+
+  var ghOpen = false, ghEvos = [], ghLoading = false;
+  function updateGhToggle() { ghToggle.textContent = (ghOpen ? "▾ " : "▸ ") + "GH 4th PlayStyle+ (one-off)" + (ghEvos.length ? " (" + ghEvos.length + ")" : ""); }
+  ghToggle.addEventListener("click", function () {
+    ghOpen = !ghOpen;
+    ghBox.style.display = ghOpen ? "block" : "none";
+    if (ghOpen && !ghEvos.length) { loadGH(); } else { renderGHList(); }
+    updateGhToggle();
+  });
+  ghLoadBtn.addEventListener("click", function () { loadGH(); });
+
+  // loadGH(): best-effort load the Rewards category, then list the GH-4th evos. Guarded so
+  // overlapping calls (e.g. auto-load on select + the toggle) can't stack requests.
+  async function loadGH() {
+    if (ghLoading) return;
+    ghLoading = true;
+    ghNote.textContent = "Loading GH 4th evos...";
+    try { ghEvos = await loadRewardEvos(); } catch (e) { ghEvos = rewardEvosFromCache(); }
+    ghLoading = false;
+    updateGhToggle();
+    renderGHList();
+  }
+  // updateGhVisibility(): show the WHOLE GH-4th section ONLY when the active player is an
+  // eligible Glory Hunters card (right rarity + exactly 3 PS+); hide it entirely otherwise.
+  // Loads the evo list the first time it becomes visible. Called from renderEvos (every
+  // select), so the section appears/disappears as you click through players.
+  function updateGhVisibility() {
+    var show = eligGH(state.player);
+    ghSection.style.display = show ? "" : "none";
+    if (show && !ghEvos.length && !ghLoading) { loadGH(); }
+  }
+  // renderGHList(): draw one tappable tile per GH-4th evo. Tiles are only enabled when a
+  // single player is the active pick (not a multi-player batch) and no run is in progress.
+  // eligGH(it): the GH-4th eligibility gate - a Glory Hunters card that already has EXACTLY
+  // 3 PlayStyle+ (so applying adds the 4th). Anything else keeps the chips disabled. Matched
+  // on the rarity NAME containing "Glory Hunter" (covers Glory Hunters + Glory Hunters Red).
+  // The game is still the final enforcement layer; this just prevents obvious mistakes.
+  function eligGH(it) { return !!it && /glory hunter/i.test(rarityName(it)) && numPlus(it) === 3; }
+
+  function renderGHList() {
+    ghList.innerHTML = "";
+    var it = state.player;
+    if (!ghEvos.length) { ghNote.textContent = "No GH 4th evos found. Open Evolutions -> Rewards in the app, then click Load / refresh."; return; }
+    var many = state.batch.size > 1;
+    var canApply = eligGH(it) && !many && !state.running;
+    // Explain exactly why the chips are enabled or disabled, so it's never a mystery.
+    ghNote.textContent =
+      !it ? "Select a Glory Hunters player (with 3 PS+) first." :
+      many ? "Batch is active - GH 4th applies to one player, so untick the batch first." :
+      !/glory hunter/i.test(rarityName(it)) ? (playerName(it) + " isn't a Glory Hunters card - GH 4th only applies to Glory Hunters items.") :
+      numPlus(it) !== 3 ? (playerName(it) + " has " + numPlus(it) + " PS+ - GH 4th needs a card with exactly 3 PS+ already.") :
+      ("Tap one to add it to " + playerName(it) + " as a 4th PlayStyle+. Confirmed (one-off) before applying.");
+    ghEvos.forEach(function (evo) {
+      var trait = evo.psp ? (evo.psp.r - TRAIT_OFFSET) : null;
+      var label = (evo.name || "").replace(/^\s*GH\s*4th\s*/i, "");   // show just the PS+ name; the section header says "GH 4th"
+      var tile = document.createElement("button");
+      tile.type = "button";
+      tile.className = "gh-tile" + (canApply ? "" : " dis");
+      tile.disabled = !canApply;
+      tile.innerHTML = (trait != null ? "<i class='ico icon_icontrait" + trait + "'></i>" : "") + "<span>" + esc(label) + "</span>";
+      tile.title = "Apply " + esc(evo.name) + " to the selected player (one-off)";
+      tile.addEventListener("click", function () { runGHApply(evo); });
+      ghList.appendChild(tile);
+    });
+  }
+  // runGHApply(evo): apply ONE GH-4th evo to the active player. Explicit confirm first
+  // (one-off, can't be undone). Same state-safe refresh the normal apply uses.
+  async function runGHApply(evo) {
+    if (state.running) return;
+    var it = state.player;
+    if (!it) { status.textContent = "Select a Glory Hunters player first."; return; }
+    if (state.batch.size > 1) { status.textContent = "GH 4th applies to one player - clear the batch first."; return; }
+    if (!eligGH(it)) { status.textContent = "GH 4th needs a Glory Hunters card with exactly 3 PlayStyle+ already."; return; }
+    var psName = evo.psp ? evo.psp.n : evo.name;
+    if (!window.confirm(
+      "Apply " + evo.name + " to " + playerName(it) + "?\n\n" +
+      "This spends your ONE-OFF " + psName + " evo and adds it as a 4th PlayStyle+.\n" +
+      "The player must be a Glory Hunters card that already has 3 PlayStyle+.\n\n" +
+      "This cannot be undone. Continue?")) return;
+    state.running = true; state.abort = false; setRunning(true);
+    status.textContent = "Applying " + evo.name + " to " + playerName(it) + "...";
+    var itemId = it.id, prevCount = currentPlayStyles(it).length, failMsg = "";
+    try { await applyRewardEvo(evo.slotId, itemId); }
+    catch (e) { failMsg = errMsg(e); }
+    refreshClub();
+    if (!failMsg) {
+      // Same retry-poll the single-apply flow uses: the grant can lag the call, so re-pull
+      // the club until this player's PlayStyle count grows (or we run out of tries).
+      for (var att = 0; att < 4; att++) {
+        try { await loadFullClub(); } catch (e) {}
+        var fresh = findPlayerById(itemId); if (fresh) state.player = fresh;
+        if (state.player && currentPlayStyles(state.player).length > prevCount) break;
+        if (att < 3) { status.textContent = "Waiting for the grant to register..."; await sleep(700); }
+      }
+    }
+    renderPreview(); renderEvos(); renderPlayers();
+    if (currentMode() === "mobile") renderWizStep();
+    state.running = false; setRunning(false);
+    loadGH();   // the applied slot is now used - refresh the list
+    status.textContent = failMsg ? ("GH 4th failed: " + failMsg) : (evo.name + " applied to " + playerName(state.player || it) + ".");
+  }
+  updateGhToggle();
 
   // ---- STEP 1.6 apply loop -------------------------------------------------
   // sleep(ms): a small awaitable pause, so we don't fire calls back-to-back.
@@ -1767,6 +2002,18 @@
       "#fc26-panel .elig-nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
       "#fc26-panel .elig-id{flex:none;font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .elig-mgr-note{margin-top:7px;font-size:10px;color:var(--muted);opacity:.85}" +
+      // ---- Feature 4b: GH 4th PlayStyle+ (one-off) section ---------------------
+      "#fc26-panel .gh-toggle{width:100%;text-align:left;background:var(--tile-psp);color:var(--gold);border:1px solid var(--tile-psp-border);border-radius:7px;padding:7px 9px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.04em}" +
+      "#fc26-panel .gh-box{margin-top:6px;padding:9px;border-radius:8px;background:var(--card);border:1px solid var(--tile-psp-border)}" +
+      "#fc26-panel .gh-head{font-size:10.5px;line-height:1.35;color:var(--muted)}" +
+      "#fc26-panel .gh-head b{color:var(--gold)}" +
+      "#fc26-panel .gh-load{background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:10px;font-weight:600}" +
+      "#fc26-panel .gh-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}" +
+      "#fc26-panel .gh-tile{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--tile-psp);border:1px solid var(--tile-psp-border);color:#ffe7b0;cursor:pointer;font-size:11px;font-weight:700}" +
+      "#fc26-panel .gh-tile .ico{font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:14px;line-height:1;color:var(--gold)}" +
+      "#fc26-panel .gh-tile:hover{border-color:var(--gold)}" +
+      "#fc26-panel .gh-tile.dis{opacity:.4;cursor:not-allowed}" +
+      "#fc26-panel .gh-note{margin-top:9px;font-size:10px;color:var(--muted);opacity:.9}" +
       // reset / remove PlayStyles row (preview card)
       "#fc26-panel .pv-reset{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}" +
       "#fc26-panel .pv-rm-one{flex:1 1 auto;min-width:0;background:var(--btn);color:var(--btn-ink);border:0;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-weight:600}" +
@@ -2137,7 +2384,7 @@
   squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
-  buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList);
+  buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); buildMod.appendChild(ghSection);
   // Group 3 - Apply. The "run row" (optRow) holds the delay chip + Apply/Stop side by side
   // (Apply and Stop swap in the same slot), then the animation/summary box + status line.
   optRow.appendChild(applyBtn); optRow.appendChild(stopBtn);
@@ -2215,7 +2462,7 @@
     }
     stickySpot.innerHTML = "<span class='sp-r'>" + (it.rating != null ? it.rating : "?") + "</span>" +
       "<div class='sp-w'><div class='sp-n'>" + esc(playerName(it)) + (isGKPlayer(it) ? " <span class='sp-gk'>GK</span>" : "") + "</div>" +
-      "<div class='sp-s'>PS+ " + numPlus(it) + "/" + CAP_PLUS + " &middot; BASIC " + numBasic(it) + "/" + CAP_BASIC + "</div></div>";
+      "<div class='sp-s'>PS+ " + numPlus(it) + "/" + Math.max(CAP_PLUS, numPlus(it)) + " &middot; BASIC " + numBasic(it) + "/" + Math.max(CAP_BASIC, numBasic(it)) + "</div></div>";
   }
 
   // goStep(n): change wizard step (clamped 1-3) and redraw, on mobile. Guarded: you can't

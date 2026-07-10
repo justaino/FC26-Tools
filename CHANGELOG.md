@@ -5,6 +5,28 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v7 - 2026-07-10
+
+**4th PlayStyle+ support (the limited "GH 4th" Glory Hunters evos).**
+
+### Caps now show the real number
+A card that already has a 4th PlayStyle+ shows `PlayStyle+ 4/4` in the preview and the
+mobile mini-spotlight, instead of a broken `4/3`. Normal cards are unchanged (3 PS+ / 8
+basic).
+
+### Apply a GH 4th PlayStyle+ from the tool
+- Select a **Glory Hunters card that already has exactly 3 PlayStyle+** and a gold **"GH
+  4th PlayStyle+ (one-off)"** section appears in the PlayStyle Deck.
+- It lists your available GH-4th evos (one chip per PlayStyle+). Tap one, confirm, and it
+  adds that PlayStyle+ as a **4th** to the player.
+- Safeguards: it **only shows for eligible cards**, is **never part of batch apply or
+  Suggest**, and **every apply is confirmed** (these evos are one-offs). The game still
+  has the final say on eligibility.
+- The list **loads by itself** (no need to open Evolutions -> Rewards first) and
+  **refreshes after each apply**, so new GH-4th evos appear.
+
+---
+
 ## v6 - 2026-07-10
 
 **Complete rarity list for evo-eligibility.** The tool now reads the game's own full

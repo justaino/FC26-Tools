@@ -21,15 +21,17 @@ ID/method, and a "how to test" with every change. No em dashes anywhere.
   2. Caps are hardcoded `CAP_PLUS = 3` / `CAP_BASIC = 8`; we read the current
      COUNT (`getNumPlusPlayStyles`) but never the player's actual MAX.
 
-## Build order
+## Build order + status
 
 Build in this order (Feature 3 depends on Feature 2). Each feature opens with its
 own Console discovery command and stops for a live test.
 
-1. Feature 1 - Complete rarity table
-2. Feature 4 - Dynamic PS+ cap
-3. Feature 2 - Meta rating (`scorePlayer` + two weight tables)
-4. Feature 3 - Gauntlet squad builder
+1. Feature 1 - Complete rarity table - **DONE, shipped v6.**
+2. Feature 4 - Dynamic PS+ cap + GH 4th applier - **DONE, shipped v7.**
+3. Feature 2 - Meta rating (`scorePlayer` + two weight tables) - **NEXT.**
+4. Feature 3 - Gauntlet squad builder - after Feature 2.
+
+**Shipped through v7 (on `main`).** Next session starts at Feature 2.
 
 ---
 
@@ -66,6 +68,18 @@ rebuild.
 **Goal:** some evos raise a player's PS+ cap to 4, so the fixed 3/8 assumption
 must go. The game's own apply/eligibility stays the real enforcement layer; our
 cap is only UX.
+
+**Important (from the user, 2026-07-10):** the 4th PS+ is NOT the standard PSP
+catalog (slots 2181-2216) with the cap raised. It's a **separate, limited evo set**
+named like "GH 4th [PlayStyle+] <name>" (Glory Hunters), with its own slot ids, and
+it is **consumable** - once used it may be gone. So:
+- Do NOT assume ticking a normal PS+ tile fills the 4th slot, and NEVER auto-spend a
+  one-off 4th-PS+ evo.
+- This splits Feature 4 into two parts: (4a) cap AWARENESS as UX - read the real cap
+  per player, show meters as /4 when raised, stop soft-blocking at 3; and (4b, later)
+  optionally SOURCE the "GH 4th" slot set so the 4th can be applied deliberately. 4b
+  needs a live player with that evo available to discover the slot ids, so it waits
+  until one exists to inspect.
 
 **Steps**
 1. Discovery: does a player item or the open evo expose the player's ACTUAL

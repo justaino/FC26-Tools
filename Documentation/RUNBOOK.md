@@ -161,6 +161,35 @@ After editing either table, rebuild with `node minify.js` (see §7).
 
 ---
 
+## 3c. New in v7 - GH 4th PlayStyle+ + a 4-slot cap display
+
+Support for the **4th PlayStyle+** (the limited "GH 4th" Glory Hunters evos):
+
+- **Caps show the real number.** A card that already holds a 4th PlayStyle+ now shows
+  `PlayStyle+ 4/4` in the preview and the mobile mini-spotlight, instead of an
+  overflowing `4/3`. Normal cards are unchanged (`3/3`, `8/8`). Display only - the game
+  still decides what can actually be added.
+- **Apply a GH 4th from the tool.** Select a **Glory Hunters card that already has
+  exactly 3 PlayStyle+** and a gold **"GH 4th PlayStyle+ (one-off)"** section appears in
+  the PlayStyle Deck. Open it, and tap the chip for the PlayStyle+ you want; after a
+  confirm it adds that PS+ as a **4th** to the player.
+  - It **only appears for eligible cards** (Glory Hunters rarity + exactly 3 PS+), is
+    **never part of batch apply or Suggest**, and every apply is confirmed (these evos are
+    **one-offs** - applying one spends it).
+  - The list **loads on its own** (no need to open Evolutions -> Rewards first) and
+    **refreshes after each apply**, so newly-acquired GH-4th evos show up.
+  - How it works under the hood: the GH-4th evos are Academy "Rewards" category (id 9)
+    slots named `GH 4th <PlayStyle+>`; the tool loads that category via
+    `services.Academy.requestSlotsByCategory({ categoryId: 9, count: 100, offset: 0 })`
+    and applies one with the same `addItemToSlot` + `claim` calls a normal PlayStyle uses.
+  - Console: `await window.FC26.fourthEvos.load()` lists your GH-4th evos (read-only); the
+    panel is the only place that can apply one.
+  - **Eligibility note:** the "Glory Hunters" gate matches the rarity NAME containing
+    "Glory Hunter", so it also allows **Glory Hunters Red** cards. Change `eligGH()` in
+    `fc26-tools.js` if you ever want it restricted to the base rarity only.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
