@@ -152,7 +152,11 @@ and comparable average scores; an under-depth club reports the shortage.
 ## Explicitly out of scope
 
 Unreleased/datamined players, fut.gg/futbin scraping, live prices, auto-creating
-squads or SBCs in the game UI.
+SBCs in the game UI.
+
+**Update (2026-07-10):** auto-creating **squads** was deliberately brought IN scope by the
+user and shipped in v14 (Gauntlet "Create in game" + "Remove Gauntlet squads"). See
+`SQUAD-CREATION-SPEC.md` and RUNBOOK §3h.
 
 ## Shipping checklist (per feature, from CLAUDE.md)
 

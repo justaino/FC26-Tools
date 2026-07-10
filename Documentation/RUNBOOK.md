@@ -308,9 +308,43 @@ rule. It only shows the squads; it does not touch your game.
 `window.FC26.buildGauntlet("4-3-3", 3)`, `window.FC26.gauntletDepth(...)`,
 `window.FC26.FORMATIONS`.
 
-**Display only:** this version does not create or change any squad in the web app. Creating
-these drafted squads for real (a "Create in game" button, fully reversible) is the next
-feature - see `SQUAD-CREATION-SPEC.md`.
+**Console helper (read-only):** `window.FC26.gauntletSquadIds()` lists the ids this device
+recorded when it last created squads (a hint only - removal works off the live list, see §3h).
+
+---
+
+## 3h. New in v14 - create the Gauntlet squads in the game (and undo them)
+
+The Gauntlet section has two action buttons under the squad cards. This is the **only** part of
+the tool that *creates* anything on your account, so both are confirmed before they run and
+neither ever touches your active squad.
+
+**Create in game** (`runCreateGauntlet`):
+- Turns the built squads into real saved squads named **"MGFC Gauntlet 1", "MGFC Gauntlet 2", ...**
+  (the prefix is `GAUNTLET_NAME_PREFIX`).
+- Confirms first with a dialog listing every squad it will make, and checks the game's **30-squad
+  cap** (`countSavedSquads` vs `GAUNTLET_MAX_SQUADS`) so it won't try to overflow.
+- Each squad is one `services.Squad.create(name, formationKey, items, false)` call
+  (`createGameSquad`). The 4th arg **false** means a normal owned-player squad that is **not** made
+  active. `items` is the 18 players in slot order (11 starters then 7 subs) from
+  `gauntletItemsForSquad`; the game maps `items[i]` to slot `i`. Formation names map to the game's
+  keys via `GAME_FORMATION_KEY` (`4-3-3`->`f433`, `4-4-2`->`f442`, `4-2-3-1`->`f4231`, `3-5-2`->`f352`).
+- Progress and a done/failed count show in the status line under the buttons.
+
+**Remove Gauntlet squads** (`runRemoveGauntlet`):
+- Deletes every squad whose name starts with the Gauntlet prefix. It finds them by reading your
+  **live** squad list (`listSavedSquads`), not by a stored id - so it works on **any device** and
+  survives the game **renumbering** squad ids after a delete. It re-reads the list after each delete
+  and removes by the current id (`removeGameSquad`, which takes the numeric id, not the entity).
+- Your own squads (any other name) are never matched. Confirmed first, lists what it will remove.
+- The button label shows the live count (`refreshGauntletCount` -> `state.gauntletLiveCount`),
+  refreshed when the section opens and after each create/remove.
+
+**Maintenance notes:**
+- To rename the squads, change `GAUNTLET_NAME_PREFIX` (one place) - create and remove both use it.
+- The service was discovered live: `create` is 4 args `(name, formationKey, items, dreamFlag)`;
+  passing `dreamFlag = true` makes a *concept* squad (that path 500s for owned items, which is why
+  the old "duplicate" approach failed). `remove` takes the **id**; passing the entity 400s.
 
 ---
 

@@ -996,6 +996,93 @@
   window.FC26.gauntletDepth = gauntletDepth;
   window.FC26.FORMATIONS = FORMATIONS;
 
+  // ---- FEATURE: create the built Gauntlet squads in the game (writes to the account) ----
+  // This is the ONLY part of the tool that creates data on your account. It never touches your
+  // active squad, and every squad it makes is tracked so "Remove Gauntlet squads" can undo them
+  // in one click. It drives the app's own window.services.Squad, the same service the web app's
+  // Squads screen uses. The whole flow was discovered live: create() is a single call that
+  // builds a squad from an ordered item list, and remove() takes the numeric squad id.
+
+  // Our formation name ("4-3-3") -> the game's formation KEY string ("f433"). create() wants the
+  // key, not the numeric id. (Live ids for reference: f433=8, f442=16, f4231=3, f352=27.)
+  var GAME_FORMATION_KEY = { "4-3-3": "f433", "4-4-2": "f442", "4-2-3-1": "f4231", "3-5-2": "f352" };
+  var GAUNTLET_MAX_SQUADS = 30;   // getMaxSquads() live = 30; creation only fills empty slots
+  // Every squad we create is named with this prefix, so removal can find OUR squads on ANY
+  // device by scanning the live squad list (not by a per-device id that can also renumber
+  // after a delete). Your own squads never match this, so they're never touched.
+  var GAUNTLET_NAME_PREFIX = "MGFC Gauntlet ";
+  function isGauntletSquadName(name) { return typeof name === "string" && name.indexOf(GAUNTLET_NAME_PREFIX) === 0; }
+
+  // localStorage list of squad ids WE created, as [{id, name}]. Persisted so "Remove Gauntlet
+  // squads" still works after the bookmarklet reloads (panel state is rebuilt each run, this
+  // list is not).
+  var GAUNTLET_IDS_KEY = "FC26_gauntletSquadIds";
+  function loadGauntletSquadIds() {
+    try { var raw = window.localStorage.getItem(GAUNTLET_IDS_KEY); if (raw) return JSON.parse(raw) || []; } catch (e) {}
+    return [];
+  }
+  function saveGauntletSquadIds(list) {
+    try { window.localStorage.setItem(GAUNTLET_IDS_KEY, JSON.stringify(list || [])); } catch (e) {}
+  }
+
+  // gauntletItemsForSquad(sq): turn one built squad into the ORDERED item array create() wants.
+  // create() maps items[i] -> slot i, so slots 0-10 = the 11 starters (formation order) and
+  // slots 11-17 = the 7 subs. A missing pick becomes null, which the game reads as an empty
+  // slot. Reserves (18+) are simply left off the end.
+  function gauntletItemsForSquad(sq) {
+    var items = [];
+    sq.slots.forEach(function (cell) { items.push(cell && cell.player ? cell.player : null); });  // 0-10 starters
+    sq.subs.forEach(function (cell) { items.push(cell && cell.player ? cell.player : null); });    // 11-17 subs
+    return items;
+  }
+
+  // createGameSquad(name, formationName, items): make ONE saved squad. The 4th create() arg is a
+  // "dream/concept" flag - we pass FALSE so it builds a normal squad from your OWNED items and is
+  // NOT made active (your real team is left alone). Returns {id, squad}.
+  async function createGameSquad(name, formationName, items) {
+    var svc = getServices() && getServices().Squad;
+    if (!svc || !svc.create) throw new Error("Squad service unavailable on this page.");
+    var key = GAME_FORMATION_KEY[formationName] || formationName;
+    var resp = await awaitService(svc.create(name, key, items, false));
+    var squad = resp && resp.data && resp.data.squad;
+    var id = (squad && squad.getId) ? squad.getId() : null;
+    return { id: id, squad: squad };
+  }
+
+  // removeGameSquad(id): delete one saved squad by its NUMERIC id (confirmed live - passing the
+  // entity instead 400s with a "[object Object]" url).
+  async function removeGameSquad(id) {
+    var svc = getServices() && getServices().Squad;
+    if (!svc || !svc.remove) throw new Error("Squad service unavailable on this page.");
+    return await awaitService(svc.remove(id));
+  }
+
+  // listSavedSquads(): the live saved-squad list as [{id, name}] (or null if unreadable). This
+  // is the source of truth for both the cap check and finding OUR squads to remove. Ids are read
+  // fresh each call because the game can renumber squads after a delete.
+  async function listSavedSquads() {
+    var svc = getServices() && getServices().Squad;
+    if (!svc || !svc.requestSquadList) return null;
+    try {
+      var r = await awaitService(svc.requestSquadList());
+      var a = r && r.data && r.data.squads;
+      if (!a) return [];
+      return a.map(function (s) {
+        return { id: (s.getId ? s.getId() : s._id), name: (function () { try { return s.getName(); } catch (e) { return s._name; } })() };
+      });
+    } catch (e) { return null; }
+  }
+  // countSavedSquads(): total saved squads right now (for the 30-cap check). null if unreadable.
+  async function countSavedSquads() {
+    var list = await listSavedSquads();
+    return list ? list.length : null;
+  }
+
+  // Console/testing helpers.
+  window.FC26.createGameSquad = createGameSquad;
+  window.FC26.removeGameSquad = removeGameSquad;
+  window.FC26.gauntletSquadIds = loadGauntletSquadIds;
+
   // The floating panel. A flex column: fixed header on top, scrollable body below.
   var panel = document.createElement("div");
   panel.id = "fc26-panel";
@@ -3200,9 +3287,29 @@
   gtOut.className = "gt-out";
   var gtNote = document.createElement("div");
   gtNote.className = "meta-note";
+  // "Create in game" + "Remove Gauntlet squads": the ONLY controls that write to your account.
+  var gtActions = document.createElement("div");
+  gtActions.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:10px";
+  var gtCreateBtn = document.createElement("button");
+  gtCreateBtn.type = "button";
+  gtCreateBtn.textContent = "Create in game";
+  gtCreateBtn.title = "Create the built squads as new saved squads in your FC web app (never touches your active squad).";
+  gtCreateBtn.style.cssText = "flex:1 1 auto;min-width:130px;background:var(--apply);color:var(--apply-ink);border:0;border-radius:7px;padding:8px 10px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase";
+  var gtRemoveBtn = document.createElement("button");
+  gtRemoveBtn.type = "button";
+  gtRemoveBtn.textContent = "Remove Gauntlet squads";
+  gtRemoveBtn.title = "Delete the squads this tool created (only those - your own squads are safe).";
+  gtRemoveBtn.style.cssText = "flex:1 1 auto;min-width:130px;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:7px;padding:8px 10px;cursor:pointer;font-size:11px;font-weight:700";
+  gtActions.appendChild(gtCreateBtn);
+  gtActions.appendChild(gtRemoveBtn);
+  var gtCreateNote = document.createElement("div");
+  gtCreateNote.className = "meta-note";
+  gtCreateNote.style.marginTop = "6px";
   gtBox.appendChild(gtControls);
   gtBox.appendChild(gtOut);
   gtBox.appendChild(gtNote);
+  gtBox.appendChild(gtActions);
+  gtBox.appendChild(gtCreateNote);
   gtSection.appendChild(gtToggle);
   gtSection.appendChild(gtBox);
 
@@ -3212,17 +3319,136 @@
     gtOpen = !gtOpen;
     gtBox.style.display = gtOpen ? "block" : "none";
     updateGtToggle();
+    if (gtOpen) refreshGauntletCount();                        // sync the Remove button to the live list
     lineupPeek = false;                                        // opening/closing re-collapses the list on mobile
     if (typeof updateLineupCollapse === "function") updateLineupCollapse();
   });
   gtBuild.addEventListener("click", renderGauntlet);
+
+  // gtLastBuild holds the most recent SUCCESSFUL build, so "Create in game" knows what to make.
+  // It's cleared to null whenever a build fails the depth check (nothing valid to create).
+  var gtLastBuild = null;
+  state.gtRunning = false;
+
+  gtCreateBtn.addEventListener("click", runCreateGauntlet);
+  gtRemoveBtn.addEventListener("click", runRemoveGauntlet);
+
+  // updateGtButtons(): enable/disable + relabel the two action buttons for the current state.
+  // Create is live only after a good build; Remove is live only when Gauntlet squads exist. The
+  // count prefers the LIVE list (state.gauntletLiveCount, filled by refreshGauntletCount) so it's
+  // right on any device; it falls back to the local id-list only until the live count is known.
+  function updateGtButtons() {
+    var count = (state.gauntletLiveCount != null) ? state.gauntletLiveCount : loadGauntletSquadIds().length;
+    var canCreate = !!(gtLastBuild && gtLastBuild.depth && gtLastBuild.depth.ok) && !state.gtRunning;
+    gtCreateBtn.disabled = !canCreate;
+    gtCreateBtn.style.opacity = canCreate ? "" : ".45";
+    gtCreateBtn.style.cursor = canCreate ? "pointer" : "not-allowed";
+    var canRemove = count > 0 && !state.gtRunning;
+    gtRemoveBtn.disabled = !canRemove;
+    gtRemoveBtn.style.opacity = canRemove ? "" : ".45";
+    gtRemoveBtn.style.cursor = canRemove ? "pointer" : "not-allowed";
+    gtRemoveBtn.textContent = count ? ("Remove Gauntlet squads (" + count + ")") : "Remove Gauntlet squads";
+  }
+
+  // refreshGauntletCount(): read the live squad list and count how many are OURS (named with the
+  // Gauntlet prefix), so the Remove button is accurate even on a device that never created them.
+  async function refreshGauntletCount() {
+    var list = await listSavedSquads();
+    if (list == null) return;   // couldn't read the list - leave the current count as-is
+    var ours = list.filter(function (sq) { return sq.id !== 0 && isGauntletSquadName(sq.name); });
+    state.gauntletLiveCount = ours.length;
+    updateGtButtons();
+  }
+
+  // runCreateGauntlet(): create the built squads in the game, one create() call each. Confirms
+  // first (listing exactly what it will make), checks the 30-squad cap, and records every new id
+  // so removal is one click. Never sets a squad active, so your real team is untouched.
+  async function runCreateGauntlet() {
+    if (state.gtRunning) return;
+    if (!gtLastBuild || !gtLastBuild.squads || !(gtLastBuild.depth && gtLastBuild.depth.ok)) {
+      gtCreateNote.textContent = "Build some squads first (pick a formation + count, then Build).";
+      return;
+    }
+    var res = gtLastBuild, formationName = res.formation, squads = res.squads;
+    // Cap check against the game's 30-squad limit (best-effort; the server also enforces it).
+    var have = await countSavedSquads();
+    if (have != null && (have + squads.length) > GAUNTLET_MAX_SQUADS) {
+      gtCreateNote.textContent = "Can't create " + squads.length + ": you have " + have + " of " + GAUNTLET_MAX_SQUADS +
+        " saved squads, room for only " + Math.max(0, GAUNTLET_MAX_SQUADS - have) + " more. Remove some squads first.";
+      return;
+    }
+    // Confirm dialog: spell out every squad it will make.
+    var lines = squads.map(function (sq, i) {
+      return "  " + (i + 1) + '. "MGFC Gauntlet ' + (i + 1) + '" (' + formationName + ") - " + sq.filled + " starters + " + sq.subFilled + " subs";
+    });
+    var msg = "Create " + squads.length + " NEW saved squad" + (squads.length === 1 ? "" : "s") + " in your FC web app?\n\n" +
+      lines.join("\n") + "\n\n" +
+      (have != null ? ("You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads; this uses " + squads.length + " more.\n") : "") +
+      "Your active squad is NOT touched. You can undo this any time with \"Remove Gauntlet squads\".\n\nContinue?";
+    if (!window.confirm(msg)) return;
+
+    state.gtRunning = true; updateGtButtons();
+    var tracked = loadGauntletSquadIds().slice();
+    var okCount = 0, failCount = 0;
+    for (var i = 0; i < squads.length; i++) {
+      var name = GAUNTLET_NAME_PREFIX + (i + 1);
+      var items = gauntletItemsForSquad(squads[i]);
+      gtCreateNote.textContent = "Creating " + name + " (" + (i + 1) + "/" + squads.length + ")...";
+      try {
+        var r = await createGameSquad(name, formationName, items);
+        if (r && r.id != null) { tracked.push({ id: r.id, name: name }); saveGauntletSquadIds(tracked); okCount++; }
+        else { failCount++; }
+      } catch (e) { failCount++; console.warn("[FC26] squad create failed", name, e); }
+      if (i < squads.length - 1) await sleep(300);   // small gap between writes, like the evo loop
+    }
+    state.gtRunning = false;
+    await refreshGauntletCount();   // updateGtButtons + accurate Remove count from the live list
+    gtCreateNote.textContent = okCount + " squad" + (okCount === 1 ? "" : "s") + " created" +
+      (failCount ? (", " + failCount + " failed") : "") + ". Open the Squads screen to see them. \"Remove Gauntlet squads\" undoes them.";
+  }
+
+  // runRemoveGauntlet(): delete every squad named with the Gauntlet prefix, found from the LIVE
+  // list (so it works on any device and can't be fooled by squad-id renumbering). Confirms first,
+  // never touches id 0 (the active/original squad), and re-reads the list after each delete.
+  async function runRemoveGauntlet() {
+    if (state.gtRunning) return;
+    var list = await listSavedSquads();
+    if (list == null) { gtCreateNote.textContent = "Couldn't read your squad list on this page. Open the Squads screen once, then try again."; return; }
+    var ours = list.filter(function (sq) { return sq.id !== 0 && isGauntletSquadName(sq.name); });
+    if (!ours.length) { gtCreateNote.textContent = "No Gauntlet squads found to remove."; state.gauntletLiveCount = 0; saveGauntletSquadIds([]); updateGtButtons(); return; }
+    var msg = "Remove the " + ours.length + " Gauntlet squad" + (ours.length === 1 ? "" : "s") + " in your club?\n\n" +
+      ours.map(function (s) { return "  - " + s.name; }).join("\n") +
+      "\n\nThis removes squads named \"" + GAUNTLET_NAME_PREFIX + "...\" only; your own squads are safe.\n\nContinue?";
+    if (!window.confirm(msg)) return;
+
+    state.gtRunning = true; updateGtButtons();
+    var okCount = 0, failCount = 0, guard = 0;
+    // Re-read the list each pass and remove the first remaining Gauntlet squad by its CURRENT id,
+    // because deleting one can renumber the others. The guard stops any accidental endless loop.
+    while (guard++ < 60) {
+      var cur = await listSavedSquads();
+      if (cur == null) { failCount++; break; }
+      var target = null;
+      for (var j = 0; j < cur.length; j++) { if (cur[j].id !== 0 && isGauntletSquadName(cur[j].name)) { target = cur[j]; break; } }
+      if (!target) break;                                        // none of ours left
+      gtCreateNote.textContent = "Removing " + target.name + "...";
+      try { await removeGameSquad(target.id); okCount++; }
+      catch (e) { failCount++; console.warn("[FC26] squad remove failed", target, e); break; }
+      await sleep(300);
+    }
+    saveGauntletSquadIds([]);        // the local id hint is no longer needed (we track by name now)
+    state.gtRunning = false;
+    await refreshGauntletCount();
+    gtCreateNote.textContent = "Removed " + okCount + " squad" + (okCount === 1 ? "" : "s") +
+      (failCount ? (", " + failCount + " failed - try again") : "") + ".";
+  }
 
   // renderGauntlet(): run the draft for the chosen formation + N and draw the result.
   // If the club is too thin, it reports the exact shortage instead of building.
   function renderGauntlet() {
     var players = getClubPlayers();
     gtOut.innerHTML = "";
-    if (!players.length) { gtNote.textContent = "No club players yet - load your club first (↻ Reload club)."; return; }
+    if (!players.length) { gtNote.textContent = "No club players yet - load your club first (↻ Reload club)."; gtLastBuild = null; updateGtButtons(); return; }
 
     var formation = gtForm.value;
     var n = parseInt(gtN.value, 10) || 3;
@@ -3251,6 +3477,7 @@
         lines.map(function (l) { return "<div class='gt-warn-l'>" + l + "</div>"; }).join("");
       gtOut.appendChild(warn);
       gtNote.textContent = "Depth check failed - nothing was built. Zero players are shared between squads by design.";
+      gtLastBuild = null; updateGtButtons();   // no valid build -> Create stays disabled
       return;
     }
 
@@ -3312,8 +3539,10 @@
       gtOut.appendChild(card);
     });
     gtNote.textContent = "Snake draft on the Justaino score: 11 starters by position, then 7 subs by best role. Near-ties break toward shared league/nation. No player appears in more than one squad. Tap any row to spotlight.";
+    gtLastBuild = res; updateGtButtons();       // a good build -> "Create in game" is now live
   }
   updateGtToggle();
+  updateGtButtons();   // reflect any squads tracked from a previous session on the Remove button
 
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";

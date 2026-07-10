@@ -5,6 +5,24 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v14 - 2026-07-10
+
+**Create Gauntlet squads in the game (and undo them in one tap).**
+
+- The Gauntlet builder now has two new buttons under the squad cards: **Create in game** and
+  **Remove Gauntlet squads**. This is the first thing the tool ever *creates* on your account.
+- **Create in game** turns the built squads into real saved squads named **"MGFC Gauntlet 1",
+  "MGFC Gauntlet 2", ...**. It shows a confirm dialog listing exactly what it will make, checks
+  the 30-squad limit first, and reports progress and a done/failed count. It **never touches your
+  active squad** and never makes a new squad active.
+- **Remove Gauntlet squads** deletes every squad named "MGFC Gauntlet ..." - found by scanning
+  your live squad list, so it works even on a different device and even after the game renumbers
+  squads. Your own squads (any other name) are never touched. The button shows how many exist.
+- Under the hood it drives the app's own squad service (`services.Squad.create` / `.remove`), the
+  same one the web app's Squads screen uses.
+
+---
+
 ## v13 - 2026-07-10
 
 **Gauntlet squad builder (display only).**
