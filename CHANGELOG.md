@@ -5,6 +5,32 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v6 - 2026-07-10
+
+**Complete rarity list for evo-eligibility.** The tool now reads the game's own full
+rarity table (about 128 rarities) when it starts, so you can choose which rarities count
+as evo-eligible from the **whole named list up front**, instead of only the ones you'd
+happened to apply to before.
+
+### Manage eligible rarities
+- A new **▸ Manage eligible rarities (N)** button under the "Only evo-eligible" row opens
+  a searchable checklist of every rarity, by name.
+- **Tick / untick** a rarity to add or remove it - it saves instantly and updates the
+  filter. Type in the **filter box** to narrow by name or id, and use **Tick shown /
+  Untick shown** to change a whole filtered group at once.
+- Your previously-eligible rarities stay ticked - nothing is lost.
+- Self-learning and the preview card's **Mark eligible** button still work exactly as
+  before; they just tick entries in the same list.
+
+### Notes
+- A few rarities show as **`Rarity <number>`** - that's only a missing display name (EA
+  scrambles the names in the game data); they're still fully selectable. Names can be
+  filled in one line at a time in the code.
+- If the game's rarity table can't be read for any reason, the tool quietly falls back to
+  the old learn-as-you-go behaviour.
+
+---
+
 ## v5 - 2026-07-10
 
 A full visual redesign of the panel: the "Broadcast" look, with switchable colour

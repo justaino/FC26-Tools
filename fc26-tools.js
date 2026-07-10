@@ -277,6 +277,43 @@
   // setRarityEligible(rf, on): add/remove one rareflag, then persist.
   function setRarityEligible(rf, on) { if (on) state.eligible.add(rf); else state.eligible["delete"](rf); saveEligible(); }
 
+  // ----------------------------------------------------------------------------
+  // FEATURE 1 - COMPLETE RARITY TABLE
+  // The app keeps the FULL rarity definitions in repositories.Rarity._collection:
+  // a plain object keyed by rarity id, one UTItemRarityDTO per entry (discovered
+  // live - 128 entries on the test account). Every DTO carries a numeric `id`, but
+  // its `name` is EA-obfuscated (encrypted bytes, not readable text - the app decodes
+  // it with a session key we can't reconstruct), so we do NOT use that field. Instead
+  // we read the complete ID LIST from that collection and resolve each id to a readable
+  // NAME via our own static RARITIES map (top-up later via a transfer-market scrape;
+  // final fallback is "Rarity <id>"). This is what lets evo-eligibility be complete from
+  // day one instead of being learned one encountered rarity at a time.
+  //
+  // loadRarityDefs(): read that collection into a sorted list of { id, name, searchable }.
+  //   - id         : the numeric rarity id (the same number as a card's rareflag)
+  //   - name       : readable name from RARITIES, else "Rarity <id>"
+  //   - searchable : the DTO's own flag (true = the game lets you filter for it in the
+  //                  transfer market; handy to know which ones a TM scrape could name)
+  // Returns [] if the table can't be read - then the learn-as-you-go flow (loadEligible /
+  // auto-learn on apply / the preview "Mark eligible" button) keeps working unchanged.
+  function loadRarityDefs() {
+    var defs = [];
+    try {
+      var R = window.repositories && window.repositories.Rarity;
+      var c = R && R._collection;                 // plain object: rarityId -> UTItemRarityDTO
+      if (c) {
+        Object.keys(c).forEach(function (k) {
+          var dto = c[k];
+          if (!dto || dto.id == null) return;
+          var id = Number(dto.id);
+          defs.push({ id: id, name: RARITIES[id] || ("Rarity " + id), searchable: !!dto.searchable });
+        });
+        defs.sort(function (a, b) { return a.id - b.id; });
+      }
+    } catch (e) { /* fall through to [] -> learn-as-you-go stays in charge */ }
+    return defs;
+  }
+
   // The one place we remember what the user has picked. Reused by later steps.
   //   player   = the selected club item (or null)
   //   selected = a Set of ticked evo slotIds
@@ -291,7 +328,8 @@
   //              active player (state.player) is NOT auto-added; when the batch is
   //              empty, Apply targets just the active player (unchanged single flow).
   //   theme    = chosen colourway id (see THEMES); applied by applyTheme, remembered
-  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme() };
+  //   rarityDefs = the app's full rarity table [{id,name,searchable}] (Feature 1); [] if unread
+  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme(), rarityDefs: loadRarityDefs() };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
@@ -335,6 +373,11 @@
   // Expose for Console poking while we build.
   window.FC26.getClubPlayers = getClubPlayers;
   window.FC26.state = state;
+  // Feature 1 (rarity table) Console helpers:
+  //   window.FC26.getRarityDefs()      -> the full [{id,name,searchable}] list read at startup
+  //   window.FC26.reloadRarityDefs()   -> re-read it from the app (and redraw the picker)
+  window.FC26.getRarityDefs = function () { return state.rarityDefs; };
+  window.FC26.reloadRarityDefs = function () { state.rarityDefs = loadRarityDefs(); try { renderPlayers(); } catch (e) {} return state.rarityDefs; };
 
   // Console helpers for editing the evo-eligible rarity list by hand. Each one
   // saves to storage AND redraws the panel, and returns the updated list:
@@ -548,6 +591,106 @@
   eligNote.style.cssText = "margin-left:auto;opacity:.85";
   filterRow.appendChild(eligChk); filterRow.appendChild(eligChkLbl); filterRow.appendChild(eligNote);
   eligChk.addEventListener("change", function () { state.onlyEligible = eligChk.checked; saveOnlyEligible(); renderPlayers(); });
+
+  // ---- FEATURE 1: manage eligible rarities (full named list) ----------------
+  // A collapsible manager that lists the app's FULL rarity table (state.rarityDefs,
+  // read from repositories.Rarity - Feature 1) as a searchable checklist. Ticking a
+  // rarity marks it evo-eligible; unticking removes it. This SUPERSEDES learn-as-you-go
+  // as the main way to choose eligibility - though learn-on-apply and the preview card's
+  // "Mark eligible" button still work, since they just tick entries in the SAME set
+  // (state.eligible). Your already-eligible ids stay ticked (same localStorage key).
+  var eligManageRow = document.createElement("div");
+  eligManageRow.style.cssText = "display:flex;margin-top:6px";
+  var eligManageBtn = document.createElement("button");
+  eligManageBtn.type = "button";
+  eligManageBtn.className = "elig-manage-btn";
+  eligManageRow.appendChild(eligManageBtn);
+
+  // The manager panel (hidden until opened): its own search box, quick actions, the
+  // scrolling checklist, and a small status line.
+  var eligManager = document.createElement("div");
+  eligManager.className = "elig-manager";
+  eligManager.style.display = "none";
+  var eligSearch = document.createElement("input");
+  eligSearch.type = "text";
+  eligSearch.placeholder = "filter rarities by name or id...";
+  eligSearch.className = "elig-search";
+  eligSearch.addEventListener("input", renderRarityManager);
+  var eligActions = document.createElement("div");
+  eligActions.className = "elig-actions";
+  var eligAll = document.createElement("button"); eligAll.type = "button"; eligAll.textContent = "Tick shown"; eligAll.className = "elig-act";
+  var eligNone = document.createElement("button"); eligNone.type = "button"; eligNone.textContent = "Untick shown"; eligNone.className = "elig-act";
+  eligActions.appendChild(eligAll); eligActions.appendChild(eligNone);
+  var eligListEl = document.createElement("div");
+  eligListEl.className = "elig-list";
+  var eligMgrNote = document.createElement("div");
+  eligMgrNote.className = "elig-mgr-note";
+  eligManager.appendChild(eligSearch); eligManager.appendChild(eligActions); eligManager.appendChild(eligListEl); eligManager.appendChild(eligMgrNote);
+
+  // open/close state + button label (shows the running eligible count).
+  var eligOpen = false;
+  function updateManageBtn() { eligManageBtn.textContent = (eligOpen ? "▾ " : "▸ ") + "Manage eligible rarities (" + state.eligible.size + ")"; }
+  eligManageBtn.addEventListener("click", function () {
+    eligOpen = !eligOpen;
+    eligManager.style.display = eligOpen ? "block" : "none";
+    if (eligOpen) renderRarityManager();
+    updateManageBtn();
+  });
+
+  // currentRarityRows(): the rarity table rows that match the manager's search box
+  // (matched on name OR id), or all of them when the box is empty.
+  function currentRarityRows() {
+    var q = (eligSearch.value || "").trim().toLowerCase();
+    return state.rarityDefs.filter(function (r) {
+      if (!q) return true;
+      return r.name.toLowerCase().indexOf(q) !== -1 || String(r.id).indexOf(q) !== -1;
+    });
+  }
+  // renderRarityManager(): (re)draw the checklist. Each box reflects whether that id is
+  // in state.eligible; toggling one persists and refreshes the count + player list. If
+  // the rarity table couldn't be read, we say so and lean on learn-as-you-go (fallback).
+  function renderRarityManager() {
+    if (!state.rarityDefs.length) {
+      eligListEl.innerHTML = "";
+      eligMgrNote.textContent = "The app's rarity table couldn't be read on this page, so the full list isn't available yet. Learn-as-you-go still works: mark a card eligible from its preview, or reopen the tool once your club has loaded.";
+      return;
+    }
+    var rows = currentRarityRows();
+    eligListEl.innerHTML = "";
+    rows.forEach(function (r) {
+      var lab = document.createElement("label");
+      lab.className = "elig-item";
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = state.eligible.has(r.id);
+      cb.addEventListener("change", function () {
+        setRarityEligible(r.id, cb.checked);
+        updateManageBtn();               // button label count
+        updateMgrNote();                 // the manager's own "N ticked" summary line, live
+        renderPlayers();                 // the (N rarities) count + eligible-only list
+        if (state.player) renderPreview();
+      });
+      var nm = document.createElement("span"); nm.className = "elig-nm"; nm.textContent = r.name;
+      var idb = document.createElement("span"); idb.className = "elig-id"; idb.textContent = "#" + r.id;
+      lab.appendChild(cb); lab.appendChild(nm); lab.appendChild(idb);
+      eligListEl.appendChild(lab);
+    });
+    updateMgrNote();
+  }
+  // updateMgrNote(): refresh the manager's summary line (shown / ticked / total). Split
+  // out so a SINGLE checkbox tick can update it live without rebuilding the whole list
+  // (which would lose your scroll position).
+  function updateMgrNote() {
+    if (!state.rarityDefs.length) return;
+    var rows = currentRarityRows();
+    var ticked = rows.filter(function (r) { return state.eligible.has(r.id); }).length;
+    eligMgrNote.textContent = rows.length + " shown, " + ticked + " ticked (" + state.eligible.size + " eligible of " + state.rarityDefs.length + " rarities).";
+  }
+  // "Tick shown" / "Untick shown" act on the CURRENTLY-FILTERED rows, so you can e.g.
+  // search "Festival" then tick them all at once.
+  eligAll.addEventListener("click", function () { currentRarityRows().forEach(function (r) { state.eligible.add(r.id); }); saveEligible(); updateManageBtn(); renderRarityManager(); renderPlayers(); if (state.player) renderPreview(); });
+  eligNone.addEventListener("click", function () { currentRarityRows().forEach(function (r) { state.eligible["delete"](r.id); }); saveEligible(); updateManageBtn(); renderRarityManager(); renderPlayers(); if (state.player) renderPreview(); });
+  updateManageBtn();
 
   // ---- STEP 2a batch bar ---------------------------------------------------
   // Shows how many players are ticked (via the per-row checkbox) for BATCH apply,
@@ -1611,6 +1754,19 @@
       "#fc26-panel .pv-elig-state.on{color:var(--accent)}" +
       "#fc26-panel .pv-elig-state.off{color:var(--muted)}" +
       "#fc26-panel .pv-elig-btn{margin-left:auto;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:10px;font-weight:600}" +
+      // ---- Feature 1: manage-eligible-rarities checklist -----------------------
+      "#fc26-panel .elig-manage-btn{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:600}" +
+      "#fc26-panel .elig-manager{margin-top:6px;padding:8px;border-radius:8px;background:var(--card);border:1px solid var(--card-border)}" +
+      "#fc26-panel .elig-search{width:100%;box-sizing:border-box;padding:5px 7px;border-radius:6px;border:1px solid var(--field-border);background:var(--field);color:var(--ink);font-size:11px}" +
+      "#fc26-panel .elig-actions{display:flex;gap:6px;margin-top:6px}" +
+      "#fc26-panel .elig-act{flex:1;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:4px 6px;cursor:pointer;font-size:10px;font-weight:600}" +
+      "#fc26-panel .elig-list{max-height:200px;overflow:auto;margin-top:6px;display:flex;flex-direction:column;gap:2px}" +
+      "#fc26-panel .elig-item{display:flex;align-items:center;gap:7px;padding:3px 5px;border-radius:5px;cursor:pointer;font-size:11px;color:var(--ink)}" +
+      "#fc26-panel .elig-item:hover{background:var(--sel)}" +
+      "#fc26-panel .elig-item input{accent-color:var(--accent);cursor:pointer;margin:0;flex:none}" +
+      "#fc26-panel .elig-nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .elig-id{flex:none;font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .elig-mgr-note{margin-top:7px;font-size:10px;color:var(--muted);opacity:.85}" +
       // reset / remove PlayStyles row (preview card)
       "#fc26-panel .pv-reset{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}" +
       "#fc26-panel .pv-rm-one{flex:1 1 auto;min-width:0;background:var(--btn);color:var(--btn-ink);border:0;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:11px;font-weight:600}" +
@@ -1978,7 +2134,7 @@
   // a flex column (via .fc26-squad) so the player list flexes to fill the left pane.
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(batchBar); squadMod.appendChild(playerList);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList);

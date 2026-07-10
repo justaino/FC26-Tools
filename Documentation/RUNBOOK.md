@@ -167,13 +167,19 @@ Only certain card **rarities** can receive PlayStyles. The tool keeps its own li
 of eligible rarities and uses it for the **"Only evo-eligible"** filter.
 
 How the list is built:
+- **Full rarity table (v6+)** - on startup the tool reads the **game's own complete
+  rarity table** (`repositories.Rarity._collection`, ~128 rarities) so you can pick
+  eligibility from the **full named list** straight away, instead of waiting to
+  encounter each rarity. Use the **Manage eligible rarities** button (§4e).
 - **Seed** - a small starting guess baked into the code (`ELIG_SEED`, currently
-  `[30, 98, 109]`).
+  `[30, 98, 109]`), used only on the very first run before you've ticked anything.
 - **Self-learning** - every time an Apply **succeeds**, that card's rarity is proven
   eligible, so it's added automatically.
-- **Manual** - you can add/remove rarities yourself (below).
+- **Manual** - tick/untick rarities yourself via the manager (§4e), the preview card's
+  **Mark eligible** button, or the Console commands (§4b).
 
-The list is saved in the browser (localStorage), so it survives reloads.
+The list is saved in the browser (localStorage), so it survives reloads. Your existing
+ticked rarities carry over unchanged when the full table loads.
 
 ### 4a. How to know a rarity's number
 
@@ -216,6 +222,22 @@ Remove** button on its preview card.
 localStorage.removeItem('FC26_eligibleRarities'); localStorage.removeItem('FC26_onlyEligible');
 ```
 Then reset + re-run (§2). The list goes back to the seed and the filter turns off.
+
+### 4e. Manage eligible rarities - the full named list (v6+)
+
+Under the **Only evo-eligible** row there's a **▸ Manage eligible rarities (N)** button
+(N = how many are currently eligible). Click it to open a checklist of the **whole
+rarity table**, by name:
+- **Tick / untick** a rarity to add/remove it from the eligible list - it saves
+  instantly and updates the filter, no buttons needed.
+- **Filter box** - type a name or id to narrow the list (e.g. `Festival`, or `30`).
+- **Tick shown / Untick shown** - act on just the currently-filtered rows, so you can
+  e.g. search `Festival` then tick them all at once.
+- The bottom line shows `X shown, Y ticked (Z eligible of 128 rarities)`.
+
+Some rarities show as **`Rarity <id>`** - that's a missing display name only (they're
+still fully tickable); name them via §5. If the game's table can't be read for some
+reason, the manager says so and the tool falls back to the old learn-as-you-go behaviour.
 
 ---
 
