@@ -923,24 +923,40 @@
   eligSearch.placeholder = "filter rarities by name or id...";
   eligSearch.className = "elig-search";
   eligSearch.addEventListener("input", renderRarityManager);
+  // Actions row: a single "Reset to my list" that STAGES a reset back to your seed list.
+  // (The old bulk "Tick shown / Untick shown" were removed - too easy to wipe the whole
+  //  list by accident. Editing is now stage-then-Save, see below.)
   var eligActions = document.createElement("div");
   eligActions.className = "elig-actions";
-  var eligAll = document.createElement("button"); eligAll.type = "button"; eligAll.textContent = "Tick shown"; eligAll.className = "elig-act";
-  var eligNone = document.createElement("button"); eligNone.type = "button"; eligNone.textContent = "Untick shown"; eligNone.className = "elig-act";
-  eligActions.appendChild(eligAll); eligActions.appendChild(eligNone);
+  var eligReset = document.createElement("button"); eligReset.type = "button"; eligReset.textContent = "Update to OG list"; eligReset.className = "elig-act elig-reset";
+  eligReset.title = "Stage a reset back to your original (OG) seed list, then Save to apply";
+  eligActions.appendChild(eligReset);
   var eligListEl = document.createElement("div");
   eligListEl.className = "elig-list";
   var eligMgrNote = document.createElement("div");
   eligMgrNote.className = "elig-mgr-note";
-  eligManager.appendChild(eligSearch); eligManager.appendChild(eligActions); eligManager.appendChild(eligListEl); eligManager.appendChild(eligMgrNote);
+  // Stage-then-Save confirm bar: hidden until there are pending changes; Save commits, Cancel discards.
+  var eligConfirm = document.createElement("div");
+  eligConfirm.className = "elig-confirm";
+  eligConfirm.style.display = "none";
+  var eligMsg = document.createElement("span"); eligMsg.className = "elig-msg";
+  var eligCancel = document.createElement("button"); eligCancel.type = "button"; eligCancel.textContent = "Cancel"; eligCancel.className = "elig-cancel";
+  var eligSave = document.createElement("button"); eligSave.type = "button"; eligSave.textContent = "Save changes"; eligSave.className = "elig-save";
+  eligConfirm.appendChild(eligMsg); eligConfirm.appendChild(eligCancel); eligConfirm.appendChild(eligSave);
+  eligManager.appendChild(eligSearch); eligManager.appendChild(eligActions); eligManager.appendChild(eligListEl); eligManager.appendChild(eligMgrNote); eligManager.appendChild(eligConfirm);
 
-  // open/close state + button label (shows the running eligible count).
+  // stagedElig: a WORKING copy of the eligible set. Ticking a rarity edits this, not the
+  // real list (state.eligible) - nothing is written until you press Save. Re-seeded from the
+  // live list every time the manager opens (and on Save/Cancel).
+  var stagedElig = new Set(state.eligible);
+
+  // open/close state + button label (shows the SAVED eligible count).
   var eligOpen = false;
   function updateManageBtn() { eligManageBtn.textContent = (eligOpen ? "▾ " : "▸ ") + "Manage eligible rarities (" + state.eligible.size + ")"; }
   eligManageBtn.addEventListener("click", function () {
     eligOpen = !eligOpen;
     eligManager.style.display = eligOpen ? "block" : "none";
-    if (eligOpen) renderRarityManager();
+    if (eligOpen) { stagedElig = new Set(state.eligible); renderRarityManager(); }   // start clean from the saved list
     updateManageBtn();
     lineupPeek = false;                                        // opening/closing re-collapses the list on mobile
     if (typeof updateLineupCollapse === "function") updateLineupCollapse();
@@ -955,50 +971,83 @@
       return r.name.toLowerCase().indexOf(q) !== -1 || String(r.id).indexOf(q) !== -1;
     });
   }
-  // renderRarityManager(): (re)draw the checklist. Each box reflects whether that id is
-  // in state.eligible; toggling one persists and refreshes the count + player list. If
+  // renderRarityManager(): (re)draw the checklist against the STAGED set. Each box reflects
+  // stagedElig; a box whose staged state differs from the saved list is marked "will add" /
+  // "will remove" and the confirm bar appears. Ticking edits stagedElig only (no save). If
   // the rarity table couldn't be read, we say so and lean on learn-as-you-go (fallback).
   function renderRarityManager() {
     if (!state.rarityDefs.length) {
       eligListEl.innerHTML = "";
       eligMgrNote.textContent = "The app's rarity table couldn't be read on this page, so the full list isn't available yet. Learn-as-you-go still works: mark a card eligible from its preview, or reopen the tool once your club has loaded.";
+      updateConfirmBar();
       return;
     }
     var rows = currentRarityRows();
     eligListEl.innerHTML = "";
     rows.forEach(function (r) {
+      var committed = state.eligible.has(r.id);
+      var staged = stagedElig.has(r.id);
+      var pend = staged !== committed;
       var lab = document.createElement("label");
-      lab.className = "elig-item";
+      lab.className = "elig-item" + (pend ? " pending" : "");
       var cb = document.createElement("input");
       cb.type = "checkbox";
-      cb.checked = state.eligible.has(r.id);
-      cb.addEventListener("change", function () {
-        setRarityEligible(r.id, cb.checked);
-        updateManageBtn();               // button label count
-        updateMgrNote();                 // the manager's own "N ticked" summary line, live
-        renderPlayers();                 // the (N rarities) count + eligible-only list
-        if (state.player) renderPreview();
-      });
-      var nm = document.createElement("span"); nm.className = "elig-nm"; nm.textContent = r.name;
+      cb.checked = staged;
+      var nm = document.createElement("span"); nm.className = "elig-nm" + (pend && !staged ? " elig-strike" : ""); nm.textContent = r.name;
+      var badge = document.createElement("span"); badge.className = "elig-pend " + (staged ? "add" : "rem"); badge.style.display = pend ? "" : "none"; badge.textContent = staged ? "will add" : "will remove";
       var idb = document.createElement("span"); idb.className = "elig-id"; idb.textContent = "#" + r.id;
-      lab.appendChild(cb); lab.appendChild(nm); lab.appendChild(idb);
+      cb.addEventListener("change", function () {
+        if (cb.checked) stagedElig.add(r.id); else stagedElig["delete"](r.id);
+        // update THIS row's pending styling in place (keeps scroll position), then the bar + note.
+        var p = stagedElig.has(r.id) !== state.eligible.has(r.id);
+        lab.classList.toggle("pending", p);
+        nm.classList.toggle("elig-strike", p && !cb.checked);
+        badge.className = "elig-pend " + (cb.checked ? "add" : "rem");
+        badge.textContent = cb.checked ? "will add" : "will remove";
+        badge.style.display = p ? "" : "none";
+        updateConfirmBar();
+        updateMgrNote();
+      });
+      lab.appendChild(cb); lab.appendChild(nm); lab.appendChild(badge); lab.appendChild(idb);
       eligListEl.appendChild(lab);
     });
     updateMgrNote();
+    updateConfirmBar();
   }
-  // updateMgrNote(): refresh the manager's summary line (shown / ticked / total). Split
-  // out so a SINGLE checkbox tick can update it live without rebuilding the whole list
-  // (which would lose your scroll position).
+  // updateMgrNote(): refresh the manager's summary line (shown / ticked / total), based on the
+  // STAGED set. Split out so a single tick can update it live without rebuilding the whole list.
   function updateMgrNote() {
     if (!state.rarityDefs.length) return;
     var rows = currentRarityRows();
-    var ticked = rows.filter(function (r) { return state.eligible.has(r.id); }).length;
-    eligMgrNote.textContent = rows.length + " shown, " + ticked + " ticked (" + state.eligible.size + " eligible of " + state.rarityDefs.length + " rarities).";
+    var ticked = rows.filter(function (r) { return stagedElig.has(r.id); }).length;
+    eligMgrNote.textContent = rows.length + " shown, " + ticked + " ticked (" + stagedElig.size + " selected of " + state.rarityDefs.length + " rarities).";
   }
-  // "Tick shown" / "Untick shown" act on the CURRENTLY-FILTERED rows, so you can e.g.
-  // search "Festival" then tick them all at once.
-  eligAll.addEventListener("click", function () { currentRarityRows().forEach(function (r) { state.eligible.add(r.id); }); saveEligible(); updateManageBtn(); renderRarityManager(); renderPlayers(); if (state.player) renderPreview(); });
-  eligNone.addEventListener("click", function () { currentRarityRows().forEach(function (r) { state.eligible["delete"](r.id); }); saveEligible(); updateManageBtn(); renderRarityManager(); renderPlayers(); if (state.player) renderPreview(); });
+  // eligDiffCount(): how many rarities the staged set adds or removes vs the saved list.
+  function eligDiffCount() {
+    var n = 0;
+    stagedElig.forEach(function (id) { if (!state.eligible.has(id)) n++; });
+    state.eligible.forEach(function (id) { if (!stagedElig.has(id)) n++; });
+    return n;
+  }
+  // updateConfirmBar(): show the Save/Cancel bar only when there are pending changes.
+  function updateConfirmBar() {
+    var d = eligDiffCount();
+    eligConfirm.style.display = d > 0 ? "flex" : "none";
+    if (d > 0) eligMsg.textContent = d + " pending change" + (d === 1 ? "" : "s");
+  }
+  // Save: commit the staged set to the real list (persist + refresh everything), then redraw
+  // the manager clean. Cancel: throw the staged edits away. Reset: stage the seed default (you
+  // still Save to apply). All three go through the SAME confirm gate - nothing writes silently.
+  eligSave.addEventListener("click", function () {
+    state.eligible = new Set(stagedElig);
+    saveEligible();
+    updateManageBtn();
+    renderPlayers();
+    if (state.player) renderPreview();
+    renderRarityManager();
+  });
+  eligCancel.addEventListener("click", function () { stagedElig = new Set(state.eligible); renderRarityManager(); });
+  eligReset.addEventListener("click", function () { stagedElig = new Set(ELIG_SEED); renderRarityManager(); });
   updateManageBtn();
 
   // ---- STEP 2a batch bar ---------------------------------------------------
@@ -2283,6 +2332,16 @@
       "#fc26-panel .elig-nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
       "#fc26-panel .elig-id{flex:none;font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .elig-mgr-note{margin-top:7px;font-size:10px;color:var(--muted);opacity:.85}" +
+      // Stage-then-Save: pending rows, the add/remove badge, and the Save/Cancel confirm bar.
+      "#fc26-panel .elig-item.pending{background:var(--sel);box-shadow:inset 2px 0 0 var(--accent)}" +
+      "#fc26-panel .elig-strike{text-decoration:line-through;opacity:.55}" +
+      "#fc26-panel .elig-pend{flex:none;font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:1px 6px;white-space:nowrap}" +
+      "#fc26-panel .elig-pend.add{color:var(--accent);border:1px solid var(--accent)}" +
+      "#fc26-panel .elig-pend.rem{color:var(--btnx-ink);border:1px solid rgba(255,120,120,.45)}" +
+      "#fc26-panel .elig-confirm{display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--sel);border:1px solid var(--accent)}" +
+      "#fc26-panel .elig-msg{flex:1;font-size:11px;font-weight:700;color:var(--ink)}" +
+      "#fc26-panel .elig-save{flex:none;background:var(--accent);color:var(--accent-ink);border:0;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:10px;font-weight:800}" +
+      "#fc26-panel .elig-cancel{flex:none;background:transparent;color:var(--muted);border:1px solid var(--field-border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:10px;font-weight:700}" +
       // ---- Feature 2: Meta rating section --------------------------------------
       "#fc26-panel .meta-section{margin-top:8px}" +
       "#fc26-panel .meta-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:600}" +

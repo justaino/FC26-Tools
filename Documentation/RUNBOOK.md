@@ -337,17 +337,28 @@ localStorage.removeItem('FC26_eligibleRarities'); localStorage.removeItem('FC26_
 ```
 Then reset + re-run (§2). The list goes back to the seed and the filter turns off.
 
-### 4e. Manage eligible rarities - the full named list (v6+)
+### 4e. Manage eligible rarities - the full named list (v6+, stage-then-Save in v11)
 
 Under the **Only evo-eligible** row there's a **▸ Manage eligible rarities (N)** button
 (N = how many are currently eligible). Click it to open a checklist of the **whole
-rarity table**, by name:
-- **Tick / untick** a rarity to add/remove it from the eligible list - it saves
-  instantly and updates the filter, no buttons needed.
+rarity table**, by name. **Editing is stage-then-Save (v11): nothing changes until you Save.**
+- **Tick / untick** a rarity to STAGE adding/removing it. The row is flagged **will add** /
+  **will remove**, and a bar appears at the bottom with **Save changes** and **Cancel**.
+  Your real list only updates on **Save**; **Cancel** throws the staged edits away. The
+  `(N)` count on the button doesn't move until you Save.
+- **Update to OG list** - stages a reset back to your original seed list (`ELIG_SEED`), which
+  you then Save (or Cancel) like any other change.
 - **Filter box** - type a name or id to narrow the list (e.g. `Festival`, or `30`).
-- **Tick shown / Untick shown** - act on just the currently-filtered rows, so you can
-  e.g. search `Festival` then tick them all at once.
-- The bottom line shows `X shown, Y ticked (Z eligible of 128 rarities)`.
+- The bottom line shows `X shown, Y ticked (Z selected of 128 rarities)` (staged counts).
+- The old **Tick shown / Untick shown** bulk buttons were removed in v11 (too easy to wipe
+  the whole list by accident).
+
+Under the hood: staged edits live in `stagedElig` (a copy of `state.eligible` re-seeded on
+open); **Save** does `state.eligible = new Set(stagedElig)` + `saveEligible()`; **Cancel**
+copies the saved list back; the confirm bar is driven by `eligDiffCount()` / `updateConfirmBar()`.
+
+The preview card's **Mark eligible / Remove** and learn-on-apply are single deliberate
+actions, so they still apply immediately (they write `state.eligible` directly, not the stage).
 
 Some rarities show as **`Rarity <id>`** - that's a missing display name only (they're
 still fully tickable); name them via §5. If the game's table can't be read for some

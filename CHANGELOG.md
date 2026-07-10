@@ -5,6 +5,23 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v11 - 2026-07-10
+
+**Safer eligible-rarity manager: nothing changes until you Save.**
+
+- The bulk **Tick shown / Untick shown** buttons are gone (too easy to wipe your whole
+  eligible list by accident).
+- Ticking or unticking a rarity now **stages** the change instead of applying it: the row
+  is flagged **will add** / **will remove** and a bar appears with **Save changes** and
+  **Cancel**. Your real list only updates when you press **Save**; **Cancel** discards the
+  lot. The "(N)" count on the button doesn't move until you Save.
+- New **Update to OG list** button stages a reset back to your original seed list, which you
+  then Save (or Cancel) like any other change.
+- The preview card's **Mark eligible** and learn-on-apply are single, deliberate actions, so
+  they still apply straight away.
+
+---
+
 ## v10 - 2026-07-10
 
 **Mobile Lineup: more room for the panels you open.**
