@@ -2579,7 +2579,11 @@
   // ----------------------------------------------------------------------------
 
   var mq = window.matchMedia("(max-width: 620px)");            // "am I on a phone-ish screen?"
-  function currentMode() { return mq.matches ? "mobile" : "desktop"; }
+  // Defensive: the very first renderPlayers() above (line ~2560) runs before this
+  // line assigns mq, and it can reach currentMode() via updateLineupCollapse. Guard
+  // against mq still being undefined so that early call can't throw; it harmlessly
+  // reads "desktop" once, then behaves normally after mq exists.
+  function currentMode() { return (mq && mq.matches) ? "mobile" : "desktop"; }
   state.wizStep = 1;                                            // which wizard step (mobile)
   state.minimized = false;                                      // is the panel minimized?
 
