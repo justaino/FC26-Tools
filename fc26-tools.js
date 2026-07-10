@@ -942,6 +942,8 @@
     eligManager.style.display = eligOpen ? "block" : "none";
     if (eligOpen) renderRarityManager();
     updateManageBtn();
+    lineupPeek = false;                                        // opening/closing re-collapses the list on mobile
+    if (typeof updateLineupCollapse === "function") updateLineupCollapse();
   });
 
   // currentRarityRows(): the rarity table rows that match the manager's search box
@@ -1063,6 +1065,30 @@
   var playerList = document.createElement("div");
   playerList.className = "fc26-plist";
   playerList.style.cssText = "margin-top:6px;overflow:auto;display:flex;flex-direction:column;gap:4px";
+
+  // ---- FEATURE: collapse the Lineup list on mobile while a panel is open --------
+  // On a phone the player list and an open Meta-rating / Manage-rarities panel fight for
+  // the same vertical space. So on mobile, when either panel is open, the list folds to a
+  // one-line stub ("Player list hidden - N players, tap to show") - tapping the stub peeks
+  // the list back, and closing the panel restores it. Desktop always shows both.
+  var lineupPeek = false;   // user tapped the stub to reveal the list even though a panel is open
+  var lineupStub = document.createElement("button");
+  lineupStub.type = "button";
+  lineupStub.className = "fc26-liststub";
+  lineupStub.style.display = "none";
+  lineupStub.addEventListener("click", function () { lineupPeek = true; updateLineupCollapse(); });
+  // updateLineupCollapse(): show the stub (and hide the list) only on mobile with a panel
+  // open and no active peek; otherwise show the list. Also refreshes the stub's count.
+  function updateLineupCollapse() {
+    var panelOpen = (typeof eligOpen !== "undefined" && eligOpen) || (typeof metaOpen !== "undefined" && metaOpen);
+    var collapse = currentMode() === "mobile" && panelOpen && !lineupPeek;
+    playerList.style.display = collapse ? "none" : "";
+    lineupStub.style.display = collapse ? "block" : "none";
+    if (collapse) {
+      var n = playerList.querySelectorAll(".pl-row").length;   // rows currently listed (after search/filter)
+      lineupStub.textContent = "▸ Player list hidden - " + n + " player" + (n === 1 ? "" : "s") + ", tap to show";
+    }
+  }
 
   // Preview card for the selected player (hidden until one is picked).
   var preview = document.createElement("div");
@@ -1285,6 +1311,7 @@
       row.addEventListener("click", function () { selectPlayer(it); });
       playerList.appendChild(row);
     });
+    if (typeof updateLineupCollapse === "function") updateLineupCollapse();   // refresh the mobile stub count / state
   }
 
   // ---- STEP 1.5 evolution selection + caps ---------------------------------
@@ -2402,6 +2429,9 @@
       // list heights: capped on mobile; on desktop the squad list flexes to fill its
       // pane and the evo list is uncapped (the whole right pane scrolls as one).
       "#fc26-panel .fc26-plist{max-height:210px}" +
+      // Mobile-only stub shown in place of the collapsed Lineup list (a tap-to-reveal button).
+      "#fc26-panel .fc26-liststub{width:100%;text-align:left;margin-top:6px;padding:9px 11px;border-radius:8px;background:var(--tab);border:1px dashed var(--field-border);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer}" +
+      "#fc26-panel .fc26-liststub:hover{border-color:var(--accent);color:var(--accent)}" +
       "#fc26-panel .fc26-elist{max-height:210px}" +
       "#fc26-panel.fc26-desktop .fc26-squad{display:flex;flex-direction:column;flex:1;min-height:0}" +
       "#fc26-panel.fc26-desktop .fc26-plist{flex:1;min-height:80px;max-height:none}" +
@@ -2774,6 +2804,8 @@
     metaBox.style.display = metaOpen ? "block" : "none";
     if (metaOpen) renderMetaRating();
     updateMetaToggle();
+    lineupPeek = false;                                        // opening/closing re-collapses the list on mobile
+    if (typeof updateLineupCollapse === "function") updateLineupCollapse();
   });
   metaPos.addEventListener("change", renderMetaRating);
   metaCount.addEventListener("change", renderMetaRating);
@@ -2812,7 +2844,7 @@
 
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(metaSection);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaSection);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); buildMod.appendChild(ghSection);
@@ -3053,6 +3085,7 @@
     stepBody.innerHTML = "";
     if (state.wizStep === 1) {                                 // Lineup: pick a player
       stepBody.appendChild(squadMod);
+      updateLineupCollapse();                                  // re-evaluate the list/stub for mobile
     } else if (state.wizStep === 2) {                          // PlayStyle Deck: choose PlayStyles
       renderDeckSummary(); stepBody.appendChild(deckSummary); stepBody.appendChild(buildMod);
     } else {                                                    // Review: preview + apply
@@ -3095,6 +3128,7 @@
       cols.appendChild(r2);
     }
     layoutHost.appendChild(cols);
+    updateLineupCollapse();   // desktop always shows the full list (stub hidden)
   }
   // maybeReflowDesktop(): while resizing (or on a window resize) re-split the columns only
   // when the width actually crosses the wide/narrow threshold - cheap, no needless rebuilds.

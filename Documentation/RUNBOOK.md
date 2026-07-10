@@ -262,6 +262,19 @@ preview. The remove spinner is hosted here on mobile (`loaderHost` in `runRemove
 
 ---
 
+## 3f. New in v10 - mobile Lineup list collapse
+
+On mobile only, opening the **Meta rating** or **Manage eligible rarities** panel folds the
+player list to a one-line stub so the panel has room to scroll. Driven by
+`updateLineupCollapse()`: it hides `playerList` and shows `lineupStub` when
+`currentMode() === "mobile"` AND a panel is open (`eligOpen || metaOpen`) AND the user hasn't
+tapped the stub to peek (`lineupPeek`). Tapping the stub sets `lineupPeek = true` (reveals the
+list); opening/closing either panel resets `lineupPeek = false` (re-collapses). It's re-run
+from the two toggle handlers, `renderPlayers`, `renderWizStep` (Lineup step) and
+`buildDesktop`/`applyLayout`, so desktop always shows the full list.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

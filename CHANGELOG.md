@@ -5,6 +5,19 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v10 - 2026-07-10
+
+**Mobile Lineup: more room for the panels you open.**
+
+- On a phone, opening **Meta rating** or **Manage eligible rarities** used to leave the
+  player list squashed above/below it, making the open panel hard to scroll.
+- Now, opening either one **folds the player list to a single line** ("Player list hidden
+  - N players, tap to show"), giving the panel the full height. **Tap the stub** to peek the
+  list back, or **close the panel** and the list returns on its own.
+- Desktop is unchanged: the list and an open panel show together.
+
+---
+
 ## v9 - 2026-07-10
 
 **Viewing and applying PlayStyles, made clearer on both phone and desktop.**
