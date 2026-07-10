@@ -221,6 +221,47 @@ weight and is generated from these same tables.
 
 ---
 
+## 3e. New in v9 - face stats, all-edge resize, tidier mobile flow
+
+Visual/flow polish for viewing and applying PlayStyles. No new game calls, no change to
+how applying works.
+
+**Face stats on the card.** The player's six stats now show as a 3x2 grid:
+- Built by `faceStatsHTML(it)`, which reads `readStats(it)` (the same six numbers off
+  `it.attributes` the meta rating uses) and labels them PAC/SHO/PAS/DRI/DEF/PHY, or the six
+  GK stats for keepers. Values are colour-graded (`.pv-fv.hi/.mid/.reg/.lo` = accent / gold
+  / ink / muted) by simple 90 / 80 / 70 thresholds.
+- Shown on the **desktop spotlight** (`renderPreview`), inside the **mobile Deck** summary
+  when its stats toggle is open, and in the **Review** step is intentionally NOT repeated.
+
+**Resize from any edge or corner (desktop).** There are now eight handles, not one:
+the striped bottom-right grip plus seven invisible strips (`.fc26-rz-n/s/e/w/ne/nw/sw`).
+All share one routine (`wireResizeHandle` -> `doResize`): the edge(s) named in the handle's
+direction move toward the pointer, the opposite edge stays pinned, clamped to a min size
+(`MIN_W`/`MIN_H` = 340/260) and the viewport. Size AND position are saved (`FC26_size`
+plus the `Max` spot) so a top/left drag doesn't snap back. `⤢` in the header still re-docks.
+
+**Mobile Deck summary** (`renderDeckSummary`, element `deckSummary`): a slim bar atop the
+PlayStyle Deck step showing rating + name + caps, with a **▾ stats** toggle that folds out
+the capacity meters (`capMetersHTML`) + face stats. Open/closed persists in
+`FC26_deckStatsOpen`. This replaced the old pinned mini-spotlight, which was removed
+(it duplicated this bar; the `.fc26-spot` / `updateStickySpot` code is gone).
+
+**Mobile Review summary** (`renderReviewSummary`, element `reviewSummary`): replaces the
+repeated preview on the Review step. Shows the target (player or batch) and the **ticked**
+PlayStyles split PS+ / Basic, plus a **Manage this card** fold-out (`state.reviewManageOpen`)
+carrying the eligibility toggle and the Remove / Clear-evo buttons that used to live on the
+preview. The remove spinner is hosted here on mobile (`loaderHost` in `runRemove`).
+
+**Gating (`reviewReady` + `updateApplyBtn`):**
+- You can reach **Review** when something is ticked OR the card already has PlayStyles (so
+  you can go there just to manage/remove). This is the `reviewReady()` check used by the
+  guide button, the Review tab dim, and `goStep`.
+- **Apply selected** is disabled whenever nothing is ticked (`updateApplyBtn`, called from
+  `updateEvoCount`), on both mobile and desktop.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

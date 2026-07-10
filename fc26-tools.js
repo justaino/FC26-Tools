@@ -628,6 +628,34 @@
     return o;
   }
 
+  // Short labels for the 6 stats, in the SAME order readStats returns them, so the
+  // face-stats readout lines up with the numbers. Outfield = the 6 face stats; GK =
+  // the 6 keeper stats (matches how readStats renames them for keepers).
+  var FACE_LABELS = { pace: "PAC", shooting: "SHO", passing: "PAS", dribbling: "DRI", defending: "DEF", physical: "PHY" };
+  var GK_LABELS   = { diving: "DIV", handling: "HAN", kicking: "KIC", reflexes: "REF", speed: "SPD", positioning: "POS" };
+
+  // faceStatsHTML(it): the player's 6 stats as a labelled 3x2 grid (Feature: face stats).
+  // Same numbers the Justaino rating reads (it.attributes via readStats), so it can never
+  // be out of step with the card. Values are colour-graded by a simple heat scale so a
+  // strong stat reads at a glance; the classes map to theme tokens (works in every skin).
+  // Reused by the desktop spotlight AND the mobile PlayStyle-Deck summary.
+  function faceStatsHTML(it) {
+    var gk = isGKPlayer(it);
+    var keys = gk ? GK_STATS : FACE_STATS;         // order matches readStats
+    var labels = gk ? GK_LABELS : FACE_LABELS;
+    var stats = readStats(it);
+    // grade(v): heat class. >=90 elite (accent), 80-89 strong (gold), 70-79 ok (ink), else low (muted).
+    function grade(v) { return v >= 90 ? "hi" : v >= 80 ? "mid" : v >= 70 ? "reg" : "lo"; }
+    var cells = keys.map(function (k) {
+      var v = stats[k] || 0;
+      return "<div class='pv-fstat'><span class='pv-fk'>" + labels[k] + "</span>" +
+        "<span class='pv-fv " + grade(v) + "'>" + v + "</span></div>";
+    }).join("");
+    return "<div class='pv-faces'>" +
+      "<div class='pv-fl'>" + (gk ? "GK stats" : "Face stats") + "</div>" +
+      "<div class='pv-fgrid'>" + cells + "</div></div>";
+  }
+
   // psMaxForGroup(group): a realistic "ceiling" of raw PlayStyle bonus points for a
   // position - the best 3 meta PlayStyles owned as PS+ (doubled) plus the next 5 as
   // basic. We divide a player's raw bonus by this to get a 0-100 PlayStyle score, so
@@ -1144,6 +1172,8 @@
         meterHTML("PlayStyle+", pUsed, plusCap, "plus") +
         meterHTML("Basic", bUsed, basicCap, "basic") +
       "</div>" +
+      // Face stats grid (Feature: fill the spotlight) - same 6 numbers the Justaino rating reads.
+      faceStatsHTML(it) +
       noneMsg +
       groupHTML("PlayStyle+", plus, true) +
       groupHTML("Basic", basic, false) +
@@ -1433,6 +1463,7 @@
     var sp = selectedCount("PS+"), sb = selectedCount("PS");
     evoCount.textContent = (sp + sb) + " selected (" + sp + " PS+, " + sb + " PS)";
     if (typeof updateGuide === "function") updateGuide();   // keep the mobile guide button / Review gate live
+    if (typeof updateApplyBtn === "function") updateApplyBtn();   // enable/disable "Apply selected" by selection
   }
 
   // setTab(kind): switch tab and redraw.
@@ -1726,6 +1757,17 @@
   applyBtn.style.cssText = "flex:1;min-width:140px;padding:10px;border:none;border-radius:7px;cursor:pointer;background:var(--apply);color:var(--apply-ink);font-weight:800;font-size:12px;letter-spacing:.14em;text-transform:uppercase";
   applyBtn.addEventListener("click", runApply);
 
+  // updateApplyBtn(): grey out "Apply selected" when nothing is ticked (there's nothing to
+  // apply). You can still reach Review to manage an existing card; the button just can't fire.
+  function updateApplyBtn() {
+    if (!applyBtn) return;
+    var none = state.selected.size === 0;
+    applyBtn.disabled = none;
+    applyBtn.style.opacity = none ? ".45" : "";
+    applyBtn.style.cursor = none ? "not-allowed" : "pointer";
+    applyBtn.title = none ? "Tick at least one PlayStyle in the Deck to apply." : "";
+  }
+
   var stopBtn = document.createElement("button");
   stopBtn.textContent = "Stop";
   stopBtn.style.cssText = "flex:1;min-width:140px;padding:10px;border:none;border-radius:7px;cursor:pointer;background:#c0392b;color:#fff;font-weight:800;font-size:12px;letter-spacing:.14em;text-transform:uppercase;display:none";
@@ -1849,7 +1891,11 @@
     var loader = document.createElement("div");
     loader.className = "rm-load"; loader.style.marginTop = "10px";
     loader.innerHTML = "<span class='rm-spin'></span><span class='rm-txt'>" + (all ? "Clearing evos…" : "Removing evo…") + "</span>";
-    preview.appendChild(loader);
+    // Show the spinner where the button that triggered it lives: the preview card on desktop,
+    // but the Review "Manage this card" panel on mobile (the preview isn't in the DOM there).
+    // Both are wiped by the re-render at the end (renderPreview / renderWizStep).
+    var loaderHost = (currentMode() === "mobile" && typeof reviewSummary !== "undefined" && reviewSummary) ? reviewSummary : preview;
+    loaderHost.appendChild(loader);
     function setLoad(t) { var el = loader.querySelector(".rm-txt"); if (el) el.textContent = t; }
     var id = it.id, removed = 0, guard = 0, maxIter = all ? 40 : 1, failMsg = "";  // 40 = generous backstop; lastEvoRemoved is the real stop
     while (guard++ < maxIter) {
@@ -2170,6 +2216,18 @@
       "#fc26-panel .pv-seg{height:9px;flex:1;background:rgba(255,255,255,.12);transform:skewX(-14deg);border-radius:1px}" +
       "#fc26-panel .pv-meter.plus .pv-seg.on{background:var(--gold)}" +
       "#fc26-panel .pv-meter.basic .pv-seg.on{background:var(--accent)}" +
+      // Face-stats grid (3x2). minmax(0,1fr) columns + min-width:0 cells keep the numbers
+      // INSIDE the pane on every width - they wrap/shrink, never overflow off the edge.
+      "#fc26-panel .pv-faces{margin-top:13px}" +
+      "#fc26-panel .pv-fl{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" +
+      "#fc26-panel .pv-fgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}" +
+      "#fc26-panel .pv-fstat{display:flex;align-items:baseline;justify-content:space-between;gap:4px;min-width:0;background:rgba(0,0,0,.22);border:1px solid var(--card-border);border-radius:8px;padding:6px 8px}" +
+      "#fc26-panel .pv-fk{font-size:9px;font-weight:800;letter-spacing:.05em;color:var(--muted)}" +
+      "#fc26-panel .pv-fv{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" +
+      "#fc26-panel .pv-fv.hi{color:var(--accent)}" +
+      "#fc26-panel .pv-fv.mid{color:var(--gold)}" +
+      "#fc26-panel .pv-fv.reg{color:var(--ink)}" +
+      "#fc26-panel .pv-fv.lo{color:var(--muted)}" +
       // Grouped chips: current PlayStyles, split into a PS+ row and a Basic row.
       "#fc26-panel .pv-group{margin-top:12px}" +
       "#fc26-panel .pv-gl{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}" +
@@ -2360,6 +2418,17 @@
       "#fc26-panel .fc26-grip{position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;z-index:4;touch-action:none;opacity:.5;" +
         "background:linear-gradient(135deg,transparent 0 45%,var(--muted) 45% 55%,transparent 55% 66%,var(--muted) 66% 76%,transparent 76%)}" +
       "#fc26-panel .fc26-grip:hover{opacity:.95}" +
+      // Edge + corner resize handles: invisible strips along each side, each with its own
+      // resize cursor. Thin enough not to steal clicks from the content; the corners are a
+      // small 14px square. z-index sits just under the grip so overlaps resolve sensibly.
+      "#fc26-panel .fc26-rz{position:absolute;z-index:3;touch-action:none}" +
+      "#fc26-panel .fc26-rz-n{top:0;left:12px;right:12px;height:6px;cursor:ns-resize}" +
+      "#fc26-panel .fc26-rz-s{bottom:0;left:12px;right:12px;height:6px;cursor:ns-resize}" +
+      "#fc26-panel .fc26-rz-e{top:12px;bottom:12px;right:0;width:6px;cursor:ew-resize}" +
+      "#fc26-panel .fc26-rz-w{top:12px;bottom:12px;left:0;width:6px;cursor:ew-resize}" +
+      "#fc26-panel .fc26-rz-ne{top:0;right:0;width:14px;height:14px;cursor:nesw-resize}" +
+      "#fc26-panel .fc26-rz-nw{top:0;left:0;width:14px;height:14px;cursor:nwse-resize}" +
+      "#fc26-panel .fc26-rz-sw{bottom:0;left:0;width:14px;height:14px;cursor:nesw-resize}" +
       // Mobile channel tabs (Lineup / Style deck / Review) + the scrolling section body.
       "#fc26-panel .fc26-chtabs{flex:none;display:flex;gap:6px;margin-bottom:10px}" +
       "#fc26-panel .fc26-chtab{flex:1;text-align:center;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:9px 4px;border-radius:8px;color:var(--muted);background:var(--tab);border:1px solid var(--field-border);cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
@@ -2370,14 +2439,31 @@
       "#fc26-panel .fc26-guidebtn{flex:none;width:100%;margin-top:10px;padding:11px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}" +
       "#fc26-panel .fc26-guidebtn.dis{opacity:.4;cursor:not-allowed}" +
       "#fc26-panel .fc26-wizwho{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--card);border:1px solid var(--card-border);margin-bottom:11px;font-size:13px}" +
+      // Mobile Deck summary: a collapsible caps + face-stats bar atop the PlayStyle Deck step.
+      "#fc26-panel .fc26-decksum{margin-bottom:11px;border-radius:12px;background:var(--card);border:1px solid var(--card-border)}" +
+      "#fc26-panel .fc26-decksum.open{border-color:var(--accent)}" +
+      "#fc26-panel .ds-bar{display:flex;align-items:center;gap:10px;padding:9px 11px}" +
+      "#fc26-panel .ds-r{flex:none;font-weight:800;font-size:22px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .ds-w{flex:1 1 auto;min-width:0}" +
+      "#fc26-panel .ds-n{display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .ds-gk{flex:none;color:var(--accent);font-size:8px;border:1px solid var(--accent);border-radius:4px;padding:0 3px}" +
+      "#fc26-panel .ds-c{font-size:10px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .ds-toggle{flex:none;background:var(--btn);color:var(--accent);border:1px solid var(--field-border);border-radius:7px;padding:5px 9px;cursor:pointer;font-size:10px;font-weight:800;letter-spacing:.04em;white-space:nowrap}" +
+      "#fc26-panel .ds-body{padding:0 11px 11px;display:flex;flex-direction:column;gap:11px}" +
+      "#fc26-panel .ds-body .pv-faces{margin-top:0}" +
+      // Mobile Review summary: target line + the selected PlayStyle chips (what will be applied).
+      "#fc26-panel .fc26-revsum{margin-bottom:11px}" +
+      "#fc26-panel .rs-bar{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:12px;background:var(--card);border:1px solid var(--card-border);margin-bottom:12px}" +
+      "#fc26-panel .rs-r{flex:none;font-weight:800;font-size:22px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .rs-w{flex:1 1 auto;min-width:0}" +
+      "#fc26-panel .rs-n{display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .rs-c{font-size:10px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .rs-lead{font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}" +
+      "#fc26-panel .rs-none{font-size:11px;color:var(--muted);opacity:.85;line-height:1.4}" +
+      "#fc26-panel .rs-manage{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}" +
+      "#fc26-panel .rs-manage-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:6px 9px;cursor:pointer;font-size:11px;font-weight:600}" +
+      "#fc26-panel .rs-manage-body{margin-top:8px}" +
       // Pinned mobile mini-spotlight (rating + name + caps), always visible below the tabs.
-      "#fc26-panel .fc26-spot{flex:none;display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--card);border:1px solid var(--card-border)}" +
-      "#fc26-panel .fc26-spot .sp-r{flex:none;font-weight:800;font-size:26px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}" +
-      "#fc26-panel .fc26-spot .sp-w{min-width:0}" +
-      "#fc26-panel .fc26-spot .sp-n{font-weight:800;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-      "#fc26-panel .fc26-spot .sp-n.sp-none{color:var(--muted);font-weight:600}" +
-      "#fc26-panel .fc26-spot .sp-gk{color:var(--accent);font-size:8px;border:1px solid var(--accent);border-radius:4px;padding:0 3px}" +
-      "#fc26-panel .fc26-spot .sp-s{font-size:10px;color:var(--muted);margin-top:2px}" +
       "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
   }
@@ -2427,11 +2513,27 @@
   // NOT resizable - they keep their CSS sizing, and the grip is hidden there.
   var savedSize = loadPos("FC26_size");     // {w,h} in px, or null until first resize
 
-  // A tiny corner handle appended to the panel (styled by .fc26-grip in the CSS).
+  // Resize handles on every edge AND corner, so the panel can be dragged bigger/smaller
+  // from any side (not just the bottom-right). The bottom-right ("se") is the visible
+  // striped grip; the other seven are invisible strips laid along each edge/corner. They
+  // all share ONE resize routine (wireResizeHandle below) - the DIRECTION string ("n",
+  // "sw", "e", ...) tells it which edges move and which stay pinned.
   var grip = document.createElement("div");
   grip.className = "fc26-grip";
   grip.title = "Drag to resize";
   panel.appendChild(grip);
+  // Build the seven extra handles. Each entry is [direction, css-class]; the SE corner is
+  // the grip above. resizeHandles collects them all so applyPanelSize can show/hide them
+  // together and we can wire them in one loop.
+  var resizeHandles = [{ el: grip, dir: "se" }];
+  [["n", "fc26-rz-n"], ["s", "fc26-rz-s"], ["e", "fc26-rz-e"], ["w", "fc26-rz-w"],
+   ["ne", "fc26-rz-ne"], ["nw", "fc26-rz-nw"], ["sw", "fc26-rz-sw"]].forEach(function (d) {
+    var el = document.createElement("div");
+    el.className = "fc26-rz " + d[1];
+    el.title = "Drag to resize";
+    panel.appendChild(el);
+    resizeHandles.push({ el: el, dir: d[0] });
+  });
 
   // canResize(): the desktop dock is resizable (drag the bottom-right grip); the mobile
   // sheet and the minimized pill are not.
@@ -2460,45 +2562,78 @@
       panel.style.height = "";
       panel.style.maxHeight = "";
     }
-    grip.style.display = canResize() ? "block" : "none";
+    // Show every resize handle on the desktop dock; hide them all on mobile / when minimized.
+    var showHandles = canResize();
+    resizeHandles.forEach(function (h) { h.el.style.display = showHandles ? "block" : "none"; });
   }
 
-  // Live resize, mirroring the header-drag pointer pattern below. We pin the panel's
-  // current TOP-LEFT corner as inline left/top, then grow width/height toward the
-  // pointer (bottom-right), clamped so the box never leaves the screen.
+  // Live resize from ANY edge or corner, mirroring the header-drag pointer pattern below.
+  // On pointerdown we pin the panel's current rectangle as inline left/top/width/height,
+  // then each move recomputes the box: an edge named in the direction MOVES toward the
+  // pointer, and the OPPOSITE edge stays put (dragging "w" keeps the right edge fixed,
+  // "n" keeps the bottom fixed, and so on). Everything is clamped to a min size and the
+  // viewport so the box can never invert or leave the screen.
+  var MIN_W = 340, MIN_H = 260;
   var resizeState = null;
-  function endResize() {
+  function endResize(el) {
     if (!resizeState) return;
     var r = panel.getBoundingClientRect();
     savedSize = { w: r.width, h: r.height };
     savePos("FC26_size", savedSize);
-    if (resizeState.pid != null) { try { grip.releasePointerCapture(resizeState.pid); } catch (_) {} }
+    // A top/left drag moves the panel too, so remember the spot (Max on desktop) as well -
+    // otherwise the next rebuild would snap it back to where it was before the resize.
+    var slot = posSlot();
+    if (slot) { positions[slot] = { left: r.left, top: r.top }; savePos("FC26_pos" + slot, positions[slot]); }
+    if (resizeState.pid != null && el) { try { el.releasePointerCapture(resizeState.pid); } catch (_) {} }
     resizeState = null;
   }
-  grip.addEventListener("pointerdown", function (e) {
-    if (!canResize()) return;
-    e.preventDefault();
-    e.stopPropagation();                     // don't let this reach the header/drag logic
-    var r = panel.getBoundingClientRect();
-    panel.style.left = r.left + "px"; panel.style.top = r.top + "px";
-    panel.style.right = "auto"; panel.style.bottom = "auto";
-    panel.style.maxHeight = "none";
-    resizeState = { left: r.left, top: r.top, pid: e.pointerId };
-    try { grip.setPointerCapture(e.pointerId); } catch (_) {}
-  });
-  grip.addEventListener("pointermove", function (e) {
-    if (!resizeState) return;
-    if (e.buttons === 0) { endResize(); return; }   // missed pointerup guard
-    // Cap against the viewport using the pinned corner so it can't overflow while dragging.
-    var maxW = window.innerWidth - resizeState.left - 4;
-    var maxH = window.innerHeight - resizeState.top - 4;
-    var w = Math.max(340, Math.min(e.clientX - resizeState.left, maxW));
-    var h = Math.max(260, Math.min(e.clientY - resizeState.top, maxH));
+  // doResize(cx,cy): apply the current pointer position to the pinned start rectangle.
+  function doResize(cx, cy) {
+    var s = resizeState, dir = s.dir;
+    var dx = cx - s.x, dy = cy - s.y;
+    var left = s.left, top = s.top, w = s.w, h = s.h;
+    if (dir.indexOf("e") !== -1) {           // east: move the RIGHT edge, left pinned
+      w = Math.max(MIN_W, Math.min(s.w + dx, window.innerWidth - s.left - 4));
+    }
+    if (dir.indexOf("w") !== -1) {           // west: move the LEFT edge, right pinned
+      w = Math.max(MIN_W, Math.min(s.w - dx, s.right - 4));
+      left = s.right - w;
+    }
+    if (dir.indexOf("s") !== -1) {           // south: move the BOTTOM edge, top pinned
+      h = Math.max(MIN_H, Math.min(s.h + dy, window.innerHeight - s.top - 4));
+    }
+    if (dir.indexOf("n") !== -1) {           // north: move the TOP edge, bottom pinned
+      h = Math.max(MIN_H, Math.min(s.h - dy, s.bottom - 4));
+      top = s.bottom - h;
+    }
+    panel.style.left = left + "px"; panel.style.top = top + "px";
     panel.style.width = w + "px"; panel.style.height = h + "px";
     maybeReflowDesktop();   // collapse to 2 columns (or back to 3) as we cross the width threshold
-  });
-  grip.addEventListener("pointerup", endResize);
-  grip.addEventListener("pointercancel", endResize);
+  }
+  // wireResizeHandle(el, dir): attach the shared resize behaviour to one handle.
+  function wireResizeHandle(el, dir) {
+    el.addEventListener("pointerdown", function (e) {
+      if (!canResize()) return;
+      e.preventDefault();
+      e.stopPropagation();                   // don't let this reach the header/drag logic
+      var r = panel.getBoundingClientRect();
+      panel.style.left = r.left + "px"; panel.style.top = r.top + "px";
+      panel.style.right = "auto"; panel.style.bottom = "auto";
+      panel.style.maxHeight = "none";
+      // Pin the start rectangle: its corners (right/bottom) are the edges we keep fixed.
+      resizeState = { dir: dir, x: e.clientX, y: e.clientY, left: r.left, top: r.top,
+        w: r.width, h: r.height, right: r.left + r.width, bottom: r.top + r.height, pid: e.pointerId };
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    el.addEventListener("pointermove", function (e) {
+      if (!resizeState) return;
+      if (e.buttons === 0) { endResize(el); return; }   // missed pointerup guard
+      doResize(e.clientX, e.clientY);
+    });
+    el.addEventListener("pointerup", function () { endResize(el); });
+    el.addEventListener("pointercancel", function () { endResize(el); });
+  }
+  resizeHandles.forEach(function (h) { wireResizeHandle(h.el, h.dir); });
 
   // posSlot(): which remembered spot applies right now, or null when the panel is docked
   // (the mobile full sheet) and therefore not draggable. The desktop dock IS draggable:
@@ -2702,17 +2837,158 @@
     wizWho.innerHTML = it
       ? "<span style='color:var(--gold);font-weight:800'>" + (it.rating != null ? it.rating : "?") + "</span> <b>" + esc(playerName(it)) + "</b>"
       : "<span style='color:var(--muted)'>No player selected</span>";
-    if (typeof updateStickySpot === "function") updateStickySpot();   // keep the pinned mobile spotlight in sync
+    if (typeof renderDeckSummary === "function") renderDeckSummary();  // keep the mobile Deck summary bar in sync
+  }
+
+  // capMetersHTML(it): the two capacity meters (PS+ / Basic) as segment bars, the same
+  // ones the preview card draws. Split out so the mobile Deck summary can show them too
+  // without duplicating the markup. Caps grow past 3/8 for a GH-4th card (Math.max), just
+  // like the preview.
+  function capMetersHTML(it) {
+    var np = numPlus(it), nb = numBasic(it);
+    var plusCap = Math.max(CAP_PLUS, np), basicCap = Math.max(CAP_BASIC, nb);
+    function meter(label, used, cap, kind) {
+      var segs = "";
+      for (var i = 0; i < cap; i++) segs += "<span class='pv-seg" + (i < used ? " on" : "") + "'></span>";
+      return "<div class='pv-meter " + kind + "'><div class='pv-mlab'><span>" + label + "</span><b>" + used + "/" + cap + "</b></div>" +
+        "<div class='pv-segrow'>" + segs + "</div></div>";
+    }
+    return "<div class='pv-meters' style='margin-top:0'>" + meter("PlayStyle+", np, plusCap, "plus") + meter("Basic", nb, basicCap, "basic") + "</div>";
+  }
+
+  // ---- FEATURE: mobile PlayStyle-Deck summary --------------------------------
+  // A slim bar pinned to the top of the mobile Deck step: rating + name + caps, with a
+  // "stats" toggle that expands to the capacity meters AND the six face stats (mirroring
+  // the Review card), so you can read the player without leaving the deck. Open/closed is
+  // remembered across players and sessions.
+  var DECK_STATS_KEY = "FC26_deckStatsOpen";
+  function loadDeckStatsOpen() { try { return window.localStorage.getItem(DECK_STATS_KEY) === "1"; } catch (e) { return false; } }
+  function saveDeckStatsOpen() { try { window.localStorage.setItem(DECK_STATS_KEY, state.deckStatsOpen ? "1" : "0"); } catch (e) {} }
+  state.deckStatsOpen = loadDeckStatsOpen();
+
+  var deckSummary = document.createElement("div");
+  deckSummary.className = "fc26-decksum";
+  // renderDeckSummary(): (re)draw the summary bar for the current player / batch. Stats
+  // always reflect the previewed player (state.player), which is also what the evo grid
+  // shows - so in a batch it reads "N players" but the stats are the card you're building
+  // from. Safe to call any time; it just rewrites the (possibly detached) element.
+  function renderDeckSummary() {
+    if (!deckSummary) return;
+    var it = state.player;
+    var many = state.batch.size > 1;
+    var open = !!state.deckStatsOpen;
+    var rEl, nameEl, capEl, gkBadge = "";
+    if (many) {                                        // batch: apply to all, stats from the building-from card
+      rEl = "👥";
+      nameEl = state.batch.size + " players";
+      capEl = it ? ("building from " + playerName(it)) : "batch apply";
+    } else if (it) {
+      rEl = (it.rating != null ? it.rating : "?");
+      nameEl = playerName(it);
+      gkBadge = isGKPlayer(it) ? "<span class='ds-gk'>GK</span>" : "";
+      capEl = "PS+ " + numPlus(it) + "/" + Math.max(CAP_PLUS, numPlus(it)) + " · BASIC " + numBasic(it) + "/" + Math.max(CAP_BASIC, numBasic(it));
+    } else {
+      rEl = "—"; nameEl = "No player selected"; capEl = "pick one from the Lineup tab";
+    }
+    var showToggle = !!it;                             // stats only make sense with a player in focus
+    var bar = "<div class='ds-bar'>" +
+      "<span class='ds-r'>" + rEl + "</span>" +
+      "<div class='ds-w'><div class='ds-n'>" + esc(nameEl) + gkBadge + "</div><div class='ds-c'>" + esc(capEl) + "</div></div>" +
+      (showToggle ? "<button type='button' class='ds-toggle'>" + (open ? "▴ hide" : "▾ stats") + "</button>" : "") +
+      "</div>";
+    var body = (open && it) ? ("<div class='ds-body'>" + capMetersHTML(it) + faceStatsHTML(it) + "</div>") : "";
+    deckSummary.className = "fc26-decksum" + (open && it ? " open" : "");
+    deckSummary.innerHTML = bar + body;
+    var tg = deckSummary.querySelector(".ds-toggle");
+    if (tg) tg.addEventListener("click", function () { state.deckStatsOpen = !state.deckStatsOpen; saveDeckStatsOpen(); renderDeckSummary(); });
+  }
+
+  // ---- FEATURE: mobile Review summary ---------------------------------------
+  // The Review step used to repeat the whole preview card, which now just echoes the
+  // Deck step's summary bar. Instead we show a tight "about to apply" list: who it targets
+  // plus the PlayStyles you ticked, split PS+ / Basic. When nothing is ticked it still shows
+  // (so you can reach Review to manage an existing card) - a "Manage this card" section folds
+  // out the eligibility toggle + remove/clear-evo buttons that used to live on the preview.
+  state.reviewManageOpen = false;
+  var reviewSummary = document.createElement("div");
+  reviewSummary.className = "fc26-revsum";
+  function renderReviewSummary() {
+    if (!reviewSummary) return;
+    var it = state.player;
+    var many = state.batch.size > 1;
+    if (!it && !many) { reviewSummary.style.display = "none"; reviewSummary.innerHTML = ""; return; }  // no target at all
+    reviewSummary.style.display = "";
+    // Collect the ticked evos, split into PS+ and Basic (via the slotId -> evo lookup).
+    var plus = [], basic = [];
+    Array.from(state.selected).forEach(function (sid) { var e = byId(sid); if (!e) return; (e.kind === "PS+" ? plus : basic).push(e); });
+    var total = plus.length + basic.length;
+    // Target line: a batch count, or the single player's rating + name + rarity.
+    var target;
+    if (many) {
+      target = "<span class='rs-r'>👥</span><div class='rs-w'><div class='rs-n'>" + state.batch.size + " players</div><div class='rs-c'>batch apply</div></div>";
+    } else {
+      target = "<span class='rs-r'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+        "<div class='rs-w'><div class='rs-n'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='ds-gk'>GK</span>" : "") + "</div>" +
+        "<div class='rs-c'>" + esc(rarityName(it)) + "</div></div>";
+    }
+    // chipRow(list, isPlus): one PS+/Basic row of icon chips (reuses the preview's chip look).
+    function chipRow(list, isPlus) {
+      if (!list.length) return "";
+      var chips = list.map(function (e) {
+        return "<span class='pv-chip" + (isPlus ? " plus" : "") + "'>" +
+          "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + evoTrait(e) + "'></i>" +
+          esc(e.n.replace(/\+$/, "")) + "</span>";
+      }).join("");
+      return "<div class='pv-group'><div class='pv-gl'>" + (isPlus ? "PlayStyle+" : "Basic") + " (" + list.length + ")</div>" +
+        "<div class='pv-chips'>" + chips + "</div></div>";
+    }
+    // The queued list, or a muted note when nothing's ticked (you're here just to manage).
+    var queued = total
+      ? ("<div class='rs-lead'>Applying " + total + " PlayStyle" + (total === 1 ? "" : "s") + ":</div>" + chipRow(plus, true) + chipRow(basic, false))
+      : "<div class='rs-none'>No PlayStyles ticked to apply. Go back to the Deck to pick some, or manage the card below.</div>";
+
+    // "Manage this card" (single player only): the eligibility toggle + remove/clear-evo
+    // buttons that used to sit on the preview. Folded away by default.
+    var manage = "";
+    if (it && !many) {
+      var mOpen = !!state.reviewManageOpen;
+      var elig = isEligibleRarity(it);
+      var hasPS = currentPlayStyles(it).length > 0;
+      manage = "<div class='rs-manage'>" +
+        "<button type='button' class='rs-manage-toggle'>" + (mOpen ? "▾ " : "▸ ") + "Manage this card</button>" +
+        (mOpen
+          ? "<div class='rs-manage-body'>" +
+              "<div class='pv-elig'><span class='pv-elig-state " + (elig ? "on" : "off") + "'>" + (elig ? "✓ evo-eligible" : "not evo-eligible") + "</span>" +
+                "<button class='pv-elig-btn'>" + (elig ? "Remove" : "Mark eligible") + "</button></div>" +
+              (hasPS
+                ? "<div class='pv-reset'><button class='pv-rm-one'>Remove Latest Evo</button><button class='pv-rm-all'>Clear all evos</button></div>"
+                : "<div class='pv-none'>No PlayStyles on this card yet.</div>") +
+            "</div>"
+          : "") +
+        "</div>";
+    }
+
+    reviewSummary.innerHTML = "<div class='rs-bar'>" + target + "</div>" + queued + manage;
+
+    // Wire the manage controls (listeners, not inline - the app's CSP blocks inline handlers).
+    var mt = reviewSummary.querySelector(".rs-manage-toggle");
+    if (mt) mt.addEventListener("click", function () { state.reviewManageOpen = !state.reviewManageOpen; renderReviewSummary(); });
+    var eb = reviewSummary.querySelector(".pv-elig-btn");
+    if (eb) eb.addEventListener("click", function () { setRarityEligible(it.rareflag, !isEligibleRarity(it)); renderReviewSummary(); renderPlayers(); if (state.player) renderPreview(); });
+    var rmOne = reviewSummary.querySelector(".pv-rm-one");
+    if (rmOne) rmOne.addEventListener("click", function () { runRemove(false); });
+    var rmAll = reviewSummary.querySelector(".pv-rm-all");
+    if (rmAll) rmAll.addEventListener("click", function () { runRemove(true); });
   }
 
   // Mobile scaffolding: a broadcast "channel" layout. A fixed tab bar up top (Lineup /
-  // Style deck / Review), the current section scrolling in the middle, and a sticky
-  // mini-spotlight pinned to the bottom that always shows who you're building.
+  // Style deck / Review) and the current section scrolling below it. (The old pinned
+  // mini-spotlight was removed - the Deck step's summary bar and the Review preview now
+  // show the same rating/name/caps, so it was pure duplication.)
   var layoutHost = document.createElement("div");             // the one box we rebuild the layout into
   layoutHost.style.cssText = "flex:1;min-height:0;display:flex;flex-direction:column";
   var stepper = document.createElement("div"); stepper.className = "fc26-chtabs";      // the channel tab bar
   var stepBody = document.createElement("div"); stepBody.className = "fc26-stepbody";   // the scrolling section
-  var stickySpot = document.createElement("div"); stickySpot.className = "fc26-spot";   // pinned mini-spotlight
   var STEP_LABELS = ["Lineup", "PlayStyle Deck", "Review"];   // channel-tab labels (1 / 2 / 3)
 
   // Mobile "guide" button: walks the user Lineup -> PlayStyle Deck -> Review. It's gated:
@@ -2723,9 +2999,16 @@
   guideBtn.className = "fc26-guidebtn";
   guideBtn.addEventListener("click", function () { goStep(state.wizStep + 1); });
   var reviewTabEl = null;   // the Review tab element, so updateGuide can dim/undim it live
+  // reviewReady(): may we land on the Review step? Yes if you've ticked something to apply,
+  // OR the selected player already HAS PlayStyles (so you can go there just to review /
+  // remove them via "Manage this card"). Applying is separately gated by updateApplyBtn.
+  function reviewReady() {
+    if (state.selected.size >= 1) return true;
+    try { return !!(state.player && currentPlayStyles(state.player).length > 0); } catch (e) { return false; }
+  }
   function updateGuide() {
-    var deckReady = state.selected.size >= 1;                 // at least one PlayStyle ticked
-    if (reviewTabEl) reviewTabEl.classList.toggle("dis", !deckReady);
+    var ready = reviewReady();
+    if (reviewTabEl) reviewTabEl.classList.toggle("dis", !ready);
     if (!guideBtn) return;
     if (state.wizStep >= 3) { guideBtn.style.display = "none"; return; }   // Review uses the Apply button
     guideBtn.style.display = "";
@@ -2734,7 +3017,7 @@
       can = !!state.player || state.batch.size > 0;
       label = can ? "Next: PlayStyle Deck →" : "Pick a player first";
     } else {                                                   // step 2 (PlayStyle Deck)
-      can = deckReady;
+      can = ready;
       label = can ? "Next: Review →" : "Pick a PlayStyle to continue";
     }
     guideBtn.textContent = label;
@@ -2742,38 +3025,19 @@
     guideBtn.classList.toggle("dis", !can);
   }
 
-  // updateStickySpot(): refresh the pinned mini-spotlight - rating + name + caps for the
-  // selected player, a count when a batch is ticked, or an empty prompt. Kept in sync by
-  // updateWizWho (fires on select / batch changes) and every mobile render.
-  function updateStickySpot() {
-    if (!stickySpot) return;
-    var it = state.player;
-    if (state.batch.size > 1) {
-      stickySpot.innerHTML = "<span class='sp-r'>👥</span><div class='sp-w'><div class='sp-n'>" + state.batch.size + " players</div><div class='sp-s'>batch apply</div></div>";
-      return;
-    }
-    if (!it) {
-      stickySpot.innerHTML = "<div class='sp-w'><div class='sp-n sp-none'>No player selected</div><div class='sp-s'>pick one from the Lineup tab</div></div>";
-      return;
-    }
-    stickySpot.innerHTML = "<span class='sp-r'>" + (it.rating != null ? it.rating : "?") + "</span>" +
-      "<div class='sp-w'><div class='sp-n'>" + esc(playerName(it)) + (isGKPlayer(it) ? " <span class='sp-gk'>GK</span>" : "") + "</div>" +
-      "<div class='sp-s'>PS+ " + numPlus(it) + "/" + Math.max(CAP_PLUS, numPlus(it)) + " &middot; BASIC " + numBasic(it) + "/" + Math.max(CAP_BASIC, numBasic(it)) + "</div></div>";
-  }
-
   // goStep(n): change wizard step (clamped 1-3) and redraw, on mobile. Guarded: you can't
-  // land on Review (3) until at least one PlayStyle is selected (a no-op otherwise, so both
-  // the guide button and a direct Review-tab tap are blocked).
+  // land on Review (3) unless reviewReady() (something ticked, or the card already has
+  // PlayStyles to manage) - a no-op otherwise, so both the guide button and a direct
+  // Review-tab tap are blocked.
   function goStep(n) {
     n = Math.max(1, Math.min(3, n));
-    if (n === 3 && state.selected.size === 0) return;         // no PlayStyle picked -> stay put
+    if (n === 3 && !reviewReady()) return;                    // nothing to apply or manage -> stay put
     state.wizStep = n;
     if (currentMode() === "mobile") renderWizStep();
   }
 
   // renderWizStep(): draw the stepper + show the current step's modules + set nav buttons.
   function renderWizStep() {
-    updateStickySpot();   // refresh the pinned mini-spotlight for the current player
     stepper.innerHTML = "";
     reviewTabEl = null;
     for (var i = 1; i <= 3; i++) {
@@ -2790,9 +3054,9 @@
     if (state.wizStep === 1) {                                 // Lineup: pick a player
       stepBody.appendChild(squadMod);
     } else if (state.wizStep === 2) {                          // PlayStyle Deck: choose PlayStyles
-      updateWizWho(); stepBody.appendChild(wizWho); stepBody.appendChild(buildMod);
+      renderDeckSummary(); stepBody.appendChild(deckSummary); stepBody.appendChild(buildMod);
     } else {                                                    // Review: preview + apply
-      stepBody.appendChild(preview); stepBody.appendChild(applyMod);
+      renderReviewSummary(); stepBody.appendChild(reviewSummary); stepBody.appendChild(applyMod);
     }
     updateGuide();   // set the guide button label/enabled + Review-tab dim for this step
   }
@@ -2851,7 +3115,7 @@
     if (m === "desktop") {
       buildDesktop();   // 3 or 2 columns depending on the dock's current width
     } else {
-      layoutHost.appendChild(stepper); layoutHost.appendChild(stepBody); layoutHost.appendChild(guideBtn); layoutHost.appendChild(stickySpot);
+      layoutHost.appendChild(stepper); layoutHost.appendChild(stepBody); layoutHost.appendChild(guideBtn);
       renderWizStep();
     }
     // applyPanelChrome (above) clamped using the height BEFORE this content was added, so

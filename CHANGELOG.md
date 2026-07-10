@@ -5,6 +5,40 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v9 - 2026-07-10
+
+**Viewing and applying PlayStyles, made clearer on both phone and desktop.**
+
+### Face stats everywhere the card shows
+- The player's six **face stats** (PAC / SHO / PAS / DRI / DEF / PHY, or the six GK stats
+  for keepers) now appear on the **desktop spotlight** card, so the middle pane no longer
+  looks empty, and they ride along when the dock narrows to two panes.
+- They come straight off the card's own numbers (the same ones the Justaino rating reads),
+  so they can never be out of step, and each value is colour-graded so a strong stat reads
+  at a glance.
+
+### Resize the panel from any side
+- The floating desktop panel can now be dragged bigger or smaller from **any edge or
+  corner**, not just the bottom-right. The opposite side stays pinned, and the size and
+  position are remembered.
+
+### Mobile: a tidier build-and-apply flow
+- The **PlayStyle Deck** tab has a slim summary bar at the top: rating, name and caps, with
+  a **stats** toggle that folds out the capacity meters plus the six face stats, so you can
+  read the player without leaving the deck. It remembers whether you left it open.
+- The old pinned mini-spotlight at the bottom was removed (it just repeated that summary).
+- The **Review** tab no longer repeats the whole card. It now shows exactly **what you are
+  about to apply** (the ticked PlayStyles, split PlayStyle+ / Basic) and a **Manage this
+  card** fold-out with the eligibility toggle and the Remove / Clear-evo buttons.
+
+### Apply and Review gating
+- **Apply selected** is now **disabled when nothing is ticked** (on both mobile and
+  desktop), instead of doing nothing.
+- You can now open the **Review** tab for a card that **already has PlayStyles** even with
+  nothing newly ticked, so you can go there just to review or remove them.
+
+---
+
 ## v8 - 2026-07-10
 
 **The Meta rating ("Justaino Rating") - my own 0-100 player score.**
