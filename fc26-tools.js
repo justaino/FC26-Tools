@@ -131,7 +131,7 @@
   // readable source (so a console/test build clearly reads "dev"); when you cut a
   // release, release.js stamps the real "vN" into the built bookmarklet. So an
   // INSTALLED copy shows exactly which published version it is, e.g. "v4".
-  var FC26_VERSION = "dev";
+  var FC26_VERSION = "v20";
 
   var TRAIT_OFFSET = 301;   // traitId = rewardId - 301
   var CAP_PLUS = 3;         // a player can hold at most 3 PlayStyle+  (PS+)
@@ -1099,10 +1099,17 @@
   // ---- Chemistry tiebreaker (light) ----------------------------------------
   // A club item exposes its league and nation as plain numbers: it.leagueId and
   // it.nationId (discovered live; e.g. Ochoa = league 78, nation 83). We use them
-  // ONLY to break near-ties: between candidates whose Justaino scores are within
+  // ONLY to break near-ties: between candidates whose draft scores are within
   // CHEM_EPSILON of the best available, we prefer the one who shares a league or
   // nation with players already in that squad. Small epsilon = rating still leads.
   var CHEM_EPSILON = 3;
+  // ICONS are chem-special in FC 26. Discovered live: every FUT Icon shares
+  // leagueId 2118 (there is NO isIcon() method on the item, and rareflag varies
+  // per promo - e.g. Maradona = 36, Pirlo = 131 - so it can't identify icons).
+  // An icon gives itself full chem AND contributes to EVERYONE: it counts as +1
+  // toward EVERY league (not just other icons) and DOUBLE (+2) toward its nation.
+  var ICON_LEAGUE = 2118;
+  function isIcon(it) { try { return !!it && it.leagueId === ICON_LEAGUE; } catch (e) { return false; } }
   // Every already-placed player in a squad (starters + subs drafted so far).
   function squadPlaced(squad) {
     var arr = [];
@@ -1110,20 +1117,29 @@
     squad.subs.forEach(function (c) { if (c && c.player) arr.push(c.player); });
     return arr;
   }
-  // How many "links" a candidate would add: +1 per squad-mate sharing its league,
-  // +1 per squad-mate sharing its nation.
+  // How many "links" a candidate would add to the players already in the squad.
+  // League: normally +1 per squad-mate sharing the candidate's league, BUT an icon
+  // on EITHER side always links (icons boost every league), so an icon candidate is
+  // chem-friendly with everyone and placing an icon helps every other card's league.
+  // Nation: +1 per squad-mate sharing the candidate's nation, or +2 if either side
+  // is an icon (icons count double toward their nation).
   function chemAffinity(placed, cand) {
     var lg = cand.leagueId, nt = cand.nationId, a = 0;
+    var candIcon = isIcon(cand);
     for (var i = 0; i < placed.length; i++) {
-      var p = placed[i];
-      if (lg != null && p.leagueId === lg) a++;
-      if (nt != null && p.nationId === nt) a++;
+      var p = placed[i], pIcon = isIcon(p);
+      if (candIcon || pIcon) a++;                        // icon (either side) links every league
+      else if (lg != null && p.leagueId === lg) a++;     // otherwise only an exact league match
+      if (nt != null && p.nationId === nt) a += (candIcon || pIcon) ? 2 : 1;  // icons double for nation
     }
     return a;
   }
-  // From a list of {i, score, group} candidates (i = index into pool), keep those
-  // within CHEM_EPSILON of the top score, then choose the best by chem affinity,
-  // then score, then OVR. Returns the winning candidate (with .i/.score/.group) or null.
+  // From a list of {i, score, disp, group} candidates (i = index into pool), keep
+  // those within CHEM_EPSILON of the top score, then choose the best by chem
+  // affinity, then score, then OVR. `score` is the RANKING value (the OVR-aware
+  // draft blend); `disp` is the Justaino Score we store/show for the pick, so the
+  // pitch and averages keep meaning the Justaino number even though the draft is
+  // OVR-aware. Returns the winner (with .i/.score/.disp/.group) or null.
   function chemPick(cands, squad, pool) {
     if (!cands.length) return null;
     var bestScore = -1;
@@ -1137,7 +1153,7 @@
       if (!best || aff > best.aff ||
           (aff === best.aff && c.score > best.score) ||
           (aff === best.aff && c.score === best.score && rating > best.rating)) {
-        best = { i: c.i, score: c.score, group: c.group, aff: aff, rating: rating };
+        best = { i: c.i, score: c.score, disp: (c.disp != null ? c.disp : c.score), group: c.group, aff: aff, rating: rating };
       }
     });
     return best;
@@ -1145,23 +1161,44 @@
   // Per-squad readout: the biggest single-league and single-nation cluster in it,
   // so the chemistry effect is visible without needing league/nation NAMES.
   function chemSummary(placed) {
-    var lg = {}, nt = {};
+    var lg = {}, nt = {}, icons = 0;
     placed.forEach(function (p) {
-      if (p.leagueId != null) lg[p.leagueId] = (lg[p.leagueId] || 0) + 1;
-      if (p.nationId != null) nt[p.nationId] = (nt[p.nationId] || 0) + 1;
+      if (isIcon(p)) {
+        icons++;                                                             // no real league; boosts every league
+        if (p.nationId != null) nt[p.nationId] = (nt[p.nationId] || 0) + 2;  // icon counts double for its nation
+      } else {
+        if (p.leagueId != null) lg[p.leagueId] = (lg[p.leagueId] || 0) + 1;
+        if (p.nationId != null) nt[p.nationId] = (nt[p.nationId] || 0) + 1;
+      }
     });
     function max(o) { var m = 0; Object.keys(o).forEach(function (k) { if (o[k] > m) m = o[k]; }); return m; }
-    return { maxLeague: max(lg), maxNation: max(nt) };
+    var maxRealLeague = max(lg);
+    // Icons lift the biggest real-league bloc by +1 each (only meaningful if a real league exists).
+    return { maxLeague: maxRealLeague + (maxRealLeague > 0 ? icons : 0), maxNation: max(nt) };
+  }
+
+  // ---- Draft ranking (OVR-aware) -------------------------------------------
+  // The Meta Rating tab ranks by the Justaino Score, which leans on meta
+  // PlayStyles - great for "who's best-tuned", but it under-rates high-OVR cards
+  // (especially icons, which usually carry few current PlayStyles). For SQUAD
+  // BUILDING we want the strongest cards to start, so the draft ranks by a blend
+  // that leans on OVR while still letting Justaino/role-fit shape near-ties.
+  // We do NOT touch scorePlayer() (Meta Rating stays exactly as tuned in v18).
+  var DRAFT_OVR_MIX = 0.6;   // 0 = pure Justaino, 1 = pure OVR. 0.6 = OVR-dominant.
+  // Blend an already-computed scorePlayer() result into the draft ranking number.
+  function draftScoreFromScore(sc) {
+    var ovr = (typeof sc.ovr === "number") ? sc.ovr : sc.total;
+    return DRAFT_OVR_MIX * ovr + (1 - DRAFT_OVR_MIX) * sc.total;
   }
 
   // THE SNAKE DRAFT.
   // Fill the formation slot by slot (one "round" per slot). In each round every
   // squad drafts one player for that slot's group; the draft ORDER flips each
   // round (1..N, then N..1, then 1..N, ...) so no single squad always gets first
-  // pick. Each pick takes the best still-available player (highest scorePlayer
-  // for that group), then removes them from the shared pool so no player is ever
-  // reused across squads. We fill the SCARCEST groups first (fewest candidates)
-  // so tight positions get served before the pool is thinned by easy ones.
+  // pick. Each pick takes the best still-available player (highest OVR-aware draft
+  // score for that group), then removes them from the shared pool so no player is
+  // ever reused across squads. We fill the SCARCEST groups first (fewest
+  // candidates) so tight positions get served before the pool is thinned by easy ones.
   function buildGauntlet(formationName, n) {
     var formationSlots = FORMATIONS[formationName];
     if (!formationSlots) return { error: "Unknown formation: " + formationName };
@@ -1206,16 +1243,17 @@
         for (var pi = 0; pi < pool.length; pi++) {
           if (!canPlaySlot(pool[pi], slot.group, slot.side)) continue;
           if (squad.keys.has(playerKey(pool[pi]))) continue;   // already have this player in THIS squad
-          cands.push({ i: pi, score: scorePlayer(pool[pi], slot.group).total, group: slot.group });
+          var sc = scorePlayer(pool[pi], slot.group);
+          cands.push({ i: pi, score: draftScoreFromScore(sc), disp: sc.total, group: slot.group });
         }
-        // Pick the best by score, with the chem tiebreaker for near-ties.
+        // Pick the best by draft score (OVR-aware), with the chem tiebreaker for near-ties.
         var pick = chemPick(cands, squad, pool);
         if (!pick) {
           // No one left who can fill this slot for this squad.
           squad.slots[slot.idx] = { group: slot.group, player: null, score: null };
         } else {
           var picked = pool.splice(pick.i, 1)[0];   // remove from the shared pool
-          squad.slots[slot.idx] = { group: slot.group, player: picked, score: pick.score };
+          squad.slots[slot.idx] = { group: slot.group, player: picked, score: pick.disp };
           squad.keys.add(playerKey(picked));
           squad.fillCount++;
         }
@@ -1240,14 +1278,14 @@
           if (squad.keys.has(playerKey(pool[pi]))) continue;   // no duplicate player on this squad's bench
           var bj = bestJustaino(pool[pi]);
           if (!bj) continue;
-          cands.push({ i: pi, score: bj.score.total, group: bj.group });
+          cands.push({ i: pi, score: draftScoreFromScore(bj.score), disp: bj.score.total, group: bj.group });
         }
         var pick = chemPick(cands, squad, pool);
         if (!pick) {
           squad.subs.push({ group: null, player: null, score: null });
         } else {
           var picked = pool.splice(pick.i, 1)[0];
-          squad.subs.push({ group: pick.group, player: picked, score: pick.score });
+          squad.subs.push({ group: pick.group, player: picked, score: pick.disp });
           squad.keys.add(playerKey(picked));
         }
       });
@@ -1256,11 +1294,12 @@
     // Averages per squad (over filled slots only), for balance visibility - one for
     // the starting XI, one for the bench.
     squads.forEach(function (sq) {
-      var sum = 0, filled = 0;
+      var sum = 0, filled = 0, ovrSum = 0;
       sq.slots.forEach(function (cell) {
-        if (cell && cell.player) { sum += cell.score; filled++; }
+        if (cell && cell.player) { sum += cell.score; ovrSum += (cell.player.rating || 0); filled++; }
       });
-      sq.avg = filled ? Math.round((sum / filled) * 10) / 10 : 0;
+      sq.avg = filled ? Math.round((sum / filled) * 10) / 10 : 0;   // Justaino-score avg (kept for reference)
+      sq.ovrAvg = filled ? Math.round(ovrSum / filled) : 0;         // true squad OVR average (what "XI avg" shows)
       sq.filled = filled;
       var ssum = 0, sfilled = 0;
       sq.subs.forEach(function (cell) {
@@ -3726,7 +3765,7 @@
         (function (idx) {
           var sq = (gtBuild && gtBuild.squads) ? gtBuild.squads[idx] : null;
           var b = document.createElement("button"); b.type = "button"; b.className = "gt-tab"; b.setAttribute("aria-selected", String(idx === gtSquadIdx));
-          b.innerHTML = "<div><span class='tn'>Squad " + (idx + 1) + "</span><span class='ta'>" + (sq ? sq.avg : "\u2014") + "</span></div><div class='ts'>" + esc(fmtFormation(gtFormation)) + "</div>";
+          b.innerHTML = "<div><span class='tn'>Squad " + (idx + 1) + "</span><span class='ta'>" + (sq ? sq.ovrAvg : "\u2014") + "</span></div><div class='ts'>" + esc(fmtFormation(gtFormation)) + "</div>";
           b.addEventListener("click", function () { gtSquadIdx = idx; renderGtPitch(); renderGtInfo(); renderGtBench(); renderGtSquadSwitch(); });
           gtEls.tabs.appendChild(b);
         })(i);
@@ -3782,7 +3821,7 @@
       if (warn) { gtEls.stats.className = "gt-warn2"; gtEls.stats.innerHTML = warn; }
       else {
         gtEls.stats.className = "gt-statstrip";
-        gtEls.stats.innerHTML = "<div class='gt-stat'><div class='v g'>" + (sq ? sq.avg : "\u2014") + "</div><div class='k'>XI avg</div></div>" +
+        gtEls.stats.innerHTML = "<div class='gt-stat'><div class='v g'>" + (sq ? sq.ovrAvg : "\u2014") + "</div><div class='k'>XI avg</div></div>" +
           "<div class='gt-stat'><div class='v a'>" + (sq ? sq.filled : 0) + "/11</div><div class='k'>Placed</div></div>" +
           "<div class='gt-stat'><div class='v'>" + (sq ? sq.chem.maxLeague : 0) + "</div><div class='k'>League</div></div>" +
           "<div class='gt-stat'><div class='v'>" + (sq ? sq.chem.maxNation : 0) + "</div><div class='k'>Nation</div></div>";
@@ -3792,7 +3831,7 @@
       if (warn) { gtEls.summary.className = "gt-warn2"; gtEls.summary.innerHTML = warn; }
       else {
         gtEls.summary.className = "gt-summary";
-        gtEls.summary.innerHTML = "<span><b class='gsa'>" + (sq ? sq.avg : "\u2014") + "</b> XI avg</span>" +
+        gtEls.summary.innerHTML = "<span><b class='gsa'>" + (sq ? sq.ovrAvg : "\u2014") + "</b> XI avg</span>" +
           "<span><b>" + (sq ? sq.filled : 0) + "/11</b> placed</span>" +
           "<span><b>" + (sq ? sq.chem.maxLeague : 0) + "</b> league</span>" +
           "<span><b>" + (sq ? sq.chem.maxNation : 0) + "</b> nation</span>";

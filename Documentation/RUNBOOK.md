@@ -306,12 +306,23 @@ rule. It only shows the squads; it does not touch your game.
   exact shortages (need vs have) and **builds nothing** - no broken squads.
 - **Snake draft.** Starters are filled position by position, hardest-to-fill position first;
   each round alternates direction (1..N then N..1) so no single squad hoards the best players.
-  Each pick is the best available club player for that position group by the Justaino score
-  (`scorePlayer`); subs are then drafted by each player's best position (`bestJustaino`).
+  Each pick is the best available club player for that position group by an **OVR-aware draft
+  score** (`draftScoreFromScore`): a blend of the player's in-game OVR and their Justaino score
+  for that slot, weighted `DRAFT_OVR_MIX` toward OVR (0.6 by default). This stops high-rated
+  cards - especially icons, which carry few current PlayStyles - from being benched by a
+  meta-optimised but lower-rated card. `scorePlayer` and the Meta rating tab are untouched; the
+  Justaino score is still what's displayed (pitch "JS" and the per-slot tier colour). Subs are
+  drafted by each player's best position (`bestJustaino`), blended the same way.
 - **Light chem tiebreaker (`chemPick` + `CHEM_EPSILON`).** Among players within a few points
-  of the best score, it prefers one who shares a **league** or **nation** already common in
-  that squad (read straight off the item: `it.leagueId`, `it.nationId`), then higher rating.
-  `chemSummary` produces the "up to X share a league / Y share a nation" line per squad.
+  of the best draft score, it prefers one who shares a **league** or **nation** already common
+  in that squad (read straight off the item: `it.leagueId`, `it.nationId`), then higher rating.
+  **Icons are modelled correctly (`isIcon` = `leagueId === 2118`, discovered live):** an icon
+  contributes to EVERY league (not just other icons) and counts **double** toward its nation, so
+  icons are chem-friendly with everyone and no longer sit out for "no chem". `chemSummary`
+  produces the "up to X share a league / Y share a nation" line per squad (icons lift the league
+  bloc by +1 each and count double for nation).
+- **Squad averages.** `sq.ovrAvg` is the whole-number average OVR of the 11 starters (this is
+  the "XI avg" shown in the builder). `sq.avg` is the Justaino-score average, kept for reference.
 - Picked players are removed from the pool as they go, so **no player appears in two squads**.
 
 **Console helpers (read-only):**

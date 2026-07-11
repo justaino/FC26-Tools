@@ -5,6 +5,25 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v20 - 2026-07-11
+
+**Squad Builder now starts your best cards (icons included) and shows a real squad OVR.**
+
+- **The draft is OVR-aware.** It used to rank purely by the Justaino Score, which leans on meta
+  PlayStyles - so a strong card with few PlayStyles (an icon like Maradona especially) could get
+  benched behind a lower-rated but meta-kitted card. The draft now ranks by a blend of in-game OVR
+  and the Justaino Score, weighted toward OVR, so your best players start while position/role fit and
+  chemistry still break near-ties. The Meta rating tab is unchanged.
+- **Icon chemistry is modelled correctly.** In FC 26 an icon gives full chem itself and lifts
+  EVERYONE: it counts toward every league (not just other icons) and double toward its nation. The
+  builder now recognises icons (every icon shares the hidden "icon league") and scores them that way,
+  so icons stop being passed over for "no chem" and same-league/same-nation teammates get their boost.
+- **"XI avg" now shows the squad's average OVR** (a normal FUT-looking rating) instead of the average
+  Justaino Score. The per-player "JS" number and the disc colours on the pitch still reflect the
+  Justaino Score.
+
+---
+
 ## v19 - 2026-07-11
 
 **Meta rating tuning, an evolved-stats fix, and a couple of lineup touches.**
