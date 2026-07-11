@@ -107,6 +107,79 @@ function positionCard(group) {
 const cards = Object.keys(STAT_WEIGHTS).map(positionCard).join("\n");
 const generatedOn = new Date().toISOString().slice(0, 10);
 
+// --- worked example (Maradona at CAM) ---------------------------------------
+// Illustrative inputs, run through the SAME constants/tables as the tool, so the
+// numbers stay consistent whenever the meta is re-tuned and this page regenerated.
+const EX = {
+  name: "Maradona", ovr: 97, group: "CAM",
+  stats: { pace: 87, shooting: 91, passing: 93, dribbling: 96, defending: 40, physical: 72 },
+  plus: ["Finesse Shot", "Incisive Pass", "Trickster"],   // his PlayStyle+ (meta ones for CAM)
+  basic: ["Technical", "Tiki Taka"]                        // his basic PlayStyles (meta ones for CAM)
+};
+const STAT_ABBR = { pace: "PAC", shooting: "SHO", passing: "PAS", dribbling: "DRI", defending: "DEF", physical: "PHY" };
+const r1 = (x) => Math.round(x * 10) / 10;
+
+function workedExample() {
+  const sw = STAT_WEIGHTS[EX.group];
+  const pw = PLAYSTYLE_WEIGHTS[EX.group] || {};
+
+  // Stat fit: weighted average of the six face stats (skill/weak-foot extras omitted here for clarity).
+  let wsum = 0, vsum = 0;
+  Object.keys(sw).forEach(function (k) { wsum += sw[k]; vsum += sw[k] * (EX.stats[k] || 0); });
+  const statFit = vsum / wsum;
+
+  // PlayStyle fit: PS+ worth PSPLUS_MULT x a basic, measured against the position ceiling.
+  let raw = 0;
+  const plusChips = EX.plus.map(function (n) {
+    const pts = (pw[n] || 0) * PSPLUS_MULT; raw += pts;
+    return '<span class="ex-chip plus">' + esc(n) + '+ <i>+' + r1(pts) + '</i></span>';
+  }).join("");
+  const basicChips = EX.basic.map(function (n) {
+    const pts = (pw[n] || 0); raw += pts;
+    return '<span class="ex-chip basic">' + esc(n) + ' <i>+' + pts + '</i></span>';
+  }).join("");
+  const ceiling = psMaxForGroup(EX.group);
+  const psFit = Math.min(1, raw / ceiling) * 100;
+
+  const meta = Math.min(100, Math.max(0, STAT_MIX * statFit + PS_MIX * psFit));
+  const final = Math.max(0, Math.min(100, (1 - OVR_MIX) * meta + OVR_MIX * EX.ovr));
+
+  const statChips = Object.keys(sw).map(function (k) {
+    return '<span class="ex-chip stat-chip">' + (STAT_ABBR[k] || k) + ' ' + EX.stats[k] + ' <i>&times;' + sw[k] + '</i></span>';
+  }).join("");
+
+  return `
+  <div class="sec-title">A worked example - ${esc(EX.name)} at ${esc(EX.group)}</div>
+  <div class="example">
+    <p class="ex-intro">Representative figures for a <b>${EX.ovr}</b> ${esc(EX.name)} judged at <b>${esc(EX.group)}</b>. This is the exact maths the tool runs - only the precise stats and PlayStyles change from card to card.</p>
+
+    <div class="ex-step">
+      <div class="ex-h"><span class="ex-num">1</span><span>Stat fit</span><span class="ex-tag stat">${pct(STAT_MIX)}% of the meta half</span></div>
+      <div class="ex-chips">${statChips}</div>
+      <div class="ex-eq">weighted total ${vsum} &divide; total weight ${wsum} = <b class="stat">${r1(statFit)}</b> <span class="ex-small">(skill moves &amp; weak foot nudge this a touch higher)</span></div>
+    </div>
+
+    <div class="ex-step">
+      <div class="ex-h"><span class="ex-num">2</span><span>PlayStyle fit</span><span class="ex-tag ps">${pct(PS_MIX)}% of the meta half</span></div>
+      <div class="ex-chips">${plusChips}${basicChips}</div>
+      <div class="ex-eq">raw ${r1(raw)} &divide; ${esc(EX.group)} ceiling ${ceiling} = <b class="ps">${r1(psFit)}</b> <span class="ex-small">(a PlayStyle+ is worth ${PSPLUS_MULT}&times; a basic)</span></div>
+    </div>
+
+    <div class="ex-step">
+      <div class="ex-h"><span class="ex-num">3</span><span>Blend, then pull toward OVR</span></div>
+      <div class="ex-eq"><span class="stat">${pct(STAT_MIX)}%&times;${r1(statFit)}</span> + <span class="ps">${pct(PS_MIX)}%&times;${r1(psFit)}</span> = <b>${r1(meta)}</b> meta blend</div>
+      <div class="ex-eq">${pct(1 - OVR_MIX)}%&times;${r1(meta)} + ${pct(OVR_MIX)}%&times;${EX.ovr} OVR = <b class="final">${r1(final)}</b></div>
+    </div>
+
+    <div class="ex-final">
+      <div class="ex-final-k">Justaino Score<span>${esc(EX.name)} at ${esc(EX.group)}</span></div>
+      <div class="ex-final-v">${r1(final)}</div>
+    </div>
+  </div>
+`;
+}
+const exampleHtml = workedExample();
+
 // --- the page ---------------------------------------------------------------
 const html = `<!DOCTYPE html>
 <html lang="en">
@@ -152,6 +225,34 @@ const html = `<!DOCTYPE html>
   .formula li { padding-left:1.3rem; position:relative; font-size:0.9rem; line-height:1.55; color:#c3c8d2; }
   .formula li::before { content:''; position:absolute; left:0; top:0.55em; width:6px; height:6px; border-radius:50%; background:var(--muted); }
   .formula li b { color:var(--text); }
+
+  /* Worked example */
+  .example { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:1.5rem; }
+  .ex-intro { color:#c3c8d2; font-size:0.92rem; line-height:1.6; margin-bottom:1.25rem; }
+  .ex-intro b { color:var(--text); }
+  .ex-step { border-top:1px solid var(--border); padding-top:1rem; margin-top:1rem; }
+  .ex-step:first-of-type { border-top:0; padding-top:0; margin-top:0; }
+  .ex-h { display:flex; align-items:center; gap:0.6rem; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:1.05rem; margin-bottom:0.7rem; flex-wrap:wrap; }
+  .ex-num { flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:var(--bg); border:1px solid var(--border); display:grid; place-items:center; font-size:0.8rem; color:var(--muted); }
+  .ex-tag { margin-left:auto; font-family:'Inter',sans-serif; font-weight:600; font-size:0.66rem; letter-spacing:0.04em; text-transform:uppercase; color:var(--muted); background:var(--bg); border:1px solid var(--border); border-radius:20px; padding:2px 9px; }
+  .ex-tag.stat { color:var(--gold); }
+  .ex-tag.ps { color:var(--emerald); }
+  .ex-chips { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.7rem; }
+  .ex-chip { font-size:0.76rem; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:3px 9px; color:#c3c8d2; white-space:nowrap; }
+  .ex-chip i { font-style:normal; font-weight:700; font-family:'Rajdhani',sans-serif; color:var(--muted); margin-left:3px; }
+  .ex-chip.stat-chip i { color:var(--gold); }
+  .ex-chip.plus { border-color:rgba(79,227,172,0.35); color:#d7fff0; }
+  .ex-chip.plus i, .ex-chip.basic i { color:var(--emerald); }
+  .ex-eq { font-family:'Rajdhani',sans-serif; font-size:1rem; font-weight:700; color:#c3c8d2; line-height:1.5; margin-bottom:0.3rem; }
+  .ex-eq b { font-size:1.15rem; color:var(--text); }
+  .ex-eq b.stat, .ex-eq .stat { color:var(--gold); }
+  .ex-eq b.ps, .ex-eq .ps { color:var(--emerald); }
+  .ex-eq b.final { color:var(--accent); }
+  .ex-small { font-family:'Inter',sans-serif; font-weight:400; font-size:0.72rem; color:var(--muted); }
+  .ex-final { display:flex; align-items:center; gap:1rem; margin-top:1.25rem; padding-top:1.1rem; border-top:1px solid var(--border); }
+  .ex-final-k { font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); line-height:1.5; }
+  .ex-final-k span { display:block; color:#c3c8d2; text-transform:none; letter-spacing:0; font-size:0.8rem; }
+  .ex-final-v { margin-left:auto; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:2.6rem; color:var(--accent); line-height:1; font-variant-numeric:tabular-nums; }
 
   .sec-title { font-family:'Rajdhani',sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-size:0.8rem; color:var(--muted); margin:2.5rem 0 1rem; }
 
@@ -217,7 +318,7 @@ const html = `<!DOCTYPE html>
       <li>The two halves blend, then the result is pulled just <b>${pct(OVR_MIX)}%</b> toward the card's in-game OVR - a light tiebreak only, because a 97 with weak face stats plays nothing like a 97. The tables below are the underlying stat and PlayStyle emphasis per position.</li>
     </ul>
   </div>
-
+${exampleHtml}
   <div class="sec-title">The weights, position by position</div>
   <div class="grid">
 ${cards}
