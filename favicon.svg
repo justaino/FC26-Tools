@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Rounded dark tile, matching the site background -->
+  <rect width="32" height="32" rx="7" fill="#0b0d10"/>
+  <!-- Thin gold frame so the icon reads on light browser chrome too -->
+  <rect x="1" y="1" width="30" height="30" rx="6" fill="none" stroke="#f0c040" stroke-width="1.5" opacity="0.55"/>
+  <!-- "J" monogram for Justaino, in the site gold -->
+  <text x="16" y="17" text-anchor="middle" dominant-baseline="central"
+        font-family="Rajdhani, 'Segoe UI', Arial, sans-serif" font-weight="700"
+        font-size="22" fill="#f0c040">J</text>
+  <!-- Small emerald accent dot (matches the panel accent colour) -->
+  <circle cx="24" cy="8" r="2.5" fill="#4fe3ac"/>
+</svg>

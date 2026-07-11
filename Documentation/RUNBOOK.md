@@ -190,7 +190,7 @@ Support for the **4th PlayStyle+** (the limited "GH 4th" Glory Hunters evos):
 
 ---
 
-## 3d. New in v8 - the Meta rating ("Justaino Rating")
+## 3d. New in v8 - the Meta rating ("Justaino Score")
 
 A self-computed **0-100 score per player per position**, worked out entirely from the
 player's real stats and PlayStyles (no external data, no player database).
@@ -610,8 +610,13 @@ need to run `node minify.js` first; `release.js` does it for you.
 **What `node release.js "…"` does, step by step:**
 1. rebuilds `bookmarklet.txt` from `fc26-tools.js` (and syntax-checks it - if the
    source is broken it stops and cuts **no** version, so you can't ship a broken one);
-2. stamps that fresh build as the **next** version number in `versions.js`, keeping
-   every older version intact;
+2. stamps that fresh build as the **next** version number in `versions.js`, then
+   **prunes old entries so only the newest version plus the 2 most recent older ones
+   are kept** (3 in total). This stops `versions.js` growing forever - each entry
+   stores the full bookmarklet (~160 KB), so an untrimmed file was making the install
+   page slow to load. Pruned versions are still in git history if you ever need one
+   back. To keep a different number, change `MAX_OLDER_VERSIONS` at the top of
+   `release.js`;
 3. **stamps that version number into the tool itself** (the `FC26_VERSION` value), so
    the panel's header badge shows the right number, e.g. `v4`. In the source it stays
    `dev`; only the released build gets the real number, so a build you paste straight

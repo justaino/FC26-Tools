@@ -7,8 +7,10 @@
 // `node release.js` = "I'm happy with this build and about to commit."
 //                     Run it ONCE when you're ready. It rebuilds the bookmarklet,
 //                     then stamps the current build as the NEXT version
-//                     (MGFC_Justaino_v1, v2, v3 ...) in versions.js, keeping every
-//                     older version intact so the install page can still offer them.
+//                     (MGFC_Justaino_v1, v2, v3 ...) in versions.js. To keep the file
+//                     (and the page) light, it keeps only the newest version plus the
+//                     last MAX_OLDER_VERSIONS older ones (see below) - older entries
+//                     are pruned automatically. History still lives in git if ever needed.
 //
 // COMMANDS
 //   node release.js                     -> cut a new version (no changelog note)
@@ -26,6 +28,19 @@ const { execSync } = require("child_process");
 const ROOT = __dirname;
 const VERSIONS_JS = path.join(ROOT, "versions.js");
 const BOOKMARKLET = path.join(ROOT, "bookmarklet.txt");
+
+// How many OLDER versions to keep alongside the latest. The install page (and this
+// file) therefore holds at most MAX_OLDER_VERSIONS + 1 entries; anything beyond that
+// is pruned when a new version is cut. Bump this if you ever want a longer tail.
+const MAX_OLDER_VERSIONS = 2;
+
+// Trim a newest-first versions array down to the latest + MAX_OLDER_VERSIONS older.
+// Returns { kept, dropped } so callers can report what was pruned.
+function capVersions(versions) {
+  const keep = MAX_OLDER_VERSIONS + 1;
+  if (versions.length <= keep) return { kept: versions, dropped: [] };
+  return { kept: versions.slice(0, keep), dropped: versions.slice(keep) };
+}
 
 // ---- read / write the versions list ---------------------------------------
 // versions.js is written by THIS script as:  window.FC26_VERSIONS = [ ...json... ];
@@ -136,13 +151,19 @@ if (!VERSION_RE.test(code)) {
 const stampedCode = code.replace(VERSION_RE, "$1v" + nextV + "$2");
 fs.writeFileSync(BOOKMARKLET, stampedCode + "\n");
 
-// 7) Prepend the new version (newest first) and write versions.js back out.
+// 7) Prepend the new version (newest first), then prune to the latest +
+//    MAX_OLDER_VERSIONS older ones so the file stays small, and write it back out.
 versions.unshift({ v: nextV, date: date, note: note, code: stampedCode });
-writeVersions(versions);
+const { kept, dropped } = capVersions(versions);
+writeVersions(kept);
 
 console.log(
   "Released MGFC_Justaino_v" + nextV + "  (" + date + ")" +
   (note ? '  - "' + note + '"' : "") +
-  "  ·  " + versions.length + " version(s) on the page now."
+  "  ·  " + kept.length + " version(s) on the page now."
 );
+if (dropped.length) {
+  console.log("Pruned " + dropped.length + " old version(s) to keep only the latest + " +
+    MAX_OLDER_VERSIONS + " older: " + dropped.map(label).join(", ") + " (still in git history).");
+}
 console.log("Next: commit versions.js (and bookmarklet.txt) and push to dev.");

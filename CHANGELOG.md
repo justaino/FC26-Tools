@@ -158,7 +158,7 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ## v8 - 2026-07-10
 
-**The Meta rating ("Justaino Rating") - my own 0-100 player score.**
+**The Meta rating ("Justaino Score") - my own 0-100 player score.**
 
 ### A score per player, per position
 - Every player now gets a **0-100 rating** for each position, worked out entirely from

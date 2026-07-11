@@ -1,4 +1,4 @@
-// meta-page.js - generate meta-rating.html (the "how the Justaino Rating works"
+// meta-page.js - generate meta-rating.html (the "how the Justaino Score works"
 // transparency page on the install site) straight from the REAL weight tables in
 // fc26-tools.js, so the page can never drift out of sync with the tool.
 //
@@ -192,10 +192,10 @@ const html = `<!DOCTYPE html>
     <a class="install-btn" href="index.html">Get the tool</a>
   </div>
 
-  <div class="badge">★ Justaino Rating</div>
+  <div class="badge">★ Justaino Score</div>
   <h1>How the <span>Meta Rating</span> is worked out</h1>
   <p class="lede">
-    Every player gets a 0-100 "Justaino Rating" for each position, worked out entirely
+    Every player gets a 0-100 "Justaino Score" for each position, worked out entirely
     from their real stats and PlayStyles. Nothing is hidden - here are the exact weights
     the tool uses, position by position. It's my read of the current FC 26 meta, so it's
     meant to be tuned each season.

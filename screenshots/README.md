@@ -17,7 +17,7 @@ There are **8** shots, one per feature block on the page (in page order):
 | `apply.png` | Phone | The **Review step mid-apply** - tiles ticking green, the delay box, a **Stop** button and a live "6/11" counter. Shows one-click apply + progress. |
 | `batch.png` | Phone | The Lineup step with **several players ticked** and the "N selected for batch apply" bar. Shows multi-select / batch. |
 | `manage.png` | Desktop | **Manage eligible rarities** expanded (search, "Update to OG list", a pending change, Save) next to a card's **Remove Latest Evo / Clear all evos** buttons. Covers undo + eligibility. |
-| `meta.png` | Desktop | The **Meta rating** list ranking a position (e.g. ST, top 20), each row scored as stat fit + PlayStyle bonus. Shows the Justaino Rating. |
+| `meta.png` | Desktop | The **Meta rating** list ranking a position (e.g. ST, top 20), each row scored as stat fit + PlayStyle bonus. Shows the Justaino Score. |
 | `squad-builder.png` | Desktop | The **Squad Builder** - a full lineup on a pitch, the squad tabs, XI average / placed count, bench, and the **Create in game** button. Shows the Gauntlet builder. |
 | `mobile.png` | Phone | The **mobile wizard** - the Lineup / PlayStyle Deck / Review tabs with the deck open and a **Suggest** button. Shows the responsive layout. |
 | `minimised.png` | Desktop | The panel **minimised** to a small pill in the corner (with the + / × buttons). Shows minimise (and, in the header, the theme picker). |

@@ -22,7 +22,7 @@ merge dev -> main unless the user explicitly says so.
   count (a 4-PS+ card shows `4/4`). 4b: apply the limited "GH 4th" Glory Hunters evos from
   the Academy "Rewards" category (id 9), gated to Glory Hunters + exactly 3 PS+, one-off
   confirm, excluded from batch/Suggest.
-- **Feature 2 - Meta rating / "Justaino Rating" (v8).** A self-computed **0-100 score per
+- **Feature 2 - Meta rating / "Justaino Score" (v8).** A self-computed **0-100 score per
   player per position**, from real stats + PlayStyles only:
   - `scorePlayer(it, group)` = `STAT_MIX*statFit + PS_MIX*psFit` (0.70/0.30, tunable at top
     of the file). Stats read live from `it.attributes` (outfield = [PAC,SHO,PAS,DRI,DEF,PHY],
@@ -100,7 +100,7 @@ merge dev -> main unless the user explicitly says so.
 > ships).
 >
 > Features 1, 4, and 2 are already shipped (v6, v7, v8) - v8 (Feature 2, the Meta rating /
-> "Justaino Rating") is on `dev` only, not yet merged to `main`. Now build the last one,
+> "Justaino Score") is on `dev` only, not yet merged to `main`. Now build the last one,
 > **Feature 3 - the Gauntlet squad builder**: given a formation + N (3-5), build N squads
 > from my club with ZERO shared players via a snake draft on the meta rating
 > (`scorePlayer()`), display only. See `PLAN-v2.md` Feature 3 for the full spec.
