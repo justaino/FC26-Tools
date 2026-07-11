@@ -1,4 +1,4 @@
-# Men Gallant FC · Justaino PS Tool - User Guide
+# Men Gallant FC · Justaino FC Web App Tool - User Guide
 
 Add PlayStyles and PlayStyle+ to your EA FC 26 club players **in bulk**, in seconds -
 without clicking through the game's menus one evolution at a time.

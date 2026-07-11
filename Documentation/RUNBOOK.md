@@ -1,4 +1,4 @@
-# RUNBOOK - Men Gallant FC · Justaino PS Tool
+# RUNBOOK - Men Gallant FC · Justaino FC Web App Tool
 
 A practical, plain-English guide to running and maintaining the bookmarklet.
 This is the "how do I actually use/fix it" doc. For scope and phase history see
@@ -12,7 +12,7 @@ A single **bookmarklet** for the EA FC 26 Web App. It adds a floating panel that
 lets you pick a club player, tick PlayStyles / PlayStyle+, and apply them all at
 once. It drives the app's own logged-in services - no passwords, no servers.
 
-The panel header reads **"Men Gallant FC - Justaino PS Tool"**.
+The panel header reads **"Men Gallant FC - Justaino FC Web App Tool"**.
 
 It's **responsive**: on a computer it opens as a wide **two-pane** panel; on a phone
 it opens as a full-width **step-by-step** sheet (see §3). Same features either way.

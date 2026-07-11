@@ -1270,7 +1270,7 @@
   header.style.cssText = "display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--header-bg);border-bottom:1px solid var(--border);touch-action:none";
   var title = document.createElement("div");
   title.className = "fc26-title";
-  title.textContent = "Men Gallant FC - Justaino PS Tool";
+  title.textContent = "Men Gallant FC - Justaino FC Web App Tool";
   title.style.cssText = "flex:1;font-weight:700;font-size:12px;line-height:1.2;color:var(--title);text-transform:uppercase;letter-spacing:.06em";
   // Small version badge next to the title, e.g. "v4" (or "dev" for an untracked build).
   // Hover shows a reminder to check the install page for the newest version.
@@ -3250,7 +3250,12 @@
   // (a remembered, clamped spot - or clear inline styles so the CSS default edge applies).
   function applyPanelChrome() {
     var m = currentMode();
-    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + (state.builderOpen ? " gt-open" : "");
+    // NOTE: "gt-open" is dropped while minimized. That class sets the mobile panel to a tall
+    // fixed height (#fc26-panel.fc26-mobile.gt-open{height:86vh}), and because it's a 2-class
+    // rule it OUT-SPECIFICS the 1-class pill rule (.fc26-min) - so a panel minimized with the
+    // builder open would keep its full height and only "half close". Minimized never needs the
+    // builder height, so we simply don't add gt-open when minimized.
+    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + (state.builderOpen && !state.minimized ? " gt-open" : "");
     applyPanelSize();     // set/clear our explicit size BEFORE clamping position (so the rect is right)
     var slot = posSlot();
     var pos = slot ? positions[slot] : null;

@@ -1,4 +1,4 @@
-# Men Gallant FC · Justaino PS Tool
+# Men Gallant FC · Justaino FC Web App Tool
 
 A personal **bookmarklet** for the EA FC 26 Web App. It adds a floating panel to
 pick a club player, tick PlayStyles / PlayStyle+, and apply them all at once. It

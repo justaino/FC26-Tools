@@ -1,7 +1,21 @@
-# Changelog - Men Gallant FC · Justaino PS Tool
+# Changelog - Men Gallant FC · Justaino FC Web App Tool
 
 What's changed in each install-page version (`MGFC_Justaino_vN`). Newest first.
 Versions are cut with `node release.js "note"` and shown on the install page (`index.html`).
+
+---
+
+## v17 - 2026-07-11
+
+**Mobile minimize fix + a new name.**
+
+- **Minimize now works on the phone while the Squad Builder is open.** Before, tapping the minimize
+  ( - ) button with the builder open only "half closed" the panel: the contents hid but the tall
+  sheet stayed, because the builder's full-height styling was overriding the little pill. Minimize
+  now always collapses to the small draggable pill in the bottom-right, builder open or not.
+- **Renamed to "Justaino FC Web App Tool"** (was "Justaino PS Tool") everywhere it shows: the panel
+  header, the install and features pages, and the Meta Rating page. Old published versions keep the
+  old name in their history; new versions carry the new one.
 
 ---
 
