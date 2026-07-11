@@ -2810,7 +2810,7 @@
       // (10px) and an explicit width give it room to be dragged (header) and resized
       // (corner grip) into a free-floating console without overflowing the page.
       "#fc26-panel.fc26-desktop{left:10px;bottom:0;width:calc(100vw - 20px);max-width:none;height:52vh;min-height:340px;max-height:520px;border-radius:16px 16px 0 0;border-top:2px solid var(--accent)}" +
-      "#fc26-panel.fc26-mobile{left:0;right:0;bottom:0;width:100%;max-height:86vh;border-radius:16px 16px 0 0}" +
+      "#fc26-panel.fc26-mobile{left:0;right:0;bottom:0;width:100%;min-height:70vh;max-height:86vh;border-radius:16px 16px 0 0}" +
       // Minimized (desktop OR mobile) = a small draggable pill in the bottom-right by
       // default. These come AFTER the mode rules so they override the panel width/shape.
       "#fc26-panel.fc26-min{left:auto;right:12px;bottom:12px;top:auto;width:auto;height:auto;min-height:0;max-width:300px;max-height:none;border-top:0;border-radius:999px}" +
@@ -2902,7 +2902,7 @@
       "#fc26-panel .rs-manage-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:6px 9px;cursor:pointer;font-size:11px;font-weight:600}" +
       "#fc26-panel .rs-manage-body{margin-top:8px}" +
       // Pinned mobile mini-spotlight (rating + name + caps), always visible below the tabs.
-      "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
+      "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-launch-tx b{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:10.5px;color:var(--muted)}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:20px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" + "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
   }
 
@@ -3100,7 +3100,7 @@
   // (a remembered, clamped spot - or clear inline styles so the CSS default edge applies).
   function applyPanelChrome() {
     var m = currentMode();
-    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "");
+    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + (state.builderOpen ? " gt-open" : "");
     applyPanelSize();     // set/clear our explicit size BEFORE clamping position (so the rect is right)
     var slot = posSlot();
     var pos = slot ? positions[slot] : null;
@@ -3259,290 +3259,349 @@
   // Meta rating one. Pick a formation + how many squads (N), press Build, and get
   // N non-overlapping XIs drafted off the Justaino score. Display only.
   // --------------------------------------------------------------------------
-  var gtSection = document.createElement("div");
-  gtSection.className = "meta-section";           // reuse the same outer spacing
-  var gtToggle = document.createElement("button");
-  gtToggle.type = "button";
-  gtToggle.className = "meta-toggle";
-  var gtBox = document.createElement("div");
-  gtBox.className = "meta-box";
-  gtBox.style.display = "none";
-  // controls: formation, N (3-5), Build
-  var gtControls = document.createElement("div");
-  gtControls.className = "meta-controls";
-  var gtForm = document.createElement("select");
-  gtForm.className = "meta-pos";
-  gtForm.innerHTML = FORMATION_ORDER.map(function (f) { return "<option>" + esc(f) + "</option>"; }).join("");
-  var gtN = document.createElement("select");
-  gtN.className = "meta-count";
-  gtN.innerHTML = [3, 4, 5].map(function (n) { return "<option value='" + n + "'" + (n === 3 ? " selected" : "") + ">" + n + " squads</option>"; }).join("");
-  var gtBuild = document.createElement("button");
-  gtBuild.type = "button";
-  gtBuild.className = "gt-build";
-  gtBuild.textContent = "Build";
-  gtControls.appendChild(gtForm);
-  gtControls.appendChild(gtN);
-  gtControls.appendChild(gtBuild);
-  var gtOut = document.createElement("div");
-  gtOut.className = "gt-out";
-  var gtNote = document.createElement("div");
-  gtNote.className = "meta-note";
-  // "Create in game" + "Remove Gauntlet squads": the ONLY controls that write to your account.
-  var gtActions = document.createElement("div");
-  gtActions.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:10px";
-  var gtCreateBtn = document.createElement("button");
-  gtCreateBtn.type = "button";
-  gtCreateBtn.textContent = "Create in game";
-  gtCreateBtn.title = "Create the built squads as new saved squads in your FC web app (never touches your active squad).";
-  gtCreateBtn.style.cssText = "flex:1 1 auto;min-width:130px;background:var(--apply);color:var(--apply-ink);border:0;border-radius:7px;padding:8px 10px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase";
-  var gtRemoveBtn = document.createElement("button");
-  gtRemoveBtn.type = "button";
-  gtRemoveBtn.textContent = "Remove Gauntlet squads";
-  gtRemoveBtn.title = "Delete the squads this tool created (only those - your own squads are safe).";
-  gtRemoveBtn.style.cssText = "flex:1 1 auto;min-width:130px;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:7px;padding:8px 10px;cursor:pointer;font-size:11px;font-weight:700";
-  gtActions.appendChild(gtCreateBtn);
-  gtActions.appendChild(gtRemoveBtn);
-  var gtCreateNote = document.createElement("div");
-  gtCreateNote.className = "meta-note";
-  gtCreateNote.style.marginTop = "6px";
-  gtBox.appendChild(gtControls);
-  gtBox.appendChild(gtOut);
-  gtBox.appendChild(gtNote);
-  gtBox.appendChild(gtActions);
-  gtBox.appendChild(gtCreateNote);
-  gtSection.appendChild(gtToggle);
-  gtSection.appendChild(gtBox);
+  // ---- FEATURE (v15): full-screen Gauntlet squad builder ----------------------
+  // The Gauntlet builder is now its OWN screen (a pitch with a dot per player),
+  // opened by a launch button and closed with a back arrow. It reuses buildGauntlet
+  // for the draft and createGameSquad/removeGameSquad for the writes.
 
-  var gtOpen = false;
-  function updateGtToggle() { gtToggle.textContent = (gtOpen ? "▾ " : "▸ ") + "Gauntlet squad builder (N no-overlap XIs)"; }
-  gtToggle.addEventListener("click", function () {
-    gtOpen = !gtOpen;
-    gtBox.style.display = gtOpen ? "block" : "none";
-    updateGtToggle();
-    if (gtOpen) refreshGauntletCount();                        // sync the Remove button to the live list
-    lineupPeek = false;                                        // opening/closing re-collapses the list on mobile
-    if (typeof updateLineupCollapse === "function") updateLineupCollapse();
-  });
-  gtBuild.addEventListener("click", renderGauntlet);
+  // Dot coordinates (x%, y%) per formation, in the SAME slot order as FORMATIONS.
+  // Each entry is [short position label, x, y] on a portrait pitch (GK at the bottom).
+  var FORMATION_DOTS = {
+    "4-3-3":   [["GK",50,90],["RB",84,70],["CB",63,75],["CB",37,75],["LB",16,70],["CM",72,49],["CM",50,53],["CM",28,49],["RW",80,22],["ST",50,15],["LW",20,22]],
+    "4-4-2":   [["GK",50,90],["RB",84,70],["CB",63,75],["CB",37,75],["LB",16,70],["RM",85,46],["CM",60,51],["CM",40,51],["LM",15,46],["ST",62,17],["ST",38,17]],
+    "4-2-3-1": [["GK",50,90],["RB",84,70],["CB",63,75],["CB",37,75],["LB",16,70],["CDM",61,57],["CDM",39,57],["RM",82,33],["CAM",50,37],["LM",18,33],["ST",50,14]],
+    "3-5-2":   [["GK",50,90],["CB",70,77],["CB",50,80],["CB",30,77],["RM",88,50],["CM",66,50],["CM",50,55],["CM",34,50],["LM",12,50],["ST",62,17],["ST",38,17]]
+  };
+  var GT_PITCH_SVG = "<svg viewBox='0 0 68 92' preserveAspectRatio='none' aria-hidden='true'><g fill='none' stroke='rgba(120,180,255,.22)' stroke-width='0.35'><rect x='1.5' y='1.5' width='65' height='89' rx='1.2'/><line x1='1.5' y1='46' x2='66.5' y2='46'/><circle cx='34' cy='46' r='8.5'/><circle cx='34' cy='46' r='0.6' fill='rgba(120,180,255,.22)' stroke='none'/><rect x='15' y='1.5' width='38' height='14'/><rect x='25' y='1.5' width='18' height='5.5'/><rect x='15' y='76.5' width='38' height='14'/><rect x='25' y='85' width='18' height='5.5'/></g></svg>";
 
-  // gtLastBuild holds the most recent SUCCESSFUL build, so "Create in game" knows what to make.
-  // It's cleared to null whenever a build fails the depth check (nothing valid to create).
-  var gtLastBuild = null;
+  var gtBuild = null;          // last buildGauntlet() result (the drafted squads)
+  var gtFormation = FORMATION_ORDER[0];
+  var gtCount = 3;
+  var gtSquadIdx = 0;          // which squad's pitch is showing
+  var gtBenchOpen = false;     // mobile bench collapsible
+  var gtEls = {};              // live references to the dynamic bits of the current view
+  state.builderOpen = false;
   state.gtRunning = false;
 
-  gtCreateBtn.addEventListener("click", runCreateGauntlet);
-  gtRemoveBtn.addEventListener("click", runRemoveGauntlet);
+  // Launch button (this is what the Lineup column shows; it opens the full screen).
+  var gtSection = document.createElement("div");
+  gtSection.className = "meta-section";
+  var gtLaunch = document.createElement("button");
+  gtLaunch.type = "button";
+  gtLaunch.className = "gt-launch";
+  gtLaunch.innerHTML = "<span class='gt-launch-ic'>\u26BD</span>" +
+    "<span class='gt-launch-tx'><b>Squad Builder</b><i>Build no-overlap Gauntlet squads on a pitch</i></span>" +
+    "<span class='gt-launch-go'>\u203A</span>";
+  gtLaunch.addEventListener("click", openBuilder);
+  gtSection.appendChild(gtLaunch);
 
-  // updateGtButtons(): enable/disable + relabel the two action buttons for the current state.
-  // Create is live only after a good build; Remove is live only when Gauntlet squads exist. The
-  // count prefers the LIVE list (state.gauntletLiveCount, filled by refreshGauntletCount) so it's
-  // right on any device; it falls back to the local id-list only until the live count is known.
-  function updateGtButtons() {
-    var count = (state.gauntletLiveCount != null) ? state.gauntletLiveCount : loadGauntletSquadIds().length;
-    var canCreate = !!(gtLastBuild && gtLastBuild.depth && gtLastBuild.depth.ok) && !state.gtRunning;
-    gtCreateBtn.disabled = !canCreate;
-    gtCreateBtn.style.opacity = canCreate ? "" : ".45";
-    gtCreateBtn.style.cursor = canCreate ? "pointer" : "not-allowed";
-    var canRemove = count > 0 && !state.gtRunning;
-    gtRemoveBtn.disabled = !canRemove;
-    gtRemoveBtn.style.opacity = canRemove ? "" : ".45";
-    gtRemoveBtn.style.cursor = canRemove ? "pointer" : "not-allowed";
-    gtRemoveBtn.textContent = count ? ("Remove Gauntlet squads (" + count + ")") : "Remove Gauntlet squads";
+  // The full-screen overlay lives inside the panel body, hidden until opened.
+  var builderHost = document.createElement("div");
+  builderHost.className = "gt-builder";
+  builderHost.style.display = "none";
+  body.appendChild(builderHost);
+
+  // Small DOM helpers -----------------------------------------------------------
+  function gtTier(sc) { return sc >= 85 ? "elite" : sc >= 78 ? "gold" : sc >= 70 ? "solid" : "low"; }
+  function gtLab(t) { var s = document.createElement("span"); s.className = "gt-clab"; s.textContent = t; return s; }
+  function gtSegEl(items, current, onPick) {
+    var seg = document.createElement("div"); seg.className = "gt-seg";
+    items.forEach(function (v) {
+      var b = document.createElement("button"); b.type = "button"; b.textContent = v; b.setAttribute("aria-pressed", String(v == current));
+      b.addEventListener("click", function () { Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute("aria-pressed", String(x === b)); }); onPick(v); });
+      seg.appendChild(b);
+    });
+    return seg;
+  }
+  function gtSelectEl(items, current, onChange, fmt) {
+    var s = document.createElement("select"); s.className = "gt-select";
+    items.forEach(function (v) { var o = document.createElement("option"); o.value = v; o.textContent = fmt ? fmt(v) : v; if (v == current) o.selected = true; s.appendChild(o); });
+    s.addEventListener("change", function () { onChange(s.value); });
+    return s;
+  }
+  function gtMkPitch() { var w = document.createElement("div"); w.className = "gt-pitchwrap"; var p = document.createElement("div"); p.className = "gt-pitch"; p.innerHTML = GT_PITCH_SVG; w.appendChild(p); gtEls.pitch = p; return w; }
+  function gtMkActions(mobile) {
+    var a = document.createElement("div"); a.className = "gt-actions";
+    var cb = document.createElement("button"); cb.type = "button"; cb.className = "gt-cbtn"; cb.addEventListener("click", runCreateGauntlet);
+    var rb = document.createElement("button"); rb.type = "button"; rb.className = "gt-rbtn"; rb.textContent = "Remove Gauntlet squads"; rb.addEventListener("click", runRemoveGauntlet);
+    gtEls.createBtn = cb; gtEls.removeBtn = rb;
+    if (mobile) { var row = document.createElement("div"); row.className = "gt-arow"; row.appendChild(cb); row.appendChild(rb); a.appendChild(row); }
+    else { a.appendChild(cb); a.appendChild(rb); }
+    var st = document.createElement("div"); st.className = "gt-status"; gtEls.statusEl = st; a.appendChild(st);
+    return a;
+  }
+  function gtSline(t) { return "<div class='gt-sline'>" + esc(t) + "</div>"; }
+  function gtProgress(t, pct) { return "<div class='gt-sline'><span class='rm-spin'></span><span>" + esc(t) + "</span></div><div class='gt-pbar'><i style='width:" + pct + "%'></i></div>"; }
+  function gtToast(kind, t) { return "<div class='gt-toast " + kind + "'><span class='gt-badge'>" + (kind === "ok" ? "\u2713" : "!") + "</span><span>" + esc(t) + "</span></div>"; }
+  function setGtStatus(html) { if (gtEls.statusEl) gtEls.statusEl.innerHTML = html; }
+
+  // doBuild(): run the draft for the current formation + count into gtBuild.
+  function doBuild() {
+    var players = getClubPlayers();
+    if (!players.length) { gtBuild = { empty: true }; return; }
+    gtBuild = buildGauntlet(gtFormation, gtCount);
+    if (gtSquadIdx >= gtCount) gtSquadIdx = 0;
   }
 
-  // refreshGauntletCount(): read the live squad list and count how many are OURS (named with the
-  // Gauntlet prefix), so the Remove button is accurate even on a device that never created them.
+  function openBuilder() {
+    state.builderOpen = true;
+    doBuild();
+    builderHost.style.display = "flex";
+    layoutHost.style.display = "none";
+    applyPanelChrome();   // adds the "gt-open" class so the mobile panel gets a definite height
+    renderBuilder();
+    refreshGauntletCount();
+  }
+  function closeBuilder() {
+    state.builderOpen = false;
+    builderHost.style.display = "none";
+    layoutHost.style.display = "flex";
+    applyPanelChrome();   // drops "gt-open" so the mobile panel goes back to auto height
+  }
+  // Formation/count/Rebuild changed: re-draft and redraw the body (keeps the shell).
+  function onBuildChange() {
+    doBuild();
+    if (gtSquadIdx >= gtCount) gtSquadIdx = 0;
+    renderGtBody();
+    if (!state.gtRunning) setGtStatus(gtSline("Nothing is created until you tap Create."));
+  }
+
+  // renderBuilder(): (re)build the whole screen for the current mode (desktop/mobile).
+  function renderBuilder() {
+    if (!state.builderOpen) return;
+    var mobile = currentMode() === "mobile";
+    builderHost.innerHTML = "";
+    gtEls = {};
+
+    var top = document.createElement("div"); top.className = "gt-bd-top";
+    var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "\u2039"; back.title = "Back"; back.addEventListener("click", closeBuilder);
+    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>Squad Builder</b>";
+    top.appendChild(back); top.appendChild(ttl);
+    if (mobile) {
+      top.appendChild(gtSelectEl(FORMATION_ORDER, gtFormation, function (v) { gtFormation = v; onBuildChange(); }));
+      top.appendChild(gtSelectEl([3, 4, 5], gtCount, function (v) { gtCount = parseInt(v, 10); onBuildChange(); }, function (n) { return n + " sq"; }));
+    }
+    builderHost.appendChild(top);
+
+    if (!mobile) {
+      var ctr = document.createElement("div"); ctr.className = "gt-bd-controls";
+      ctr.appendChild(gtLab("Form"));
+      ctr.appendChild(gtSegEl(FORMATION_ORDER, gtFormation, function (v) { gtFormation = v; onBuildChange(); }));
+      ctr.appendChild(gtLab("Squads"));
+      ctr.appendChild(gtSegEl([3, 4, 5], gtCount, function (v) { gtCount = v; onBuildChange(); }));
+      var grow = document.createElement("span"); grow.style.flex = "1"; ctr.appendChild(grow);
+      var reb = document.createElement("button"); reb.type = "button"; reb.className = "gt-rebuild"; reb.textContent = "\u21BB Rebuild"; reb.addEventListener("click", onBuildChange); ctr.appendChild(reb);
+      builderHost.appendChild(ctr);
+
+      var tabs = document.createElement("div"); tabs.className = "gt-bd-tabs"; gtEls.tabs = tabs; builderHost.appendChild(tabs);
+      var main = document.createElement("div"); main.className = "gt-bd-main";
+      main.appendChild(gtMkPitch());
+      var side = document.createElement("div"); side.className = "gt-bd-side";
+      var strip = document.createElement("div"); strip.className = "gt-statstrip"; gtEls.stats = strip; side.appendChild(strip);
+      var bench = document.createElement("div"); bench.className = "gt-bench"; gtEls.bench = bench; side.appendChild(bench);
+      side.appendChild(gtMkActions(false));
+      main.appendChild(side);
+      builderHost.appendChild(main);
+    } else {
+      var pills = document.createElement("div"); pills.className = "gt-sqpills"; gtEls.pills = pills; builderHost.appendChild(pills);
+      var summary = document.createElement("div"); summary.className = "gt-summary"; gtEls.summary = summary; builderHost.appendChild(summary);
+      builderHost.appendChild(gtMkPitch());
+      var b2 = document.createElement("div"); b2.className = "gt-bench2";
+      var bt = document.createElement("button"); bt.type = "button"; bt.className = "gt-benchtoggle"; bt.setAttribute("aria-expanded", String(gtBenchOpen));
+      var bb = document.createElement("div"); bb.className = "gt-benchbody" + (gtBenchOpen ? " open" : "");
+      bt.addEventListener("click", function () { gtBenchOpen = !gtBenchOpen; bt.setAttribute("aria-expanded", String(gtBenchOpen)); bb.classList.toggle("open", gtBenchOpen); renderGtBench(); });
+      gtEls.benchToggle = bt; gtEls.benchBody = bb;
+      b2.appendChild(bt); b2.appendChild(bb); builderHost.appendChild(b2);
+      builderHost.appendChild(gtMkActions(true));
+    }
+
+    renderGtBody();
+    if (!state.gtRunning) setGtStatus(gtSline("Nothing is created until you tap Create."));
+  }
+
+  // renderGtBody(): fill the dynamic bits (squad switch, pitch, stats, bench, actions).
+  function renderGtBody() { renderGtSquadSwitch(); renderGtPitch(); renderGtInfo(); renderGtBench(); updateBuilderActions(); }
+
+  function renderGtSquadSwitch() {
+    if (gtEls.tabs) {
+      gtEls.tabs.innerHTML = "";
+      for (var i = 0; i < gtCount; i++) {
+        (function (idx) {
+          var sq = (gtBuild && gtBuild.squads) ? gtBuild.squads[idx] : null;
+          var b = document.createElement("button"); b.type = "button"; b.className = "gt-tab"; b.setAttribute("aria-selected", String(idx === gtSquadIdx));
+          b.innerHTML = "<div><span class='tn'>Squad " + (idx + 1) + "</span><span class='ta'>" + (sq ? sq.avg : "\u2014") + "</span></div><div class='ts'>" + esc(gtFormation) + "</div>";
+          b.addEventListener("click", function () { gtSquadIdx = idx; renderGtPitch(); renderGtInfo(); renderGtBench(); renderGtSquadSwitch(); });
+          gtEls.tabs.appendChild(b);
+        })(i);
+      }
+    }
+    if (gtEls.pills) {
+      gtEls.pills.innerHTML = "";
+      for (var j = 0; j < gtCount; j++) {
+        (function (idx) {
+          var b = document.createElement("button"); b.type = "button"; b.className = "gt-sqpill"; b.textContent = String(idx + 1); b.setAttribute("aria-selected", String(idx === gtSquadIdx));
+          b.addEventListener("click", function () { gtSquadIdx = idx; renderGtPitch(); renderGtInfo(); renderGtBench(); renderGtSquadSwitch(); });
+          gtEls.pills.appendChild(b);
+        })(j);
+      }
+    }
+  }
+
+  function renderGtPitch() {
+    var pitch = gtEls.pitch; if (!pitch) return;
+    Array.prototype.slice.call(pitch.querySelectorAll(".gt-dot")).forEach(function (d) { d.remove(); });
+    if (!gtBuild || gtBuild.empty || !gtBuild.squads) return;
+    var coords = FORMATION_DOTS[gtFormation] || [];
+    var sq = gtBuild.squads[gtSquadIdx] || gtBuild.squads[0];
+    coords.forEach(function (c, i) {
+      var pos = c[0], x = c[1], y = c[2], cell = sq.slots[i], p = cell && cell.player;
+      var d = document.createElement("div");
+      d.className = "gt-dot " + (p ? ("t-" + gtTier(cell.score)) : "empty");
+      d.style.left = x + "%"; d.style.top = y + "%";
+      if (p) {
+        d.innerHTML = "<div class='gt-disc'>" + (p.rating != null ? p.rating : "?") + "</div><div class='gt-nm'>" + esc(playerName(p)) + "</div><div class='gt-meta'>" + esc(pos) + " \u00b7 JS " + cell.score + "</div>";
+        d.title = playerName(p) + " (" + (cell.group || pos) + ", Justaino " + cell.score + ")";
+      } else {
+        d.innerHTML = "<div class='gt-disc'>\u2013</div><div class='gt-nm'>open</div><div class='gt-meta'>" + esc(pos) + "</div>";
+      }
+      pitch.appendChild(d);
+    });
+  }
+
+  function renderGtInfo() {
+    var empty = !gtBuild || gtBuild.empty;
+    var depthBad = gtBuild && gtBuild.depth && !gtBuild.depth.ok;
+    var sq = (gtBuild && gtBuild.squads) ? gtBuild.squads[gtSquadIdx] : null;
+    var warn = null;
+    if (empty) { warn = "No club players loaded yet. Close this, tap \u21BB Reload club, then reopen."; }
+    else if (depthBad) {
+      var d = gtBuild.depth, bits = d.shortages.map(function (s) { return s.group + " (" + s.have + "/" + s.required + ")"; }).join(", ");
+      warn = "<b>Can't build " + gtCount + " full " + esc(gtFormation) + " squads.</b> " +
+        (!d.totalOk ? ("Need " + d.totalNeeded + " players, have " + d.totalHave + ". ") : "") +
+        (d.shortages.length ? ("Short at: " + esc(bits) + ". ") : "") + "Try fewer squads or another formation.";
+    }
+    if (gtEls.stats) {
+      if (warn) { gtEls.stats.className = "gt-warn2"; gtEls.stats.innerHTML = warn; }
+      else {
+        gtEls.stats.className = "gt-statstrip";
+        gtEls.stats.innerHTML = "<div class='gt-stat'><div class='v g'>" + (sq ? sq.avg : "\u2014") + "</div><div class='k'>XI avg</div></div>" +
+          "<div class='gt-stat'><div class='v a'>" + (sq ? sq.filled : 0) + "/11</div><div class='k'>Placed</div></div>" +
+          "<div class='gt-stat'><div class='v'>" + (sq ? sq.chem.maxLeague : 0) + "</div><div class='k'>League</div></div>" +
+          "<div class='gt-stat'><div class='v'>" + (sq ? sq.chem.maxNation : 0) + "</div><div class='k'>Nation</div></div>";
+      }
+    }
+    if (gtEls.summary) {
+      if (warn) { gtEls.summary.className = "gt-warn2"; gtEls.summary.innerHTML = warn; }
+      else {
+        gtEls.summary.className = "gt-summary";
+        gtEls.summary.innerHTML = "<span><b class='gsa'>" + (sq ? sq.avg : "\u2014") + "</b> XI avg</span>" +
+          "<span><b>" + (sq ? sq.filled : 0) + "/11</b> placed</span>" +
+          "<span><b>" + (sq ? sq.chem.maxLeague : 0) + "</b> league</span>" +
+          "<span><b>" + (sq ? sq.chem.maxNation : 0) + "</b> nation</span>";
+      }
+    }
+  }
+
+  function renderGtBench() {
+    var sq = (gtBuild && gtBuild.squads) ? gtBuild.squads[gtSquadIdx] : null;
+    var chips = sq ? sq.subs.map(function (cell) {
+      var p = cell && cell.player;
+      return "<span class='gt-chip'>" + (p ? ("<b>" + (p.rating != null ? p.rating : "?") + "</b> " + esc(playerName(p))) : "<span style='color:var(--muted);font-style:italic'>open</span>") + "</span>";
+    }).join("") : "";
+    if (gtEls.bench) { gtEls.bench.innerHTML = "<div class='bl'>Bench \u00B7 7 subs</div><div class='gt-chips'>" + chips + "</div>"; }
+    if (gtEls.benchToggle) {
+      var f = sq ? sq.subs.filter(function (c) { return c && c.player; }) : [];
+      var avg = f.length ? Math.round(f.reduce(function (a, c) { return a + (c.player.rating || 0); }, 0) / f.length) : "\u2014";
+      gtEls.benchToggle.innerHTML = "<span>" + (gtBenchOpen ? "\u25BE" : "\u25B8") + " Bench (7)</span><span style='color:var(--muted);opacity:.8'>avg " + avg + "</span>";
+      gtEls.benchBody.innerHTML = "<div class='gt-chips'>" + chips + "</div>";
+    }
+  }
+
+  // updateBuilderActions(): enable/label Create + Remove for the current state.
+  function updateBuilderActions() {
+    if (!gtEls.createBtn) return;
+    var count = (state.gauntletLiveCount != null) ? state.gauntletLiveCount : loadGauntletSquadIds().length;
+    var canCreate = !!(gtBuild && gtBuild.depth && gtBuild.depth.ok) && !state.gtRunning;
+    gtEls.createBtn.disabled = !canCreate;
+    gtEls.createBtn.style.opacity = canCreate ? "" : ".45";
+    gtEls.createBtn.style.cursor = canCreate ? "pointer" : "not-allowed";
+    gtEls.createBtn.textContent = "Create " + gtCount + " in game";
+    var canRemove = count > 0 && !state.gtRunning;
+    gtEls.removeBtn.disabled = !canRemove;
+    gtEls.removeBtn.style.opacity = canRemove ? "" : ".45";
+    gtEls.removeBtn.style.cursor = canRemove ? "pointer" : "not-allowed";
+    gtEls.removeBtn.textContent = count ? ("Remove Gauntlet squads (" + count + ")") : "Remove Gauntlet squads";
+  }
+
+  // refreshGauntletCount(): live count of OUR squads (named MGFC Gauntlet ...) for the Remove button.
   async function refreshGauntletCount() {
     var list = await listSavedSquads();
-    if (list == null) return;   // couldn't read the list - leave the current count as-is
+    if (list == null) return;
     var ours = list.filter(function (sq) { return sq.id !== 0 && isGauntletSquadName(sq.name); });
     state.gauntletLiveCount = ours.length;
-    updateGtButtons();
+    updateBuilderActions();
   }
 
-  // runCreateGauntlet(): create the built squads in the game, one create() call each. Confirms
-  // first (listing exactly what it will make), checks the 30-squad cap, and records every new id
-  // so removal is one click. Never sets a squad active, so your real team is untouched.
+  // runCreateGauntlet(): create the drafted squads in the game (confirmed, capped, animated).
   async function runCreateGauntlet() {
     if (state.gtRunning) return;
-    if (!gtLastBuild || !gtLastBuild.squads || !(gtLastBuild.depth && gtLastBuild.depth.ok)) {
-      gtCreateNote.textContent = "Build some squads first (pick a formation + count, then Build).";
-      return;
-    }
-    var res = gtLastBuild, formationName = res.formation, squads = res.squads;
-    // Cap check against the game's 30-squad limit (best-effort; the server also enforces it).
+    if (!gtBuild || gtBuild.empty || !(gtBuild.depth && gtBuild.depth.ok)) { setGtStatus(gtSline("Nothing to create - pick a formation/count that builds full squads.")); return; }
+    var res = gtBuild, formationName = res.formation, squads = res.squads;
     var have = await countSavedSquads();
     if (have != null && (have + squads.length) > GAUNTLET_MAX_SQUADS) {
-      gtCreateNote.textContent = "Can't create " + squads.length + ": you have " + have + " of " + GAUNTLET_MAX_SQUADS +
-        " saved squads, room for only " + Math.max(0, GAUNTLET_MAX_SQUADS - have) + " more. Remove some squads first.";
+      setGtStatus(gtToast("err", "You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads - room for only " + Math.max(0, GAUNTLET_MAX_SQUADS - have) + " more. Remove some first."));
       return;
     }
-    // Confirm dialog: spell out every squad it will make.
-    var lines = squads.map(function (sq, i) {
-      return "  " + (i + 1) + '. "MGFC Gauntlet ' + (i + 1) + '" (' + formationName + ") - " + sq.filled + " starters + " + sq.subFilled + " subs";
-    });
+    var lines = squads.map(function (sq, i) { return "  " + (i + 1) + '. "' + GAUNTLET_NAME_PREFIX + (i + 1) + '" (' + formationName + ") - " + sq.filled + " starters + " + sq.subFilled + " subs"; });
     var msg = "Create " + squads.length + " NEW saved squad" + (squads.length === 1 ? "" : "s") + " in your FC web app?\n\n" +
-      lines.join("\n") + "\n\n" +
-      (have != null ? ("You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads; this uses " + squads.length + " more.\n") : "") +
-      "Your active squad is NOT touched. You can undo this any time with \"Remove Gauntlet squads\".\n\nContinue?";
+      lines.join("\n") + "\n\n" + (have != null ? ("You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads; this uses " + squads.length + " more.\n") : "") +
+      "Your active squad is NOT touched. Undo any time with \"Remove Gauntlet squads\".\n\nContinue?";
     if (!window.confirm(msg)) return;
-
-    state.gtRunning = true; updateGtButtons();
-    var tracked = loadGauntletSquadIds().slice();
-    var okCount = 0, failCount = 0;
+    state.gtRunning = true; updateBuilderActions();
+    var tracked = loadGauntletSquadIds().slice(), okCount = 0, failCount = 0;
     for (var i = 0; i < squads.length; i++) {
       var name = GAUNTLET_NAME_PREFIX + (i + 1);
-      var items = gauntletItemsForSquad(squads[i]);
-      gtCreateNote.textContent = "Creating " + name + " (" + (i + 1) + "/" + squads.length + ")...";
+      setGtStatus(gtProgress("Creating " + name + " (" + (i + 1) + "/" + squads.length + ")\u2026", Math.round(i / squads.length * 100)));
       try {
-        var r = await createGameSquad(name, formationName, items);
-        if (r && r.id != null) { tracked.push({ id: r.id, name: name }); saveGauntletSquadIds(tracked); okCount++; }
-        else { failCount++; }
+        var r = await createGameSquad(name, formationName, gauntletItemsForSquad(squads[i]));
+        if (r && r.id != null) { tracked.push({ id: r.id, name: name }); saveGauntletSquadIds(tracked); okCount++; } else { failCount++; }
       } catch (e) { failCount++; console.warn("[FC26] squad create failed", name, e); }
-      if (i < squads.length - 1) await sleep(300);   // small gap between writes, like the evo loop
+      if (i < squads.length - 1) await sleep(300);
     }
     state.gtRunning = false;
-    await refreshGauntletCount();   // updateGtButtons + accurate Remove count from the live list
-    gtCreateNote.textContent = okCount + " squad" + (okCount === 1 ? "" : "s") + " created" +
-      (failCount ? (", " + failCount + " failed") : "") + ". Open the Squads screen to see them. \"Remove Gauntlet squads\" undoes them.";
+    await refreshGauntletCount();
+    setGtStatus(gtToast(okCount > 0 ? "ok" : "err", okCount + " squad" + (okCount === 1 ? "" : "s") + " created" + (failCount ? (", " + failCount + " failed") : "") + ". Open Squads to see them."));
   }
 
-  // runRemoveGauntlet(): delete every squad named with the Gauntlet prefix, found from the LIVE
-  // list (so it works on any device and can't be fooled by squad-id renumbering). Confirms first,
-  // never touches id 0 (the active/original squad), and re-reads the list after each delete.
+  // runRemoveGauntlet(): delete every MGFC Gauntlet squad from the live list (device-independent).
   async function runRemoveGauntlet() {
     if (state.gtRunning) return;
     var list = await listSavedSquads();
-    if (list == null) { gtCreateNote.textContent = "Couldn't read your squad list on this page. Open the Squads screen once, then try again."; return; }
+    if (list == null) { setGtStatus(gtToast("err", "Couldn't read your squad list. Open the Squads screen once, then try again.")); return; }
     var ours = list.filter(function (sq) { return sq.id !== 0 && isGauntletSquadName(sq.name); });
-    if (!ours.length) { gtCreateNote.textContent = "No Gauntlet squads found to remove."; state.gauntletLiveCount = 0; saveGauntletSquadIds([]); updateGtButtons(); return; }
+    if (!ours.length) { state.gauntletLiveCount = 0; saveGauntletSquadIds([]); updateBuilderActions(); setGtStatus(gtSline("No Gauntlet squads found to remove.")); return; }
     var msg = "Remove the " + ours.length + " Gauntlet squad" + (ours.length === 1 ? "" : "s") + " in your club?\n\n" +
       ours.map(function (s) { return "  - " + s.name; }).join("\n") +
       "\n\nThis removes squads named \"" + GAUNTLET_NAME_PREFIX + "...\" only; your own squads are safe.\n\nContinue?";
     if (!window.confirm(msg)) return;
-
-    state.gtRunning = true; updateGtButtons();
+    state.gtRunning = true; updateBuilderActions();
     var okCount = 0, failCount = 0, guard = 0;
-    // Re-read the list each pass and remove the first remaining Gauntlet squad by its CURRENT id,
-    // because deleting one can renumber the others. The guard stops any accidental endless loop.
     while (guard++ < 60) {
       var cur = await listSavedSquads();
       if (cur == null) { failCount++; break; }
       var target = null;
       for (var j = 0; j < cur.length; j++) { if (cur[j].id !== 0 && isGauntletSquadName(cur[j].name)) { target = cur[j]; break; } }
-      if (!target) break;                                        // none of ours left
-      gtCreateNote.textContent = "Removing " + target.name + "...";
+      if (!target) break;
+      setGtStatus(gtProgress("Removing " + target.name + "\u2026", okCount ? Math.round(okCount / (okCount + 1) * 100) : 30));
       try { await removeGameSquad(target.id); okCount++; }
       catch (e) { failCount++; console.warn("[FC26] squad remove failed", target, e); break; }
       await sleep(300);
     }
-    saveGauntletSquadIds([]);        // the local id hint is no longer needed (we track by name now)
+    saveGauntletSquadIds([]);
     state.gtRunning = false;
     await refreshGauntletCount();
-    gtCreateNote.textContent = "Removed " + okCount + " squad" + (okCount === 1 ? "" : "s") +
-      (failCount ? (", " + failCount + " failed - try again") : "") + ".";
+    setGtStatus(gtToast(okCount > 0 ? "ok" : "err", "Removed " + okCount + " squad" + (okCount === 1 ? "" : "s") + (failCount ? (", " + failCount + " failed - try again") : "") + "."));
   }
-
-  // renderGauntlet(): run the draft for the chosen formation + N and draw the result.
-  // If the club is too thin, it reports the exact shortage instead of building.
-  function renderGauntlet() {
-    var players = getClubPlayers();
-    gtOut.innerHTML = "";
-    if (!players.length) { gtNote.textContent = "No club players yet - load your club first (↻ Reload club)."; gtLastBuild = null; updateGtButtons(); return; }
-
-    var formation = gtForm.value;
-    var n = parseInt(gtN.value, 10) || 3;
-    var res = buildGauntlet(formation, n);
-    var depth = res.depth;
-
-    // DEPTH CHECK FIRST: if the club can't fill N x 11 (or a group is short),
-    // show the specific shortage and build nothing (spec: no broken squads).
-    if (!depth.ok) {
-      var warn = document.createElement("div");
-      warn.className = "gt-warn";
-      var lines = [];
-      if (!depth.totalOk) {
-        lines.push("Your club has <b>" + depth.totalHave + "</b> usable players but " + n +
-          " full 18-player squads need <b>" + depth.totalNeeded + "</b> (18 x " + n +
-          ", i.e. 11 starters + 7 subs each), all different.");
-      }
-      if (depth.shortages.length) {
-        var bits = depth.shortages.map(function (s) {
-          return s.group + " (need " + s.required + ", have " + s.have + ")";
-        }).join(", ");
-        lines.push("Not enough cover at: <b>" + esc(bits) + "</b>.");
-      }
-      lines.push("Try fewer squads, a different formation, or load more of your club.");
-      warn.innerHTML = "<div class='gt-warn-t'>Can't build " + n + " full " + esc(formation) + " squads</div>" +
-        lines.map(function (l) { return "<div class='gt-warn-l'>" + l + "</div>"; }).join("");
-      gtOut.appendChild(warn);
-      gtNote.textContent = "Depth check failed - nothing was built. Zero players are shared between squads by design.";
-      gtLastBuild = null; updateGtButtons();   // no valid build -> Create stays disabled
-      return;
-    }
-
-    // One row (starter or sub) -> a clickable DOM element. Empty cells (pool ran
-    // dry) render as a muted placeholder. Group label falls back to "SUB".
-    function gtRowEl(cell) {
-      var row = document.createElement("div");
-      if (cell && cell.player) {
-        var it = cell.player;
-        row.className = "gt-row" + (state.player && state.player.id === it.id ? " on" : "");
-        row.innerHTML =
-          "<span class='gt-pos'>" + esc(cell.group || "SUB") + "</span>" +
-          "<span class='gt-ovr'>" + (it.rating != null ? it.rating : "?") + "</span>" +
-          "<span class='gt-nm'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='meta-gk'>GK</span>" : "") + "</span>" +
-          "<span class='gt-sc'>" + cell.score + "</span>";
-        row.title = playerName(it) + " (" + (cell.group || "sub") + ", Justaino " + cell.score + "). Tap to spotlight.";
-        row.addEventListener("click", (function (item) { return function () { selectPlayer(item); }; })(it));
-      } else {
-        row.className = "gt-row empty";
-        row.innerHTML =
-          "<span class='gt-pos'>" + esc((cell && cell.group) || "SUB") + "</span>" +
-          "<span class='gt-nm gt-empty'>no player available</span>";
-      }
-      return row;
-    }
-
-    // Draw each squad as a card: the XI, then the bench, each with its own average.
-    res.squads.forEach(function (sq, si) {
-      var card = document.createElement("div");
-      card.className = "gt-squad";
-      var head = document.createElement("div");
-      head.className = "gt-head";
-      head.innerHTML = "<b>Squad " + (si + 1) + "</b>" +
-        "<span class='gt-avg'>XI avg " + sq.avg + " &middot; " + sq.filled + "/11</span>";
-      card.appendChild(head);
-
-      var rows = document.createElement("div");
-      rows.className = "gt-rows";
-      sq.slots.forEach(function (cell) { rows.appendChild(gtRowEl(cell)); });
-      card.appendChild(rows);
-
-      // Bench: a divider label, then the 7 subs.
-      var benchLab = document.createElement("div");
-      benchLab.className = "gt-bench-lab";
-      benchLab.innerHTML = "Bench &middot; " + sq.subFilled + " sub" + (sq.subFilled === 1 ? "" : "s") +
-        (sq.subFilled ? " &middot; avg " + sq.subAvg : "");
-      card.appendChild(benchLab);
-      var subRows = document.createElement("div");
-      subRows.className = "gt-rows";
-      sq.subs.forEach(function (cell) { subRows.appendChild(gtRowEl(cell)); });
-      card.appendChild(subRows);
-
-      // Chemistry readout: the biggest same-league / same-nation cluster in the 18.
-      var chemLine = document.createElement("div");
-      chemLine.className = "gt-chem";
-      chemLine.textContent = "Chem clusters: up to " + sq.chem.maxLeague + " share a league, " + sq.chem.maxNation + " share a nation";
-      card.appendChild(chemLine);
-
-      gtOut.appendChild(card);
-    });
-    gtNote.textContent = "Snake draft on the Justaino score: 11 starters by position, then 7 subs by best role. Near-ties break toward shared league/nation. No player appears in more than one squad. Tap any row to spotlight.";
-    gtLastBuild = res; updateGtButtons();       // a good build -> "Create in game" is now live
-  }
-  updateGtToggle();
-  updateGtButtons();   // reflect any squads tracked from a previous session on the Remove button
 
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
@@ -3854,6 +3913,9 @@
       layoutHost.appendChild(stepper); layoutHost.appendChild(stepBody); layoutHost.appendChild(guideBtn);
       renderWizStep();
     }
+    // Keep the full-screen Squad Builder in front if it's open (e.g. after a phone/desktop flip),
+    // and rebuild it for the new mode. layoutHost was just rebuilt above, so hide it again.
+    if (state.builderOpen) { layoutHost.style.display = "none"; builderHost.style.display = "flex"; renderBuilder(); }
     // applyPanelChrome (above) clamped using the height BEFORE this content was added, so
     // re-clamp now that the real height is known - otherwise the tall panel can start
     // partly off-screen and its scrollbar be unreachable.

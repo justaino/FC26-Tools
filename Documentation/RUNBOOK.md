@@ -348,6 +348,44 @@ neither ever touches your active squad.
 
 ---
 
+## 3i. New in v15 - the full-screen pitch Squad Builder
+
+The Gauntlet builder moved out of the cramped dropdown into its **own screen**. The build logic,
+create, and remove are all unchanged (§3g, §3h); this is a redesigned front-end over the same
+`buildGauntlet` / `createGameSquad` / `removeGameSquad`.
+
+**How to use it:**
+- Under the player list (Lineup) tap **⚽ Squad Builder** (`gtLaunch`). The whole panel body
+  switches to the builder; the **‹** back arrow returns to the normal tool.
+- Pick a **formation** and **squad count** (3/4/5). Desktop uses segmented buttons plus a
+  **↻ Rebuild**; mobile uses two compact dropdowns in the header.
+- The **pitch** shows one dot per starter, placed by formation (`FORMATION_DOTS` has the x/y
+  percentages per formation, in the same slot order as `FORMATIONS`). Each dot: OVR on a disc
+  tinted by the player's Justaino tier (`gtTier`: elite/gold/solid/low), name, then `POS · JS score`.
+  Empty slots render as a dashed disc.
+- **Switch squads** with tabs (desktop) or number pills (mobile). Only the dots move; the pitch
+  animates them (CSS transition on `left`/`top`).
+- **Stat strip** = XI average, placed count, biggest league and nation cluster (desktop: a 4-cell
+  grid beside the pitch; mobile: a one-line summary above the pitch). The **bench** (7 subs) shows
+  as chips - always visible on desktop, collapsible on mobile to keep the pitch large.
+- **Create / Remove** live at the bottom with the same confirm dialogs, now with a progress bar
+  (`gtProgress`) and a success/failed **toast** (`gtToast`) instead of a plain status line.
+
+**Structure / maintenance notes:**
+- The builder is a separate overlay `builderHost` inside the panel body; `state.builderOpen`
+  toggles it. `openBuilder` / `closeBuilder` set that flag, swap `builderHost` and `layoutHost`,
+  and call `applyPanelChrome()` (which adds the `gt-open` class).
+- `renderBuilder()` rebuilds the whole screen and branches on `currentMode()` (desktop vs mobile).
+  `renderGtBody` -> `renderGtSquadSwitch` / `renderGtPitch` / `renderGtInfo` / `renderGtBench` /
+  `updateBuilderActions` redraw the pieces; changing formation/count calls `onBuildChange` which
+  re-runs the draft (`doBuild`).
+- The mobile panel has a fixed **minimum height** (`min-height:70vh`, `gt-open` raises it to 86vh)
+  so it never collapses when a step has little content.
+- To restyle dots/tiers edit the `.gt-dot` / `.gt-disc` / `.t-elite|gold|solid|low` rules in the
+  `#fc26-style` block; all colours read the UCL Night tokens.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

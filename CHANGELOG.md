@@ -5,6 +5,27 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v15 - 2026-07-11
+
+**The Gauntlet builder is now a full-screen pitch.**
+
+- **Squad Builder** is its own screen now. Open it from the **⚽ Squad Builder** button under the
+  player list (Lineup), and leave it with the **‹** back arrow. No more cramped dropdown.
+- The centrepiece is a **football pitch**: one dot per player, placed by formation. Each dot shows
+  the player's OVR on a coloured disc (tinted by their Justaino score - brighter = better), their
+  name, and the position with the Justaino score under it. Empty slots show as a dashed open spot.
+- **Switch between squads** with tabs on desktop or number pills on mobile, and the pitch animates
+  the players into their new spots.
+- A **stat strip** (XI average, players placed, and the biggest league/nation cluster) sits beside
+  the pitch on desktop, or as a one-line summary on mobile. The **bench** (7 subs) is listed too,
+  collapsible on mobile to keep the pitch big.
+- **Create in game** and **Remove Gauntlet squads** work exactly as before (same confirm dialogs
+  and safety), now with a proper progress bar and a success/failed toast instead of a plain status
+  line.
+- The mobile panel now holds a comfortable minimum height so it never collapses into a thin sliver.
+
+---
+
 ## v14 - 2026-07-10
 
 **Create Gauntlet squads in the game (and undo them in one tap).**
