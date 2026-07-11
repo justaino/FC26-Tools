@@ -56,9 +56,6 @@ comment every block. Don't assume front-end knowledge.
 - `DEBUGGING-PROMPTS.md` - paste-ready prompts for when something breaks.
 - `GIT-SAFETY-PROMPTS.md` - save-point / rollback prompts to protect working versions.
 - `fc26-tools.js` - **the thing we're building** (my output). Edit this.
-- `reference-evo.js` - someone else's working evo helper. **Read-only reference**
-  to copy proven bits from (PlayStyle catalog, error-code map) and learn the apply
-  flow. Never edit it; we're not shipping it.
 - `bookmarklet.txt` - the one-line bookmarklet version of fc26-tools.js for daily use.
 - `minify.js` - rebuilds `bookmarklet.txt` from the source (`node minify.js`).
 - `release.js` - cuts a new install-page version (`node release.js "note"`): rebuilds the

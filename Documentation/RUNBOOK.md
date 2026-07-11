@@ -711,4 +711,3 @@ edits + regenerate + rebuild for you.
 - `Documentation/USER-GUIDE.md` - friendly feature guide for using the tool.
 - `CHANGELOG.md` - plain-English per-version log of what changed (add an entry each release).
 - `CLAUDE.md` - standing build context. `PLAN.md` - scope + phases.
-- `reference-evo.js` - read-only reference script we borrowed proven bits from.
