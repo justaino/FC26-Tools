@@ -439,17 +439,19 @@
   };
 
   // ----------------------------------------------------------------------------
-  // FEATURE 2 - MY OWN META RATING: two tunable tables
-  // These two tables are the ONLY things you edit to re-tune the rating. The
-  // scoring logic (scorePlayer, further down) just reads them. Higher number =
-  // "matters more for this position". Everything is my own opinion of the current
-  // FC26 meta - change freely.
+  // FEATURE 2 - MY OWN META RATING (v2: role-aware, fut.gg-inspired)
+  // The rating is my own opinion of the current FC26 meta - the tables below are what
+  // you edit to re-tune it. scorePlayer (further down) just reads them.
   //
-  //  scorePlayer(player, group) = STAT part  +  PLAYSTYLE part
-  //    STAT part      : a weighted average of the stats that matter for the
-  //                     position (0-99-ish), using STAT_WEIGHTS below.
-  //    PLAYSTYLE part : bonus points for meta PlayStyles the player ALREADY has,
-  //                     using PLAYSTYLE_WEIGHTS below (a PlayStyle+ counts double).
+  //  scorePlayer(player, group) = STAT part  +  PLAYSTYLE part  (blended by STAT_MIX/PS_MIX)
+  //    STAT part      : a weighted average of the stats that matter for the position
+  //                     (0-99-ish), using STAT_WEIGHTS, PLUS the card's weak foot + skill
+  //                     moves folded in as light attributes (TRAIT_STAT_WEIGHTS).
+  //    PLAYSTYLE part : how many of the card's owned PlayStyles are meta for its BEST-fitting
+  //                     role. Instead of one blunt per-group table, we score against each role
+  //                     in ROLES (the same role lists Suggest uses) and take the best - the
+  //                     fut.gg-style "score every role, keep the top" idea. PLAYSTYLE_WEIGHTS
+  //                     is now only a fallback for a group with no ROLES entry. PS+ counts double.
   // ----------------------------------------------------------------------------
 
   // The 6 numbers in it.attributes, in the order the app stores them. Proven live
@@ -475,13 +477,12 @@
     "GK":      { diving: 9, handling: 8, kicking: 4, reflexes: 10, speed: 4, positioning: 8 }
   };
 
-  // PLAYSTYLE_WEIGHTS: bonus points for meta PlayStyles a player ALREADY owns, per
-  // position group. A PlayStyle+ is worth DOUBLE its base number (handled in code).
-  // Seeded from the current-FC26 meta consensus (July 2026): Finesse Shot / Low
-  // Driven Shot / Rapid / Technical / Quick Step / Trickster for attacking;
-  // Incisive Pass / Tiki Taka / Pinged Pass for creation; Anticipate / Intercept /
-  // Block / Bruiser / Jockey for defending; Far Reach / Footwork / 1v1 Close Down
-  // for keepers. Sources noted in RUNBOOK section 7b. Anything not listed = 0.
+  // PLAYSTYLE_WEIGHTS: FALLBACK bonus table for owned meta PlayStyles, per position group.
+  // As of the role-aware rating (v2), scorePlayer no longer uses this for groups that have a
+  // ROLES entry - it instead scores against the card's BEST-fitting ROLE (the ordered priority
+  // lists in ROLES, converted to per-rank weights - see roleWeightsFromList). This table only
+  // kicks in for a group with no ROLES entry, so it's kept as a safety net. A PlayStyle+ is
+  // worth DOUBLE its base number (handled in code). Anything not listed = 0.
   var PLAYSTYLE_WEIGHTS = {
     "ST":      { "Finesse Shot": 4, "Low Driven Shot": 4, "Rapid": 3, "Quick Step": 3, "Technical": 3, "Trickster": 2, "First Touch": 2, "Power Shot": 1, "Chip Shot": 1, "Acrobatic": 1, "Precision Header": 1, "Incisive Pass": 1, "Dead Ball": 1 },
     "RW / LW": { "Finesse Shot": 4, "Rapid": 4, "Quick Step": 3, "Technical": 3, "Trickster": 3, "Low Driven Shot": 3, "Incisive Pass": 2, "First Touch": 2, "Tiki Taka": 1, "Pinged Pass": 1, "Whipped Pass": 1 },
@@ -494,14 +495,44 @@
     "GK":      { "Far Reach": 4, "Footwork": 3, "1v1 Close Down": 3, "Cross Claimer": 2, "Deflector": 2, "Far Throw": 1, "Pinged Pass": 1, "Long Ball Pass": 1 }
   };
 
-  // How the two parts blend into the final 0-100 "Justaino rating". These MUST add
-  // up to 1. STAT_MIX is how much raw stats drive the rating; PS_MIX is how much
-  // PlayStyles drive it. Raise PS_MIX (and lower STAT_MIX by the same amount) to
-  // make PlayStyles swing the rating more. At 0.30, a player with NONE of the meta
-  // PlayStyles tops out around 70 no matter how good their stats are, and only a
-  // near-perfect card in both halves approaches 100.
-  var STAT_MIX = 0.70;
-  var PS_MIX   = 0.30;
+  // TRAIT_STAT_WEIGHTS: how much a card's WEAK FOOT and SKILL MOVES stars count, per position
+  // group (fut.gg factors both). Discovered live: it.skillMoves and it.weakFoot are 1-5 stars.
+  // scorePlayer folds them INTO the stat average as two extra "attributes" (a 5-star = 99-equiv,
+  // 3-star = ~59), scaled by these weights - so they nudge the rating without a separate term
+  // (keeps stat + PlayStyle = total). Attackers value skill moves + both feet most; defenders
+  // barely; keepers not at all (GKs never get these two added). Weights are relative to
+  // STAT_WEIGHTS above (each group's stat weights total ~35-40, so sm:2 is a light ~5% nudge).
+  var TRAIT_STAT_WEIGHTS = {
+    "ST":      { sm: 2, wf: 2 },
+    "RW / LW": { sm: 3, wf: 1.5 },
+    "CAM":     { sm: 2.5, wf: 1.5 },
+    "RM / LM": { sm: 2.5, wf: 1 },
+    "CM":      { sm: 1.5, wf: 1 },
+    "CDM":     { sm: 0.5, wf: 0.5 },
+    "RB / LB": { sm: 1, wf: 0.5 },
+    "CB":      { sm: 0.3, wf: 0.5 }
+    // GK: intentionally absent - weak foot / skill moves don't matter for keepers.
+  };
+
+  // How the two parts blend into the final 0-100 "Justaino rating". These MUST add up to 1.
+  // Balanced ~50/50, tuned to mirror fut.gg's GG Rating: an elite-STATS card with a spread of PS+
+  // (e.g. Maradona) should beat a card that owns the exact 3 meta PS+ but has weaker stats. A PS
+  // heavy blend inverts that (it over-rewards the perfect-PS card), so stats carry real weight here.
+  // Within the PlayStyle half a PlayStyle+ is worth PSPLUS_MULT x a basic (see scorePlayer). Nudge
+  // STAT_MIX up to lean more on raw stat quality, PS_MIX up to lean more on owning meta PlayStyles.
+  var STAT_MIX = 0.50;
+  var PS_MIX   = 0.50;
+
+  // PSPLUS_MULT: how much more a PlayStyle+ counts than the same basic PlayStyle, inside the
+  // PlayStyle score. 2.5 = a PS+ is worth two-and-a-half basics (was 2). Used in BOTH the raw
+  // score (scorePlayer) and the ceiling (psMaxForWeights) so the 0-100 normalization stays honest.
+  var PSPLUS_MULT = 2.5;
+
+  // OVR_MIX: after the stat/PlayStyle blend, we pull the final rating toward the card's in-game OVR
+  // by this fraction. OVR is a POOR proxy for how a card plays (a 97 can have 50s face stats), so
+  // it is deliberately MINUSCULE - just a hair to break exact ties. At 0.05 it can shift a rating
+  // by at most ~5 points and never overrides the PlayStyle/stat order. Set it to 0 to ignore OVR.
+  var OVR_MIX  = 0.05;
 
   // The order the position dropdown offers, and the value the app has no group for.
   var META_GROUPS = ["ST", "RW / LW", "CAM", "RM / LM", "CM", "CDM", "RB / LB", "CB", "GK"];
@@ -678,13 +709,41 @@
   // basic. We divide a player's raw bonus by this to get a 0-100 PlayStyle score, so
   // "full marks" means owning the best meta PlayStyles this position can want.
   function psMaxForGroup(group) {
-    var pw = PLAYSTYLE_WEIGHTS[group] || {};
-    var vals = Object.keys(pw).map(function (k) { return pw[k]; }).sort(function (a, b) { return b - a; });
-    var top3 = 0, next5 = 0, i;
-    for (i = 0; i < 3 && i < vals.length; i++) top3 += vals[i];   // best 3 as PS+
-    for (i = 3; i < 8 && i < vals.length; i++) next5 += vals[i];  // next 5 as basic
-    return (top3 * 2 + next5) || 1;                                // never zero
+    return psMaxForWeights(PLAYSTYLE_WEIGHTS[group] || {});
   }
+
+  // psMaxForWeights(weights): the "full marks" PlayStyle ceiling for a role (used by the scorer).
+  // We divide a card's raw bonus by this to get a 0-100 PlayStyle score. It's the best 5 meta
+  // PlayStyles owned as PS+ (x PSPLUS_MULT) plus the next 3 as basic. Deliberately HIGH: a card
+  // that only owns the top-3 as PS+ should NOT saturate at 100 - owning MORE/better PlayStyle+
+  // keeps pushing the score up, so a 5-PS+ card out-scores a 3-PS+ one instead of both maxing out.
+  function psMaxForWeights(weights) {
+    var vals = Object.keys(weights).map(function (k) { return weights[k]; }).sort(function (a, b) { return b - a; });
+    var topPlus = 0, restBasic = 0, i;
+    for (i = 0; i < 3 && i < vals.length; i++) topPlus += vals[i];    // best 3 owned as PS+ (the game's PS+ cap)
+    for (i = 3; i < vals.length; i++) restBasic += vals[i];          // EVERY other meta PlayStyle as a basic (no cap)
+    return (topPlus * PSPLUS_MULT + restBasic) || 1;                 // never zero
+  }
+
+  // roleWeightsFromList(list): turn a role's ORDERED priority PlayStyle list (from ROLES) into a
+  // {name: weight} map by rank - the top of the list matters most. This is the fut.gg-style move:
+  // score against a specific role's priorities rather than one blunt per-group table. Schedule
+  // mirrors the old hand-tuned scale (top pair = 4, next pair = 3, ... ) so numbers stay familiar.
+  function roleWeightsFromList(list) {
+    var w = {};
+    for (var i = 0; i < list.length; i++) {
+      // EVERY PlayStyle a role lists gets a non-zero weight (top pair = 4 ... tail = 1), so nothing
+      // a role considers relevant is ignored. Only PlayStyles absent from the role entirely = 0.
+      var wt = i < 2 ? 4 : i < 4 ? 3 : i < 6 ? 2 : 1;
+      if (w[list[i]] == null) w[list[i]] = wt;
+    }
+    return w;
+  }
+
+  // isStar(v): true only for a real 1-5 star rating (weak foot / skill moves). We DON'T default a
+  // missing value to a neutral 3 - folding a ~59-equivalent into the stat average would drag every
+  // high-stat card down. If the card doesn't expose it, we simply skip that term (see scorePlayer).
+  function isStar(v) { return typeof v === "number" && v >= 1 && v <= 5; }
 
   // scorePlayer(it, group): my meta score for a club item played in a position
   // group, as a single 0-100 "Justaino rating". Returns a breakdown so the UI can
@@ -698,45 +757,78 @@
   //   playstyle = raw PlayStyle bonus points
   //   hits      = which owned PlayStyles scored, for display
   //   statsUsed = the named stats + values that fed the stat part (self-checks order)
+  //   role      = the BEST-fitting role we scored the PlayStyles against (null for a fallback group)
   function scorePlayer(it, group) {
     var sw = STAT_WEIGHTS[group];
-    var pw = PLAYSTYLE_WEIGHTS[group] || {};
-    if (!sw) return { stat: 0, playstyle: 0, psScore: 0, statPart: 0, psPart: 0, total: 0, hits: [], statsUsed: {}, group: group };
+    if (!sw) return { stat: 0, playstyle: 0, psScore: 0, statPart: 0, psPart: 0, total: 0, hits: [], statsUsed: {}, group: group, role: null };
 
     // --- stat part: weighted average of the stats this position cares about (0-99) ---
     var stats = readStats(it);
     var wsum = 0, vsum = 0, used = {};
     for (var k in sw) { wsum += sw[k]; vsum += sw[k] * (stats[k] || 0); used[k] = (stats[k] || 0); }
+    // fut.gg-style: fold WEAK FOOT + SKILL MOVES in as two light "attributes" (outfielders only).
+    // A star (1-5) is scaled to the 0-99 stat range and weighted per group (TRAIT_STAT_WEIGHTS),
+    // so it nudges the stat average rather than adding a separate term - keeps stat + PS = total.
+    if (!isGKPlayer(it)) {
+      var tw = TRAIT_STAT_WEIGHTS[group];
+      if (tw) {
+        // ONLY add these when the card actually exposes them (some club-search items don't).
+        // A missing value is skipped entirely - never defaulted to a neutral 3 - so a card without
+        // the data keeps its true stat average instead of being dragged toward ~59.
+        if (isStar(it.skillMoves)) { wsum += tw.sm; vsum += tw.sm * (it.skillMoves / 5 * 99); used.skillMoves = it.skillMoves; }
+        if (isStar(it.weakFoot))   { wsum += tw.wf; vsum += tw.wf * (it.weakFoot   / 5 * 99); used.weakFoot   = it.weakFoot; }
+      }
+    }
     var statScore = wsum ? (vsum / wsum) : 0;
 
-    // --- playstyle part: raw bonus for owned meta PlayStyles (PS+ = double) ---
-    var psRaw = 0, hits = [];
+    // --- playstyle part: ROLE-AWARE. Score the owned PlayStyles against every role this group
+    //     offers (ROLES), take the role that scores highest. Falls back to the blunt per-group
+    //     PLAYSTYLE_WEIGHTS table only if the group has no ROLES entry. PS+ counts double. ---
+    var owned = [];
     currentPlayStyles(it).forEach(function (p) {
       var name = traitName[p.traitId];        // base name (traitName has no "+")
-      var base = name ? (pw[name] || 0) : 0;
-      if (!base) return;
-      var val = p.isIcon ? base * 2 : base;   // "+" version is worth double
-      psRaw += val;
-      hits.push({ name: name, isIcon: !!p.isIcon, val: val });
+      if (name) owned.push({ name: name, isIcon: !!p.isIcon });
     });
-    // turn raw bonus points into a 0-100 PlayStyle score vs this position's ceiling
-    var psScore = Math.min(1, psRaw / psMaxForGroup(group)) * 100;
+    var roleTable = ROLES[group];
+    var cands = [];
+    if (roleTable) {
+      Object.keys(roleTable).forEach(function (rn) { cands.push({ role: rn, weights: roleWeightsFromList(roleTable[rn]) }); });
+    }
+    if (!cands.length) cands.push({ role: null, weights: PLAYSTYLE_WEIGHTS[group] || {} });
+    var bestRole = null, psScore = 0, psRaw = 0, hits = [];
+    cands.forEach(function (c) {
+      var raw = 0, h = [];
+      owned.forEach(function (o) {
+        var base = c.weights[o.name] || 0;
+        if (!base) return;
+        var val = o.isIcon ? base * PSPLUS_MULT : base;   // a PlayStyle+ counts PSPLUS_MULT x a basic
+        raw += val;
+        h.push({ name: o.name, isIcon: o.isIcon, val: val });
+      });
+      var score = Math.min(1, raw / psMaxForWeights(c.weights)) * 100;
+      if (bestRole === null || score > psScore) { bestRole = c.role; psScore = score; psRaw = raw; hits = h; }
+    });
 
-    // --- blend the two 0-100 halves into one 0-100 rating (mix knobs up top) ---
+    // --- blend the two 0-100 halves, then pull toward the card's OVR (quality floor, mix up top) ---
     var statPart = STAT_MIX * statScore;
     var psPart = PS_MIX * psScore;
-    var total = Math.min(100, statPart + psPart);
+    var metaBlend = Math.min(100, Math.max(0, statPart + psPart));   // pure stat+PlayStyle score
+    var ovr = (typeof it.rating === "number") ? it.rating : metaBlend;
+    var total = Math.max(0, Math.min(100, (1 - OVR_MIX) * metaBlend + OVR_MIX * ovr));
 
     return {
-      stat: Math.round(statScore * 10) / 10,   // raw weighted stat average (0-99)
-      playstyle: psRaw,                          // raw PlayStyle bonus points
+      stat: Math.round(statScore * 10) / 10,   // raw weighted stat average (0-99), incl. WF/SM
+      playstyle: psRaw,                          // raw PlayStyle bonus points (best role)
       psScore: Math.round(psScore * 10) / 10,    // PlayStyle score (0-100) before blend
-      statPart: Math.round(statPart),            // stat's contribution to the rating
-      psPart: Math.round(psPart),                // PlayStyle's contribution to the rating
-      total: Math.round(total),                  // the Justaino rating, 0-100
+      statPart: Math.round(statPart),            // stat's contribution to the meta blend
+      psPart: Math.round(psPart),                // PlayStyle's contribution to the meta blend
+      metaBlend: Math.round(metaBlend * 10) / 10,// stat+PlayStyle score BEFORE the OVR pull
+      ovr: ovr,                                  // the card OVR the rating was pulled toward
+      total: Math.round(total * 10) / 10,        // the Justaino rating, 0-100 (1 decimal, so near-ties separate)
       hits: hits,
       statsUsed: used,
-      group: group
+      group: group,
+      role: bestRole                             // the best-fitting role the PlayStyles matched
     };
   }
 
@@ -1704,7 +1796,7 @@
     // they can play, shown right under the big OVR number.
     var jr = null; try { jr = bestJustaino(it); } catch (e) {}
     var jrHTML = jr
-      ? "<span class='pv-jr' title='Justaino rating (0-100) as " + esc(jr.group) + ": stats " + jr.score.statPart + " + PlayStyles " + jr.score.psPart + "'>JUSTAINO " + jr.score.total + " &middot; " + esc(jr.group) + "</span>"
+      ? "<span class='pv-jr' title='Justaino rating (0-100) as " + esc(jr.group) + (jr.score.role ? " (" + esc(jr.score.role) + ")" : "") + ": meta " + jr.score.metaBlend + " (stats " + jr.score.statPart + " + PlayStyles " + jr.score.psPart + "), blended " + Math.round(OVR_MIX * 100) + "% with OVR " + jr.score.ovr + "'>JUSTAINO " + jr.score.total.toFixed(1) + " &middot; " + esc(jr.group) + "</span>"
       : "";
 
     preview.innerHTML =
@@ -3400,12 +3492,12 @@
         "<span class='meta-ovr'>" + (it.rating != null ? it.rating : "?") + "</span>" +
         "<span class='meta-nm'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='meta-gk'>GK</span>" : "") + "</span>" +
         "<span class='meta-ps'>" + psHTML + "</span>" +
-        "<span class='meta-score'><b>" + sc.total + "</b><span class='meta-split'>" + sc.statPart + " + " + sc.psPart + "</span></span>";
-      row.title = playerName(it) + " as " + group + " (out of 100): stats " + sc.statPart + " + PlayStyles " + sc.psPart + " = " + sc.total + "  [raw stat avg " + sc.stat + ", PlayStyle score " + sc.psScore + "]";
+        "<span class='meta-score'><b>" + sc.total.toFixed(1) + "</b><span class='meta-split'>" + sc.statPart + " + " + sc.psPart + "</span></span>";
+      row.title = playerName(it) + " as " + group + (sc.role ? " (" + sc.role + ")" : "") + " (out of 100): meta " + sc.metaBlend + " (stats " + sc.statPart + " + PlayStyles " + sc.psPart + "), blended " + Math.round(OVR_MIX * 100) + "% with OVR " + sc.ovr + " = " + sc.total + "  [raw stat avg " + sc.stat + ", PlayStyle score " + sc.psScore + "]";
       row.addEventListener("click", function () { selectPlayer(it); });
       metaList.appendChild(row);
     });
-    metaNote.textContent = "Ranked " + rows.length + " as " + group + ". Score = stat fit + meta PlayStyle bonus (PS+ = double). Tap a row to spotlight that player.";
+    metaNote.textContent = "Ranked " + rows.length + " as " + group + ". Score leans on meta PlayStyles (a PlayStyle+ counts " + PSPLUS_MULT + "x a basic), then stats. Tap a row to spotlight that player.";
   }
   updateMetaToggle();
 
@@ -3617,7 +3709,7 @@
       d.className = "gt-dot " + (p ? ("t-" + gtTier(cell.score)) : "empty");
       d.style.left = x + "%"; d.style.top = y + "%";
       if (p) {
-        d.innerHTML = "<div class='gt-disc'>" + (p.rating != null ? p.rating : "?") + "</div><div class='gt-nm'>" + esc(playerName(p)) + "</div><div class='gt-meta'>" + esc(pos) + " \u00b7 JS " + cell.score + "</div>";
+        d.innerHTML = "<div class='gt-disc'>" + (p.rating != null ? p.rating : "?") + "</div><div class='gt-nm'>" + esc(playerName(p)) + "</div><div class='gt-meta'>" + esc(pos) + " \u00b7 JS " + Math.round(cell.score) + "</div>";
         d.title = playerName(p) + " (" + (cell.group || pos) + ", Justaino " + cell.score + ")";
       } else {
         d.innerHTML = "<div class='gt-disc'>\u2013</div><div class='gt-nm'>open</div><div class='gt-meta'>" + esc(pos) + "</div>";

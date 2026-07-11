@@ -42,15 +42,17 @@ const STAT_WEIGHTS = extractObject("STAT_WEIGHTS");
 const PLAYSTYLE_WEIGHTS = extractObject("PLAYSTYLE_WEIGHTS");
 const STAT_MIX = extractNumber("STAT_MIX");
 const PS_MIX = extractNumber("PS_MIX");
+const PSPLUS_MULT = extractNumber("PSPLUS_MULT");   // a PlayStyle+ is worth this many basics
+const OVR_MIX = extractNumber("OVR_MIX");            // light OVR tiebreak
 
 // Same "ceiling" the tool uses to turn raw PlayStyle points into a 0-100 score:
-// best 3 as PS+ (doubled) plus the next 5 as basic.
+// best 3 owned as PS+ (x PSPLUS_MULT) plus EVERY other meta PlayStyle as a basic.
 function psMaxForGroup(group) {
   const vals = Object.values(PLAYSTYLE_WEIGHTS[group] || {}).sort((a, b) => b - a);
-  let top3 = 0, next5 = 0;
-  for (let i = 0; i < 3 && i < vals.length; i++) top3 += vals[i];
-  for (let i = 3; i < 8 && i < vals.length; i++) next5 += vals[i];
-  return (top3 * 2 + next5) || 1;
+  let topPlus = 0, restBasic = 0;
+  for (let i = 0; i < 3 && i < vals.length; i++) topPlus += vals[i];
+  for (let i = 3; i < vals.length; i++) restBasic += vals[i];
+  return (topPlus * PSPLUS_MULT + restBasic) || 1;
 }
 
 // --- tiny helpers -----------------------------------------------------------
@@ -95,7 +97,7 @@ function positionCard(group) {
         statRows +
       '</div>' +
       '<div class="pos-col">' +
-        '<div class="col-h ps-h">Meta PlayStyles <span>bonus points (PS+ counts double)</span></div>' +
+        '<div class="col-h ps-h">Meta PlayStyles <span>bonus points (a PlayStyle+ counts ' + PSPLUS_MULT + '&times; a basic)</span></div>' +
         '<div class="ps-list">' + styleRows + '</div>' +
       '</div>' +
     '</div>' +
@@ -202,15 +204,17 @@ const html = `<!DOCTYPE html>
   </p>
 
   <div class="formula">
-    <div class="eq">Rating&nbsp;=&nbsp;<span class="stat">${pct(STAT_MIX)}% &times; Stat fit</span>&nbsp;+&nbsp;<span class="ps">${pct(PS_MIX)}% &times; PlayStyle fit</span></div>
+    <div class="eq">Rating&nbsp;=&nbsp;<span>${pct(1 - OVR_MIX)}% &times; (</span><span class="stat">${pct(STAT_MIX)}% &times; Stat fit</span>&nbsp;+&nbsp;<span class="ps">${pct(PS_MIX)}% &times; PlayStyle fit</span><span>)</span>&nbsp;+&nbsp;<span>${pct(OVR_MIX)}% &times; OVR</span></div>
     <div class="mixrow">
       <div class="mixpill stat"><div class="k">Stat weighting</div><div class="v">${pct(STAT_MIX)}%</div></div>
       <div class="mixpill ps"><div class="k">PlayStyle weighting</div><div class="v">${pct(PS_MIX)}%</div></div>
+      <div class="mixpill"><div class="k">OVR tiebreak</div><div class="v">${pct(OVR_MIX)}%</div></div>
     </div>
     <ul>
-      <li><b>Stat fit (0-99)</b> is a weighted average of the six stats, using each position's weights below. Stats matter most where the weight is biggest (shooting for strikers, defending for centre-backs, and so on).</li>
-      <li><b>PlayStyle fit (0-100)</b> adds up the points for the meta PlayStyles a player already has - and a <b>PlayStyle+ counts double</b> - then measures that against the best loadout the position could want.</li>
-      <li>The two halves blend into one score. Because ${pct(PS_MIX)}% is locked behind PlayStyles, a player with elite stats but none of the meta PlayStyles tops out around <b>${Math.round(STAT_MIX * 99)}</b>, and only a near-perfect card in both halves approaches 100.</li>
+      <li>Each card is scored against its <b>best-fitting role</b> for a position (Poacher vs Target Forward, Winger vs Inside Forward, and so on), then the top-scoring role wins.</li>
+      <li><b>Stat fit (0-99)</b> is a weighted average of the six stats, using each position's weights below (plus weak foot &amp; skill moves as light extras). Stats matter most where the weight is biggest - shooting for strikers, defending for centre-backs.</li>
+      <li><b>PlayStyle fit (0-100)</b> counts the meta PlayStyles a card owns for that role - a <b>PlayStyle+ counts ${PSPLUS_MULT}&times; a basic</b>, and <b>every</b> meta basic counts - measured against the best loadout the role could want.</li>
+      <li>The two halves blend, then the result is pulled just <b>${pct(OVR_MIX)}%</b> toward the card's in-game OVR - a light tiebreak only, because a 97 with weak face stats plays nothing like a 97. The tables below are the underlying stat and PlayStyle emphasis per position.</li>
     </ul>
   </div>
 

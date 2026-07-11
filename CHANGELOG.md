@@ -5,6 +5,31 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v18 - 2026-07-11
+
+**Smarter Meta rating (v2): role-aware, PlayStyle-led, and honest about card quality.**
+
+The "Meta rating" (rank my club by position) was rebuilt so the numbers reflect how a card actually
+plays, closer to how fut.gg's GG Rating thinks:
+
+- **Scored at the ROLE level, not just the position.** Each card is now judged against its *best-fitting
+  role* (Poacher vs Target Forward, Winger vs Inside Forward, ...) using the same role lists Suggest
+  uses, then the top-scoring role is shown. Hover a row to see which role it picked.
+- **PlayStyles lead, then stats, with a light OVR nudge.** A PlayStyle+ now counts **2.5x** a basic
+  PlayStyle, and **every** meta basic a card owns is counted (no more cap at three). Stats still matter
+  and are weighted per position (defending barely counts for a striker, heavily for a centre-back).
+  In-game OVR is only a small tiebreak - deliberately minor, because a 97 with poor face stats plays
+  nothing like a 97.
+- **Weak foot + skill moves** now feed the rating (they read from the card when the app exposes them),
+  weighted more for attackers than defenders.
+- **Scores carry one decimal** (e.g. 88.4), so cards that used to tie on a whole number now separate,
+  and the PlayStyle ceiling was raised so a stacked card no longer flatlines at 100.
+
+Net effect: your best cards rank where they should - a marquee playmaker tops the CAM list, purpose-built
+finishers top the ST list - instead of a mid card with the "perfect" three stickers leaping the queue.
+
+---
+
 ## v17 - 2026-07-11
 
 **Mobile minimize fix + a new name.**

@@ -202,14 +202,20 @@ player's real stats and PlayStyles (no external data, no player database).
   players in your club who can play there, best first, each with the `stat + PlayStyle`
   split behind the score.
 
-**How the score works (two halves blended):**
-- **Stat fit (0-99)** = a weighted average of the six stats, using `STAT_WEIGHTS[pos]`.
-- **PlayStyle fit (0-100)** = points for the meta PlayStyles the player owns
-  (`PLAYSTYLE_WEIGHTS[pos]`, a **PlayStyle+ counts double**), measured against that
-  position's best-case loadout.
-- **Rating** = `STAT_MIX × statFit + PS_MIX × playStyleFit` (currently 0.70 / 0.30). The
-  0.30 means a stats-monster with none of the meta PlayStyles tops out around 70; only a
-  near-perfect card in both halves approaches 100.
+**How the score works (v2 - role-aware, rebuilt in v18):**
+- **Stat fit (0-99)** = a weighted average of the six stats, using `STAT_WEIGHTS[pos]`, PLUS the
+  card's weak foot and skill moves folded in as light attributes (`TRAIT_STAT_WEIGHTS`, outfielders
+  only, and only when the app exposes those values).
+- **PlayStyle fit (0-100)** = the card is scored against its BEST-fitting ROLE in that position
+  (each role's ordered priority list in `ROLES`, turned into per-rank weights by `roleWeightsFromList`),
+  and the top-scoring role wins (shown as `(Poacher)` etc. in the hover tooltip). A **PlayStyle+ counts
+  `PSPLUS_MULT`× a basic** (2.5), and **every** meta basic the card owns is counted - the "full marks"
+  ceiling (`psMaxForWeights`) is the best 3 as PS+ plus ALL other role PlayStyles as basics, so a
+  stacked card no longer flatlines at 100.
+- **Rating** = `(1 - OVR_MIX) × (STAT_MIX × statFit + PS_MIX × playStyleFit) + OVR_MIX × OVR`.
+  Currently `STAT_MIX / PS_MIX = 0.50 / 0.50` and `OVR_MIX = 0.05`. Effective weighting is roughly
+  PlayStyles + stats leading, with OVR only a minuscule tiebreak (deliberate: a 97 with poor face
+  stats plays nothing like a 97). Scores carry **one decimal** so near-ties separate.
 
 **Console helpers (read-only):**
 `window.FC26.scorePlayer(it, "ST")`, `window.FC26.metaTop("CB", 10)`,
@@ -664,10 +670,12 @@ new season):
 
 1. **`STAT_WEIGHTS`** - how much each stat counts per position. Numbers are relative, so
    only the ratios matter.
-2. **`PLAYSTYLE_WEIGHTS`** - the meta PlayStyles per position and their points. Add a
-   `"PlayStyle Name": 3` line to value a new one; delete a line to drop one. (The 0-100
-   PlayStyle "ceiling" is derived from these automatically - nothing else to change.)
-3. **`STAT_MIX` / `PS_MIX`** - how hard PlayStyles swing overall. They must add to 1.0.
+2. **`ROLES`** - the ordered priority PlayStyle list per role (this is what the v2 scorer actually
+   uses; `roleWeightsFromList` turns rank into points). `PLAYSTYLE_WEIGHTS` is now only a fallback for
+   a group with no `ROLES` entry. The 0-100 PlayStyle "ceiling" is derived automatically.
+3. **`STAT_MIX` / `PS_MIX`** - how hard PlayStyles swing overall (must add to 1.0). Also
+   **`PSPLUS_MULT`** (how many basics a PlayStyle+ is worth, currently 2.5) and **`OVR_MIX`** (the
+   light OVR tiebreak, currently 0.05 - keep it small).
 
 **After editing any of the above, do BOTH:**
 ```
