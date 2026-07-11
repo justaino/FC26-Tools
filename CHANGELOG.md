@@ -5,6 +5,26 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v19 - 2026-07-11
+
+**Meta rating tuning, an evolved-stats fix, and a couple of lineup touches.**
+
+- **Evolved players now score and display their REAL stats.** The game freezes the plain `attributes`
+  array on a card at its pre-evo (base) values and keeps the live evolved face stats behind a method
+  (`getAttributes()`). The tool was reading the frozen array, so an evo'd card (e.g. a 95 Mainoo whose
+  real stats are 92/89/94/95/95/95) was being scored and shown with its old base numbers. It now reads
+  the live evolved stats, so both the Face-stats grid and the stat half of the Justaino Score are correct.
+- **Meta rating re-tuned** so marquee cards land where you'd expect: in-game OVR now carries **35%** of
+  the score (was a light tiebreak), a PlayStyle+ counts **3.5x** a basic (was 2.5x), and the "full marks"
+  PlayStyle ceiling rewards up to **5** relevant PlayStyle+ - so a card with five useful PS+ genuinely
+  out-scores one with three instead of both maxing out.
+- **Every lineup row shows the player's primary position** as a small badge next to their name (ST, CB,
+  the correct RB/LB or RW/LW side, GK in the accent colour) - not just goalkeepers.
+- **On desktop, the player list now tucks away** (to a "tap to show" stub) when you open Meta rating or
+  Manage eligible rarities, just like it already did on mobile, so the open panel gets the room.
+
+---
+
 ## v18 - 2026-07-11
 
 **Smarter Meta rating (v2): role-aware, PlayStyle-led, and honest about card quality.**

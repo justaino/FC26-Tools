@@ -131,7 +131,7 @@
   // readable source (so a console/test build clearly reads "dev"); when you cut a
   // release, release.js stamps the real "vN" into the built bookmarklet. So an
   // INSTALLED copy shows exactly which published version it is, e.g. "v4".
-  var FC26_VERSION = "dev";
+  var FC26_VERSION = "v19";
 
   var TRAIT_OFFSET = 301;   // traitId = rewardId - 301
   var CAP_PLUS = 3;         // a player can hold at most 3 PlayStyle+  (PS+)
@@ -524,15 +524,23 @@
   var PS_MIX   = 0.50;
 
   // PSPLUS_MULT: how much more a PlayStyle+ counts than the same basic PlayStyle, inside the
-  // PlayStyle score. 2.5 = a PS+ is worth two-and-a-half basics (was 2). Used in BOTH the raw
+  // PlayStyle score. 3.5 = a PS+ is worth three-and-a-half basics (was 3). Used in BOTH the raw
   // score (scorePlayer) and the ceiling (psMaxForWeights) so the 0-100 normalization stays honest.
-  var PSPLUS_MULT = 2.5;
+  // Higher = owning the RIGHT PlayStyle+ (vs a plain basic) matters more.
+  var PSPLUS_MULT = 3.5;
+
+  // PS_CEIL_PLUS: how many of a role's PlayStyles the "full marks" ceiling assumes you own as PS+.
+  // This is the headroom that lets QUANTITY of relevant PS+ matter: with a low ceiling a card that
+  // owns just 3 meta PS+ already saturates at 100, so a card with 5 relevant PS+ scores no higher.
+  // Raising this to 5 lifts the ceiling, so 5 relevant PS+ now clearly out-scores 3. (Was 3.)
+  var PS_CEIL_PLUS = 5;
 
   // OVR_MIX: after the stat/PlayStyle blend, we pull the final rating toward the card's in-game OVR
-  // by this fraction. OVR is a POOR proxy for how a card plays (a 97 can have 50s face stats), so
-  // it is deliberately MINUSCULE - just a hair to break exact ties. At 0.05 it can shift a rating
-  // by at most ~5 points and never overrides the PlayStyle/stat order. Set it to 0 to ignore OVR.
-  var OVR_MIX  = 0.05;
+  // by this fraction. OVR is still an imperfect proxy for how a card plays (a 97 can have 50s face
+  // stats), but the user wants marquee high-OVR cards (e.g. Maradona) to rank up, so we now give it
+  // real weight. At 0.35 the final rating is 65% stat/PlayStyle fit + 35% raw OVR, so a top-OVR card
+  // gets a clear lift without fully overriding the PlayStyle/stat order. Set it to 0 to ignore OVR.
+  var OVR_MIX  = 0.35;
 
   // The order the position dropdown offers, and the value the app has no group for.
   var META_GROUPS = ["ST", "RW / LW", "CAM", "RM / LM", "CM", "CDM", "RB / LB", "CB", "GK"];
@@ -661,15 +669,47 @@
     return groups;
   }
 
+  // shortPos(id): a compact position label for a single position id. For the combined
+  // groups ("RB / LB", "RW / LW", "RM / LM") we split on the side (POS_SIDE) so we show
+  // the actual side the card plays - e.g. id 2 -> "RB", id 7 -> "LB". Central/single
+  // groups (ST, CB, CDM, CM, CAM, GK) are returned as-is.
+  function shortPos(id) {
+    var g = POS_GROUP[id];
+    if (!g) return null;
+    if (g.indexOf(" / ") !== -1) {
+      var parts = g.split(" / ");                 // ["RB","LB"] etc (Right first, Left second)
+      return posSide(id) === "L" ? parts[1] : parts[0];
+    }
+    return g;
+  }
+  // primaryPosLabel(it): the small badge label for a player's MAIN position - their
+  // preferred position if we have it, else the first playable group. Used in the lineup
+  // rows (the same little tag the GK badge used, now shown for every position).
+  function primaryPosLabel(it) {
+    var l = null;
+    try { if (it.preferredPosition != null) l = shortPos(it.preferredPosition); } catch (e) {}
+    if (l) return l;
+    var groups = playerPositionGroups(it);
+    if (!groups.length) return null;
+    var g = groups[0];
+    return (g.indexOf(" / ") !== -1) ? g.split(" / ")[0] : g;
+  }
+
   // ----------------------------------------------------------------------------
   // FEATURE 2 - the scoring engine (reads the two tables above)
   // ----------------------------------------------------------------------------
 
   // readStats(it): the player's 6 stats as a {name: value} object. GK cards get
   // GK stat names; everyone else gets outfield face-stat names.
+  // IMPORTANT: on an evolved card, the plain `it.attributes` array is FROZEN at the
+  // base (pre-evo) values - the game keeps the live evolved 6 face stats behind the
+  // `getAttributes()` method instead (confirmed live: base [77,78,85,87,81,84] vs
+  // evolved [92,89,94,95,95,95]). So we call getAttributes() first and only fall
+  // back to the raw array if that method isn't available on this item.
   function readStats(it) {
-    var a = [];
-    try { a = it.attributes || []; } catch (e) {}
+    var a = null;
+    try { if (typeof it.getAttributes === "function") a = it.getAttributes(); } catch (e) {}
+    if (!a || !a.length) { try { a = it.attributes || []; } catch (e2) { a = []; } }
     var keys = isGKPlayer(it) ? GK_STATS : FACE_STATS;
     var o = {};
     for (var i = 0; i < keys.length; i++) o[keys[i]] = (a[i] != null ? a[i] : 0);
@@ -720,8 +760,8 @@
   function psMaxForWeights(weights) {
     var vals = Object.keys(weights).map(function (k) { return weights[k]; }).sort(function (a, b) { return b - a; });
     var topPlus = 0, restBasic = 0, i;
-    for (i = 0; i < 3 && i < vals.length; i++) topPlus += vals[i];    // best 3 owned as PS+ (the game's PS+ cap)
-    for (i = 3; i < vals.length; i++) restBasic += vals[i];          // EVERY other meta PlayStyle as a basic (no cap)
+    for (i = 0; i < PS_CEIL_PLUS && i < vals.length; i++) topPlus += vals[i];    // best PS_CEIL_PLUS owned as PS+
+    for (i = PS_CEIL_PLUS; i < vals.length; i++) restBasic += vals[i];           // EVERY other meta PlayStyle as a basic (no cap)
     return (topPlus * PSPLUS_MULT + restBasic) || 1;                 // never zero
   }
 
@@ -1693,11 +1733,13 @@
   lineupStub.className = "fc26-liststub";
   lineupStub.style.display = "none";
   lineupStub.addEventListener("click", function () { lineupPeek = true; updateLineupCollapse(); });
-  // updateLineupCollapse(): show the stub (and hide the list) only on mobile with a panel
-  // open and no active peek; otherwise show the list. Also refreshes the stub's count.
+  // updateLineupCollapse(): show the stub (and hide the list) whenever a panel (Manage
+  // eligible rarities or Meta rating) is open and there's no active peek - on BOTH mobile
+  // and desktop, so the open panel gets the room instead of fighting the list for space.
+  // Otherwise show the list. Also refreshes the stub's count.
   function updateLineupCollapse() {
     var panelOpen = (typeof eligOpen !== "undefined" && eligOpen) || (typeof metaOpen !== "undefined" && metaOpen);
-    var collapse = currentMode() === "mobile" && panelOpen && !lineupPeek;
+    var collapse = panelOpen && !lineupPeek;
     playerList.style.display = collapse ? "none" : "";
     lineupStub.style.display = collapse ? "block" : "none";
     if (collapse) {
@@ -1896,15 +1938,17 @@
       var psHTML = psPlus.length
         ? "<span class='pl-ps'>" + psPlus.map(function (p) { return "<i class='ico icon_icontrait" + p.traitId + "'></i>"; }).join("") + "</span>"
         : "";
-      // The right-hand stuff (PS+ icons + GK + rarity) goes in a fixed-width "meta" zone
-      // so the NAME column is the SAME width on every row - a different number of PS+ icons
-      // no longer jitters how much of the name shows. (On mobile the zone just fits content.)
+      // The position badge sits right AFTER the name (like the Meta list) - the name
+      // truncates and the badge stays put, so it never crowds the PS+ icons on the right.
+      var posBadge = (function () { var pp = primaryPosLabel(it); return pp ? "<span class='pl-pos" + (isGKPlayer(it) ? " gk" : "") + "'>" + esc(pp) + "</span>" : ""; })();
+      // The right-hand stuff (PS+ icons + rarity) goes in a fixed-width "meta" zone so the
+      // NAME column is the SAME width on every row - a different number of PS+ icons no
+      // longer jitters how much of the name shows. (On mobile the zone just fits content.)
       row.innerHTML =
         "<span class='pl-rate'>" + (it.rating != null ? it.rating : "?") + "</span>" +
-        "<span class='pl-name'>" + esc(playerName(it)) + "</span>" +
+        "<span class='pl-nameg'><span class='pl-name'>" + esc(playerName(it)) + "</span>" + posBadge + "</span>" +
         "<span class='pl-meta'>" +
           psHTML +
-          (isGKPlayer(it) ? "<span class='pl-gk'>GK</span>" : "") +
           "<span class='pl-rar'>" + esc(rarityName(it)) + "</span>" +
         "</span>";
       // Batch-apply checkbox (prepended). Ticking it adds/removes this player from the
@@ -2992,8 +3036,11 @@
       // Player row: rating | name (flexes) | meta zone (icons + GK + rarity).
       "#fc26-panel .pl-rate{flex:none;min-width:24px;text-align:center;font-weight:700;font-size:15px;color:var(--accent);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .pl-row.on .pl-rate{color:var(--ink)}" +
-      "#fc26-panel .pl-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13.5px;letter-spacing:.03em;text-transform:uppercase}" +
+      "#fc26-panel .pl-nameg{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;overflow:hidden}" +
+      "#fc26-panel .pl-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13.5px;letter-spacing:.03em;text-transform:uppercase}" +
       "#fc26-panel .pl-gk{flex:none;color:var(--accent);font-size:9px;border:1px solid var(--accent);border-radius:4px;padding:0 4px}" +
+      "#fc26-panel .pl-pos{flex:none;font-size:9px;font-weight:800;letter-spacing:.02em;color:var(--muted);border:1px solid var(--field-border);border-radius:4px;padding:0 4px;white-space:nowrap}" +
+      "#fc26-panel .pl-pos.gk{color:var(--accent);border-color:var(--accent)}" +
       "#fc26-panel .pl-meta{flex:none;display:flex;align-items:center;gap:5px;justify-content:flex-end;overflow:hidden}" +
       "#fc26-panel .pl-meta .pl-rar{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:10px;color:var(--muted)}" +
       "#fc26-panel.fc26-desktop .pl-meta{width:86px}" +          // fixed -> consistent name width

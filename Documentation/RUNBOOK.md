@@ -209,13 +209,17 @@ player's real stats and PlayStyles (no external data, no player database).
 - **PlayStyle fit (0-100)** = the card is scored against its BEST-fitting ROLE in that position
   (each role's ordered priority list in `ROLES`, turned into per-rank weights by `roleWeightsFromList`),
   and the top-scoring role wins (shown as `(Poacher)` etc. in the hover tooltip). A **PlayStyle+ counts
-  `PSPLUS_MULT`× a basic** (2.5), and **every** meta basic the card owns is counted - the "full marks"
-  ceiling (`psMaxForWeights`) is the best 3 as PS+ plus ALL other role PlayStyles as basics, so a
-  stacked card no longer flatlines at 100.
+  `PSPLUS_MULT`× a basic** (3.5), and **every** meta basic the card owns is counted - the "full marks"
+  ceiling (`psMaxForWeights`) is the best `PS_CEIL_PLUS` (5) as PS+ plus ALL other role PlayStyles as
+  basics, so a card with five relevant PS+ genuinely out-scores one with three (neither flatlines at 100).
 - **Rating** = `(1 - OVR_MIX) × (STAT_MIX × statFit + PS_MIX × playStyleFit) + OVR_MIX × OVR`.
-  Currently `STAT_MIX / PS_MIX = 0.50 / 0.50` and `OVR_MIX = 0.05`. Effective weighting is roughly
-  PlayStyles + stats leading, with OVR only a minuscule tiebreak (deliberate: a 97 with poor face
-  stats plays nothing like a 97). Scores carry **one decimal** so near-ties separate.
+  Currently `STAT_MIX / PS_MIX = 0.50 / 0.50` and `OVR_MIX = 0.35` (so the final number is 65% stat/
+  PlayStyle fit + 35% raw OVR). The user wanted marquee high-OVR cards to rank up, so OVR now carries
+  real weight rather than being a minuscule tiebreak. Scores carry **one decimal** so near-ties separate.
+- **Stats are read live via `readStats(it)`, which prefers `it.getAttributes()` over the plain
+  `it.attributes` array.** This matters for EVOLVED cards: the game freezes `it.attributes` at the base
+  (pre-evo) values and exposes the true evolved six face stats only through `getAttributes()`. Reading
+  the getter means evo'd cards score (and display) with their real current stats.
 
 **Console helpers (read-only):**
 `window.FC26.scorePlayer(it, "ST")`, `window.FC26.metaTop("CB", 10)`,
@@ -674,8 +678,9 @@ new season):
    uses; `roleWeightsFromList` turns rank into points). `PLAYSTYLE_WEIGHTS` is now only a fallback for
    a group with no `ROLES` entry. The 0-100 PlayStyle "ceiling" is derived automatically.
 3. **`STAT_MIX` / `PS_MIX`** - how hard PlayStyles swing overall (must add to 1.0). Also
-   **`PSPLUS_MULT`** (how many basics a PlayStyle+ is worth, currently 2.5) and **`OVR_MIX`** (the
-   light OVR tiebreak, currently 0.05 - keep it small).
+   **`PSPLUS_MULT`** (how many basics a PlayStyle+ is worth, currently 3.5), **`PS_CEIL_PLUS`** (how many
+   relevant PS+ the "full marks" ceiling assumes, currently 5 - raise it so QUANTITY of relevant PS+
+   matters more), and **`OVR_MIX`** (how much the final rating leans on in-game OVR, currently 0.35).
 
 **After editing any of the above, do BOTH:**
 ```
