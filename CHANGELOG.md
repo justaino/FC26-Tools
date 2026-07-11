@@ -5,6 +5,27 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v16 - 2026-07-11
+
+**Squad Builder: every real formation, correct left/right, and squads that always create.**
+
+- **All the game's formations, in a dropdown.** The builder no longer offers just four hardcoded
+  shapes - it now reads the game's own formation list, so you get every formation the game has
+  (~29), including **both** 4-2-3-1s (the RM/CAM/LM one and the three-CAM one), the four 4-3-3
+  variants, 4-4-1-1, the 5-at-the-back shapes and more. Pick from a tidy dropdown; the pitch and the
+  squad it creates now match exactly what the game expects for that formation.
+- **Wingers and full-backs go on the correct side.** A left-back slot only takes a player who
+  actually plays the left (and the same for RB/LB, RM/LM, RW/LW). A player who plays both sides is
+  still eligible for either. If you're short on one flank (e.g. no left-backs), the builder now says
+  so instead of quietly putting someone on the wrong foot.
+- **No more "1 squad failed" on Create.** Three things that made the game reject a squad are now
+  handled: **loan players** (both the match-count kind and timed/expiring loans like a short-term
+  Icon loan) are left out of the builder; the **same player is never put in one squad twice** (even
+  two different cards/ratings of him - e.g. a 95 and a 92 Courtois); and a squad that hits a
+  transient hiccup is retried automatically. Different squads can still each use that player.
+
+---
+
 ## v15 - 2026-07-11
 
 **The Gauntlet builder is now a full-screen pitch.**

@@ -406,6 +406,14 @@
     24: "ST", 25: "ST", 26: "ST", 27: "RW / LW"
   };
 
+  // POS_SIDE: which FLANK a position id sits on - "R" right, "L" left. Only the two-sided
+  // groups (RB/LB, RM/LM, RW/LW) need this; every other id is central and omitted, so
+  // posSide() returns "C" (no side constraint). Hardcoded from the app's own
+  // window.PlayerPosition enum (discovered live): 2 RWB / 3 RB / 12 RM / 20 RF / 23 RW are
+  // right; 7 LB / 8 LWB / 16 LM / 22 LF / 27 LW are left.
+  var POS_SIDE = { 2: "R", 3: "R", 7: "L", 8: "L", 12: "R", 16: "L", 20: "R", 22: "L", 23: "R", 27: "L" };
+  function posSide(id) { return POS_SIDE[id] || "C"; }
+
   // Recommended playstyles per position/role, in priority order. The top 3 become
   // PS+, the rest basic PlayStyles.
   var ROLES = {"ST":{"Advanced Forward":["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","Gamechanger","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer"],"Target Forward":["Finesse Shot","Enforcer","Precision Header","Low Driven Shot","Incisive Pass","Rapid","First Touch","Gamechanger","Tiki Taka","Press Proven","Pinged Pass"],"Poacher":["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","First Touch","Gamechanger","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer"],"False 9":["Finesse Shot","Incisive Pass","Low Driven Shot","Gamechanger","Rapid","Tiki Taka","Technical","Pinged Pass","Quick Step","Inventive","First Touch"]},"RW / LW":{"Inside Forward":["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive"],"Winger":["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive"],"Wide Playmaker":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive"]},"CAM":{"Shadow Striker":["Finesse Shot","Incisive Pass","Rapid","Low Driven Shot","Technical","Quick Step","Tiki Taka","Gamechanger","First Touch","Pinged Pass","Inventive"],"Playmaker":["Finesse Shot","Incisive Pass","Low Driven Shot","Tiki Taka","Pinged Pass","Technical","Gamechanger","First Touch","Press Proven","Quick Step","Inventive"],"Classic 10":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Press Proven","Quick Step","Inventive"],"Half Winger":["Incisive Pass","Rapid","Technical","Tiki Taka","Pinged Pass","Gamechanger","Quick Step","First Touch","Press Proven","Inventive","Low Driven Shot"]},"CM":{"Box to Box":["Incisive Pass","Pinged Pass","Intercept","Finesse Shot","Tiki Taka","Bruiser","Anticipate","Quick Step","Technical","Relentless","Press Proven"],"Playmaker":["Incisive Pass","Pinged Pass","Finesse Shot","Tiki Taka","Technical","Intercept","Low Driven Shot","Anticipate","First Touch","Quick Step","Inventive"],"Deep Lying Playmaker":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Holding":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Half Winger":["Pinged Pass","Intercept","Quick Step","Tiki Taka","Incisive Pass","Finesse Shot","Anticipate","Technical","Jockey","Bruiser","Rapid"]},"RM / LM":{"Inside Forward":["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive"],"Winger":["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive"],"Wide Playmaker":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive"],"Wide Midfielder":["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Whipped Pass","Jockey","Press Proven"]},"CDM":{"Holding":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Deep Lying Playmaker":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Box Crasher":["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Tiki Taka","Quick Step","Bruiser","Anticipate","Technical","Press Proven","Relentless"],"Centre Half":["Intercept","Bruiser","Jockey","Anticipate","Quick Step","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass"],"Wide Half":["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"]},"RB / LB":{"Fullback":["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"],"Wingback":["Intercept","Pinged Pass","Quick Step","Anticipate","Bruiser","Tiki Taka","Jockey","Incisive Pass","Rapid","Relentless","Press Proven"],"Falseback":["Intercept","Pinged Pass","Anticipate","Jockey","Tiki Taka","Incisive Pass","Bruiser","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Inverted Wingback":["Incisive Pass","Tiki Taka","Quick Step","Intercept","Anticipate","Rapid","Pinged Pass","Jockey","Press Proven","Relentless","Bruiser"],"Attacking Wingback":["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Jockey","First Touch","Bruiser"]},"CB":{"Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],"Stopper":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","Aerial Fortress"],"Wide Back":["Intercept","Anticipate","Quick Step","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],"Ball Playing Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress"]},"GK":{"Goalkeeper":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],"Ball Playing":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],"Sweeper Keeper":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"]}};
@@ -599,14 +607,23 @@
 
   // playerPositionGroups(it): the role groups this player can fill (preferred
   // position first, then alternates), deduped - used to fill the position dropdown.
-  function playerPositionGroups(it) {
+  // playerPositionIds(it): every position id this player can play (preferred position
+  // first, then alternates), deduped. The raw ids feed BOTH the group lookup below and
+  // the side lookup (posSide) used for left/right placement.
+  function playerPositionIds(it) {
     var ids = null;
     try { if (Array.isArray(it.possiblePositions)) ids = it.possiblePositions; } catch (e) {}
     if (!ids) { try { ids = it.getBasePossiblePositions(); } catch (e) {} }
     ids = ids || [];
-    var groups = [];
+    var all = [];
     [it.preferredPosition].concat(ids).forEach(function (id) {
-      if (id == null) return;
+      if (id != null && all.indexOf(id) === -1) all.push(id);
+    });
+    return all;
+  }
+  function playerPositionGroups(it) {
+    var groups = [];
+    playerPositionIds(it).forEach(function (id) {
       var g = POS_GROUP[id];
       if (g && groups.indexOf(g) === -1) groups.push(g);
     });
@@ -770,23 +787,125 @@
   // strings scorePlayer/playerPositionGroups already speak: GK, CB, RB / LB,
   // CDM, CM, RM / LM, CAM, RW / LW, ST). Left/right are merged into one group,
   // exactly like the rest of the tool, so a "RB / LB" slot accepts either side.
-  var FORMATIONS = {
-    "4-3-3":   ["GK", "RB / LB", "CB", "CB", "RB / LB", "CM", "CM", "CM", "RW / LW", "ST", "RW / LW"],
-    "4-4-2":   ["GK", "RB / LB", "CB", "CB", "RB / LB", "RM / LM", "CM", "CM", "RM / LM", "ST", "ST"],
-    "4-2-3-1": ["GK", "RB / LB", "CB", "CB", "RB / LB", "CDM", "CDM", "RM / LM", "CAM", "RM / LM", "ST"],
-    "3-5-2":   ["GK", "CB", "CB", "CB", "RM / LM", "CM", "CM", "CM", "RM / LM", "ST", "ST"]
+  // ---- FORMATION CATALOG (built LIVE from the game) --------------------------
+  // The game owns the real formation definitions (repositories.Squad.getFormations()):
+  // every formation's create() KEY (f.name, e.g. "f4231" vs "f4231a"), its display name,
+  // and its 11 slots IN ORDER - each slot carrying the real position id (0-27). We build
+  // our tables straight from that, so every variant matches the game exactly (both 4-2-3-1s,
+  // the four 4-3-3s, 4-4-1-1, etc.) and create() gets the correct key + slot order.
+  //
+  // The ONE thing the game data does NOT give us is pitch x/y, so POS_COORD supplies a fixed
+  // per-position-id layout (purely cosmetic - just where to draw the dot). Portrait pitch:
+  // GK at the bottom (y=90), strikers at the top (y~15); right side = high x, left = low x.
+  // Keyed by the app's window.PlayerPosition ids (discovered live).
+  var POS_COORD = {
+    0: [50, 90],                                   // GK
+    1: [50, 80],                                   // SW
+    2: [88, 60], 3: [85, 70], 7: [15, 70], 8: [12, 60],   // RWB RB LB LWB
+    4: [64, 76], 5: [50, 78], 6: [36, 76],         // RCB CB LCB
+    9: [63, 60], 10: [50, 62], 11: [37, 60],       // RDM CDM LDM
+    12: [86, 47], 13: [63, 49], 14: [50, 50], 15: [37, 49], 16: [14, 47], // RM RCM CM LCM LM
+    17: [66, 33], 18: [50, 35], 19: [34, 33],      // RAM CAM LAM
+    20: [64, 22], 21: [50, 24], 22: [36, 22], 23: [82, 20], 27: [18, 20], // RF CF LF RW LW
+    24: [62, 15], 25: [50, 14], 26: [38, 15]       // RS ST LS
   };
-  var FORMATION_ORDER = ["4-3-3", "4-4-2", "4-2-3-1", "3-5-2"];
+
+  // These five tables are all REBUILT by buildFormationCatalog() from the live game data.
+  // They start empty and are keyed by the game's formation name (f.name, e.g. "f433").
+  var FORMATION_LABEL = {};   // f-name -> display name ("4-3-3 (2)")   [for the dropdown]
+  var FORMATIONS = {};        // f-name -> [11 position GROUP strings]  [scoring/eligibility]
+  var FORMATION_DOTS = {};    // f-name -> [[slotLabel, x%, y%] x11]    [pitch graphic]
+  var FORMATION_SIDES = {};   // f-name -> [11 sides "R"/"L"/"C"]       [placement gate]
+  var FORMATION_ORDER = [];   // f-names in the game's own display order [dropdown order]
+
+  // buildFormationCatalog(): read the game's formations and (re)fill the tables above.
+  // Returns how many formations were loaded (0 if the game hasn't loaded them yet). Safe to
+  // call repeatedly. We skip any formation with a slot we can't score (unknown group).
+  function buildFormationCatalog() {
+    var list = null;
+    try {
+      var R = window.repositories && window.repositories.Squad;
+      list = (R && R.getFormations) ? R.getFormations() : (R && R.formations);
+    } catch (e) { list = null; }
+    var arr = !list ? [] : (Array.isArray(list) ? list
+      : (typeof list.values === "function" ? Array.from(list.values())
+      : Object.keys(list).map(function (k) { return list[k]; })));
+    var order = [], labels = {}, groups = {}, dots = {}, sides = {};
+    arr.forEach(function (f) {
+      var key = f && f.name;
+      if (!key || !Array.isArray(f.positions) || f.positions.length !== 11) return;
+      var g = [], d = [], sd = [], ok = true;
+      f.positions.forEach(function (p) {
+        var id = p.id;
+        var grp = POS_GROUP[id];
+        if (!grp) { ok = false; return; }          // a slot we can't score - skip the formation
+        g.push(grp);
+        sd.push(posSide(id));
+        var c = POS_COORD[id] || [50, 50];
+        d.push([p.name || grp, c[0], c[1]]);       // slot label (RCB, RM, RS, ...) + coords
+      });
+      if (!ok) return;
+      order.push(key); labels[key] = f.displayName || key; groups[key] = g; dots[key] = d; sides[key] = sd;
+    });
+    if (!order.length) return 0;
+    FORMATION_ORDER = order; FORMATION_LABEL = labels; FORMATIONS = groups; FORMATION_DOTS = dots; FORMATION_SIDES = sides;
+    try { window.FC26.FORMATIONS = FORMATIONS; } catch (e) {}
+    return order.length;
+  }
+  buildFormationCatalog();   // best-effort at load; openBuilder() refreshes it too.
+
+  // formationSides(name): the precomputed L/R side of each of the 11 slots (from position ids).
+  function formationSides(formationName) { return FORMATION_SIDES[formationName] || []; }
+  // fmtFormation(name): the human display name for a formation key (for UI text).
+  function fmtFormation(name) { return FORMATION_LABEL[name] || name; }
   // A full Gauntlet squad is 18 players: 11 starters + 7 subs on the bench.
   var SUBS_PER_SQUAD = 7;
   var SQUAD_SIZE = 11 + SUBS_PER_SQUAD;     // 18
 
-  // Which club players can be used at all: anyone with at least one position
-  // group we know how to score. (playerPositionGroups already maps the item's
-  // positions into our group strings.)
+  // isLoanPlayer(it): true if this is a LOAN or otherwise TIME-LIMITED item that shouldn't go
+  // into a saved squad. Two shapes, both discovered live (all permanent cards use -1 for both):
+  //   1. MATCH-COUNT loan  - it.loans is the number of loan matches left (e.g. Iniesta = 20);
+  //      -1 means "not a match loan".
+  //   2. TIMED loan / expiring item - it.loans is -1 but it.endTime is a real Unix expiry
+  //      timestamp (e.g. Salgado); permanent cards use endTime = -1. This covers timed loans
+  //      whether still active or already expired.
+  // Loan/expired items can make the game reject a whole squad create with error 460, and you
+  // wouldn't want an expiring card in a Gauntlet squad anyway, so we exclude both kinds.
+  function isLoanPlayer(it) {
+    try {
+      if (typeof it.loans === "number" && it.loans > -1) return true;      // match-count loan
+      if (typeof it.endTime === "number" && it.endTime > 0) return true;   // timed / expiring
+      return false;
+    } catch (e) { return false; }
+  }
+
+  // playerKey(it): a stable identity for the underlying PLAYER (not the specific card), used to
+  // stop the same player appearing twice in one squad - the game rejects that create with a 460
+  // (e.g. a 95 and a 92 Courtois). Ideally we'd use the numeric assetId, but on club-search
+  // items it comes back 0/undefined (discovered live), and definitionId/guidAssetId differ per
+  // card version. The ONE thing two versions of a player reliably share here is their NAME, so
+  // we key on firstName+lastName (falling back to the display name). A truthy numeric assetId is
+  // preferred if the app ever populates it; the item id is the last-resort (never de-dupes two
+  // different cards, but is always safe).
+  function playerKey(it) {
+    try { if (it.assetId) return "a" + it.assetId; } catch (e) {}
+    try { if (it._assetId) return "a" + it._assetId; } catch (e) {}
+    try {
+      var sd = it.getStaticData ? it.getStaticData() : it._staticData;
+      if (sd) {
+        var nameKey = ((sd.firstName || "") + "|" + (sd.lastName || "") + "|" + (sd.name || "")).toLowerCase();
+        if (nameKey.replace(/[|]/g, "").trim()) return "n" + nameKey;
+      }
+    } catch (e) {}
+    return "i" + (it && it.id);
+  }
+
+  // Which club players can be used at all: anyone with at least one position group we
+  // know how to score, EXCLUDING loan players (the game won't let a loan item into a
+  // saved squad, so drafting one guarantees a failed create).
   function gauntletPool() {
     return getClubPlayers().filter(function (it) {
-      return playerPositionGroups(it).length > 0;
+      return !isLoanPlayer(it) && playerPositionGroups(it).length > 0;
     });
   }
 
@@ -796,6 +915,21 @@
     return playerPositionGroups(it).indexOf(group) !== -1;
   }
 
+  // canPlaySlot(it, group, side): the placement gate. POS_GROUP merges both flanks into one
+  // group (keeps scoring simple), but a "LB" pitch slot must not take a pure RB. So on top of
+  // canPlayGroup we require, for a SIDED slot, that the player has a position id in THAT group
+  // on THAT side (posSide). A player who plays both sides passes either. Central slots
+  // (side "C") keep the old group-only behaviour.
+  function canPlaySlot(it, group, side) {
+    if (!canPlayGroup(it, group)) return false;
+    if (side === "C" || !side) return true;
+    var ids = playerPositionIds(it);
+    for (var i = 0; i < ids.length; i++) {
+      if (POS_GROUP[ids[i]] === group && posSide(ids[i]) === side) return true;
+    }
+    return false;
+  }
+
   // DEPTH CHECK - run BEFORE building so we never show broken squads.
   // Two tests:
   //   1. Total: the club needs at least 11 * N usable players.
@@ -803,16 +937,23 @@
   //      candidates who can play it. Players overlap groups, so passing this is
   //      necessary but not a hard guarantee; a FAILURE, though, is a real,
   //      specific shortage worth reporting by name.
-  function gauntletDepth(formationSlots, n) {
+  function gauntletDepth(formationSlots, n, sides) {
     var players = gauntletPool();
-    // Count how many of each group the formation asks for.
+    // Count how many of each group+side the formation asks for. Sided slots are keyed
+    // "group|R" / "group|L" so a shortage on ONE flank (e.g. no left-backs) is reported,
+    // not hidden by a healthy count on the other. Central slots key on group alone.
     var need = {};
-    formationSlots.forEach(function (g) { need[g] = (need[g] || 0) + 1; });
+    formationSlots.forEach(function (g, idx) {
+      var side = (sides && sides[idx]) || "C";
+      var key = (side === "C") ? g : (g + "|" + side);
+      need[key] = (need[key] || 0) + 1;
+    });
     var shortages = [];
-    Object.keys(need).forEach(function (g) {
-      var required = need[g] * n;
-      var have = players.filter(function (it) { return canPlayGroup(it, g); }).length;
-      if (have < required) shortages.push({ group: g, required: required, have: have });
+    Object.keys(need).forEach(function (key) {
+      var parts = key.split("|"), g = parts[0], side = parts[1] || "C";
+      var required = need[key] * n;
+      var have = players.filter(function (it) { return canPlaySlot(it, g, side); }).length;
+      if (have < required) shortages.push({ group: (side === "C" ? g : (g + " (" + side + ")")), required: required, have: have });
     });
     return {
       totalNeeded: SQUAD_SIZE * n,       // 18 per squad (11 starters + 7 subs)
@@ -894,23 +1035,29 @@
     if (!formationSlots) return { error: "Unknown formation: " + formationName };
     n = Math.max(1, Math.min(5, n | 0));
 
-    var depth = gauntletDepth(formationSlots, n);
+    // The L/R side each slot demands (central slots = "C", no side gate).
+    var sides = formationSides(formationName);
+    var depth = gauntletDepth(formationSlots, n, sides);
 
     // Pool of available players (we splice out of a working copy as we draft).
     var pool = gauntletPool().slice();
 
     // Order the 11 slots scarcest-first. We keep each slot's ORIGINAL index so
     // the finished squad can be shown back in normal formation order (GK first).
+    // Scarcity is SIDE-aware (canPlaySlot), so a slot with few left-siders sorts early.
     var slotOrder = formationSlots.map(function (group, idx) {
-      var cand = pool.filter(function (it) { return canPlayGroup(it, group); }).length;
-      return { group: group, idx: idx, cand: cand };
+      var side = sides[idx] || "C";
+      var cand = pool.filter(function (it) { return canPlaySlot(it, group, side); }).length;
+      return { group: group, idx: idx, side: side, cand: cand };
     }).sort(function (a, b) { return a.cand - b.cand; });
 
     // Prepare N empty squads. Each has 11 starter slots (by original index) plus a
     // bench that we fill after the XIs are done.
+    // Each squad also carries a `keys` set of the PLAYER identities already in it, so we never
+    // place the same player twice (different cards of one player = a 460 on create).
     var squads = [];
     for (var s = 0; s < n; s++) {
-      squads.push({ slots: new Array(formationSlots.length), fillCount: 0, subs: [] });
+      squads.push({ slots: new Array(formationSlots.length), fillCount: 0, subs: [], keys: new Set() });
     }
 
     // Draft, round by round (one round per formation slot).
@@ -925,7 +1072,8 @@
         // Every available player who can play this slot's group, with their score.
         var cands = [];
         for (var pi = 0; pi < pool.length; pi++) {
-          if (!canPlayGroup(pool[pi], slot.group)) continue;
+          if (!canPlaySlot(pool[pi], slot.group, slot.side)) continue;
+          if (squad.keys.has(playerKey(pool[pi]))) continue;   // already have this player in THIS squad
           cands.push({ i: pi, score: scorePlayer(pool[pi], slot.group).total, group: slot.group });
         }
         // Pick the best by score, with the chem tiebreaker for near-ties.
@@ -936,6 +1084,7 @@
         } else {
           var picked = pool.splice(pick.i, 1)[0];   // remove from the shared pool
           squad.slots[slot.idx] = { group: slot.group, player: picked, score: pick.score };
+          squad.keys.add(playerKey(picked));
           squad.fillCount++;
         }
       });
@@ -956,6 +1105,7 @@
         // Every available player, scored at their strongest role.
         var cands = [];
         for (var pi = 0; pi < pool.length; pi++) {
+          if (squad.keys.has(playerKey(pool[pi]))) continue;   // no duplicate player on this squad's bench
           var bj = bestJustaino(pool[pi]);
           if (!bj) continue;
           cands.push({ i: pi, score: bj.score.total, group: bj.group });
@@ -966,6 +1116,7 @@
         } else {
           var picked = pool.splice(pick.i, 1)[0];
           squad.subs.push({ group: pick.group, player: picked, score: pick.score });
+          squad.keys.add(playerKey(picked));
         }
       });
     }
@@ -991,7 +1142,7 @@
     return { formation: formationName, n: n, slots: formationSlots, squads: squads, depth: depth };
   }
 
-  // Console helpers: window.FC26.buildGauntlet("4-3-3", 3), .FORMATIONS
+  // Console helpers: window.FC26.buildGauntlet("f433", 3), .FORMATIONS
   window.FC26.buildGauntlet = buildGauntlet;
   window.FC26.gauntletDepth = gauntletDepth;
   window.FC26.FORMATIONS = FORMATIONS;
@@ -1003,9 +1154,8 @@
   // Squads screen uses. The whole flow was discovered live: create() is a single call that
   // builds a squad from an ordered item list, and remove() takes the numeric squad id.
 
-  // Our formation name ("4-3-3") -> the game's formation KEY string ("f433"). create() wants the
-  // key, not the numeric id. (Live ids for reference: f433=8, f442=16, f4231=3, f352=27.)
-  var GAME_FORMATION_KEY = { "4-3-3": "f433", "4-4-2": "f442", "4-2-3-1": "f4231", "3-5-2": "f352" };
+  // Formations are now keyed by the game's OWN formation name (f.name, e.g. "f433" / "f4231a"),
+  // which IS exactly what create() wants, so there's no name->key translation to do any more.
   var GAUNTLET_MAX_SQUADS = 30;   // getMaxSquads() live = 30; creation only fills empty slots
   // Every squad we create is named with this prefix, so removal can find OUR squads on ANY
   // device by scanning the live squad list (not by a per-device id that can also renumber
@@ -1042,8 +1192,8 @@
   async function createGameSquad(name, formationName, items) {
     var svc = getServices() && getServices().Squad;
     if (!svc || !svc.create) throw new Error("Squad service unavailable on this page.");
-    var key = GAME_FORMATION_KEY[formationName] || formationName;
-    var resp = await awaitService(svc.create(name, key, items, false));
+    // formationName IS the game's formation key (f.name, e.g. "f4231a") - pass it straight through.
+    var resp = await awaitService(svc.create(name, formationName, items, false));
     var squad = resp && resp.data && resp.data.squad;
     var id = (squad && squad.getId) ? squad.getId() : null;
     return { id: id, squad: squad };
@@ -3264,18 +3414,13 @@
   // opened by a launch button and closed with a back arrow. It reuses buildGauntlet
   // for the draft and createGameSquad/removeGameSquad for the writes.
 
-  // Dot coordinates (x%, y%) per formation, in the SAME slot order as FORMATIONS.
-  // Each entry is [short position label, x, y] on a portrait pitch (GK at the bottom).
-  var FORMATION_DOTS = {
-    "4-3-3":   [["GK",50,90],["RB",84,70],["CB",63,75],["CB",37,75],["LB",16,70],["CM",72,49],["CM",50,53],["CM",28,49],["RW",80,22],["ST",50,15],["LW",20,22]],
-    "4-4-2":   [["GK",50,90],["RB",84,70],["CB",63,75],["CB",37,75],["LB",16,70],["RM",85,46],["CM",60,51],["CM",40,51],["LM",15,46],["ST",62,17],["ST",38,17]],
-    "4-2-3-1": [["GK",50,90],["RB",84,70],["CB",63,75],["CB",37,75],["LB",16,70],["CDM",61,57],["CDM",39,57],["RM",82,33],["CAM",50,37],["LM",18,33],["ST",50,14]],
-    "3-5-2":   [["GK",50,90],["CB",70,77],["CB",50,80],["CB",30,77],["RM",88,50],["CM",66,50],["CM",50,55],["CM",34,50],["LM",12,50],["ST",62,17],["ST",38,17]]
-  };
+  // FORMATION_DOTS (pitch coordinates per slot) is now built LIVE from the game catalog by
+  // buildFormationCatalog() near the top of the file - it's no longer hardcoded here.
   var GT_PITCH_SVG = "<svg viewBox='0 0 68 92' preserveAspectRatio='none' aria-hidden='true'><g fill='none' stroke='rgba(120,180,255,.22)' stroke-width='0.35'><rect x='1.5' y='1.5' width='65' height='89' rx='1.2'/><line x1='1.5' y1='46' x2='66.5' y2='46'/><circle cx='34' cy='46' r='8.5'/><circle cx='34' cy='46' r='0.6' fill='rgba(120,180,255,.22)' stroke='none'/><rect x='15' y='1.5' width='38' height='14'/><rect x='25' y='1.5' width='18' height='5.5'/><rect x='15' y='76.5' width='38' height='14'/><rect x='25' y='85' width='18' height='5.5'/></g></svg>";
 
   var gtBuild = null;          // last buildGauntlet() result (the drafted squads)
-  var gtFormation = FORMATION_ORDER[0];
+  // Default to 4-3-3 (f433) when the game offers it, else the first formation in the catalog.
+  var gtFormation = FORMATIONS["f433"] ? "f433" : FORMATION_ORDER[0];
   var gtCount = 3;
   var gtSquadIdx = 0;          // which squad's pitch is showing
   var gtBenchOpen = false;     // mobile bench collapsible
@@ -3337,6 +3482,7 @@
 
   // doBuild(): run the draft for the current formation + count into gtBuild.
   function doBuild() {
+    if (!FORMATION_ORDER.length || !FORMATIONS[gtFormation]) { gtBuild = { empty: true, noFormations: true }; return; }
     var players = getClubPlayers();
     if (!players.length) { gtBuild = { empty: true }; return; }
     gtBuild = buildGauntlet(gtFormation, gtCount);
@@ -3345,6 +3491,11 @@
 
   function openBuilder() {
     state.builderOpen = true;
+    // Refresh the formation catalog from the game in case it wasn't loaded at script start.
+    // If we now have formations but the current pick isn't valid, re-point to a sensible default.
+    if (buildFormationCatalog() && !FORMATIONS[gtFormation]) {
+      gtFormation = FORMATIONS["f433"] ? "f433" : FORMATION_ORDER[0];
+    }
     doBuild();
     builderHost.style.display = "flex";
     layoutHost.style.display = "none";
@@ -3378,7 +3529,8 @@
     var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>Squad Builder</b>";
     top.appendChild(back); top.appendChild(ttl);
     if (mobile) {
-      top.appendChild(gtSelectEl(FORMATION_ORDER, gtFormation, function (v) { gtFormation = v; onBuildChange(); }));
+      // Formation is a DROPDOWN (29 formations won't fit a segmented control); labelled by display name.
+      top.appendChild(gtSelectEl(FORMATION_ORDER, gtFormation, function (v) { gtFormation = v; onBuildChange(); }, fmtFormation));
       top.appendChild(gtSelectEl([3, 4, 5], gtCount, function (v) { gtCount = parseInt(v, 10); onBuildChange(); }, function (n) { return n + " sq"; }));
     }
     builderHost.appendChild(top);
@@ -3386,7 +3538,8 @@
     if (!mobile) {
       var ctr = document.createElement("div"); ctr.className = "gt-bd-controls";
       ctr.appendChild(gtLab("Form"));
-      ctr.appendChild(gtSegEl(FORMATION_ORDER, gtFormation, function (v) { gtFormation = v; onBuildChange(); }));
+      // Dropdown (not a segmented control) - the full catalog is too long for buttons.
+      ctr.appendChild(gtSelectEl(FORMATION_ORDER, gtFormation, function (v) { gtFormation = v; onBuildChange(); }, fmtFormation));
       ctr.appendChild(gtLab("Squads"));
       ctr.appendChild(gtSegEl([3, 4, 5], gtCount, function (v) { gtCount = v; onBuildChange(); }));
       var grow = document.createElement("span"); grow.style.flex = "1"; ctr.appendChild(grow);
@@ -3429,7 +3582,7 @@
         (function (idx) {
           var sq = (gtBuild && gtBuild.squads) ? gtBuild.squads[idx] : null;
           var b = document.createElement("button"); b.type = "button"; b.className = "gt-tab"; b.setAttribute("aria-selected", String(idx === gtSquadIdx));
-          b.innerHTML = "<div><span class='tn'>Squad " + (idx + 1) + "</span><span class='ta'>" + (sq ? sq.avg : "\u2014") + "</span></div><div class='ts'>" + esc(gtFormation) + "</div>";
+          b.innerHTML = "<div><span class='tn'>Squad " + (idx + 1) + "</span><span class='ta'>" + (sq ? sq.avg : "\u2014") + "</span></div><div class='ts'>" + esc(fmtFormation(gtFormation)) + "</div>";
           b.addEventListener("click", function () { gtSquadIdx = idx; renderGtPitch(); renderGtInfo(); renderGtBench(); renderGtSquadSwitch(); });
           gtEls.tabs.appendChild(b);
         })(i);
@@ -3473,10 +3626,11 @@
     var depthBad = gtBuild && gtBuild.depth && !gtBuild.depth.ok;
     var sq = (gtBuild && gtBuild.squads) ? gtBuild.squads[gtSquadIdx] : null;
     var warn = null;
-    if (empty) { warn = "No club players loaded yet. Close this, tap \u21BB Reload club, then reopen."; }
+    if (empty && gtBuild && gtBuild.noFormations) { warn = "Formations haven't loaded yet. Open the <b>Squads</b> screen in the app once, then reopen this builder."; }
+    else if (empty) { warn = "No club players loaded yet. Close this, tap \u21BB Reload club, then reopen."; }
     else if (depthBad) {
       var d = gtBuild.depth, bits = d.shortages.map(function (s) { return s.group + " (" + s.have + "/" + s.required + ")"; }).join(", ");
-      warn = "<b>Can't build " + gtCount + " full " + esc(gtFormation) + " squads.</b> " +
+      warn = "<b>Can't build " + gtCount + " full " + esc(fmtFormation(gtFormation)) + " squads.</b> " +
         (!d.totalOk ? ("Need " + d.totalNeeded + " players, have " + d.totalHave + ". ") : "") +
         (d.shortages.length ? ("Short at: " + esc(bits) + ". ") : "") + "Try fewer squads or another formation.";
     }
@@ -3552,25 +3706,60 @@
       setGtStatus(gtToast("err", "You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads - room for only " + Math.max(0, GAUNTLET_MAX_SQUADS - have) + " more. Remove some first."));
       return;
     }
-    var lines = squads.map(function (sq, i) { return "  " + (i + 1) + '. "' + GAUNTLET_NAME_PREFIX + (i + 1) + '" (' + formationName + ") - " + sq.filled + " starters + " + sq.subFilled + " subs"; });
+    var fLabel = fmtFormation(formationName);
+    var lines = squads.map(function (sq, i) { return "  " + (i + 1) + '. "' + GAUNTLET_NAME_PREFIX + (i + 1) + '" (' + fLabel + ") - " + sq.filled + " starters + " + sq.subFilled + " subs"; });
     var msg = "Create " + squads.length + " NEW saved squad" + (squads.length === 1 ? "" : "s") + " in your FC web app?\n\n" +
       lines.join("\n") + "\n\n" + (have != null ? ("You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads; this uses " + squads.length + " more.\n") : "") +
       "Your active squad is NOT touched. Undo any time with \"Remove Gauntlet squads\".\n\nContinue?";
     if (!window.confirm(msg)) return;
     state.gtRunning = true; updateBuilderActions();
     var tracked = loadGauntletSquadIds().slice(), okCount = 0, failCount = 0;
+    // Per-squad failure reasons, so the toast can say WHY (not just a count).
+    var fails = [];
+    // Reliability tuning. Squad creates that fire too close together get rejected
+    // (seen as a 460) because EA hasn't finished settling the previous create. So:
+    //   - SETTLE_MS: the normal pause between one create finishing and the next starting.
+    //   - RETRY_ATTEMPTS: how many total tries each squad gets before we give up.
+    //   - RETRY_SETTLE_MS: a longer pause before a RETRY, to let a transient reject clear.
+    var SETTLE_MS = 600, RETRY_ATTEMPTS = 3, RETRY_SETTLE_MS = 1200;
+
+    // createOneSquad(name, squad): create a single squad, auto-retrying on failure with a
+    // longer settle each time. Returns {ok, id, reason}. Only a squad that fails EVERY
+    // attempt is reported as a failure.
+    async function createOneSquad(name, squad, pct) {
+      var lastReason = "?";
+      for (var attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+        if (attempt > 1) {
+          setGtStatus(gtProgress("Retrying " + name + " (try " + attempt + " of " + RETRY_ATTEMPTS + ")\u2026", pct));
+          await sleep(RETRY_SETTLE_MS);
+        }
+        try {
+          var r = await createGameSquad(name, formationName, gauntletItemsForSquad(squad));
+          if (r && r.id != null) return { ok: true, id: r.id };
+          lastReason = "created but no id returned";
+          console.warn("[FC26] squad create returned no id", name, "(try " + attempt + ")", r);
+        } catch (e) {
+          lastReason = errMsg(e);
+          console.warn("[FC26] squad create FAILED", name, "(try " + attempt + ")", "reason=", lastReason, "response=", e);
+        }
+      }
+      return { ok: false, reason: lastReason };
+    }
+
     for (var i = 0; i < squads.length; i++) {
       var name = GAUNTLET_NAME_PREFIX + (i + 1);
-      setGtStatus(gtProgress("Creating " + name + " (" + (i + 1) + "/" + squads.length + ")\u2026", Math.round(i / squads.length * 100)));
-      try {
-        var r = await createGameSquad(name, formationName, gauntletItemsForSquad(squads[i]));
-        if (r && r.id != null) { tracked.push({ id: r.id, name: name }); saveGauntletSquadIds(tracked); okCount++; } else { failCount++; }
-      } catch (e) { failCount++; console.warn("[FC26] squad create failed", name, e); }
-      if (i < squads.length - 1) await sleep(300);
+      var pct = Math.round(i / squads.length * 100);
+      setGtStatus(gtProgress("Creating " + name + " (" + (i + 1) + "/" + squads.length + ")\u2026", pct));
+      var res2 = await createOneSquad(name, squads[i], pct);
+      if (res2.ok) { tracked.push({ id: res2.id, name: name }); saveGauntletSquadIds(tracked); okCount++; }
+      else { failCount++; fails.push({ name: name, reason: res2.reason }); }
+      if (i < squads.length - 1) await sleep(SETTLE_MS);
     }
     state.gtRunning = false;
     await refreshGauntletCount();
-    setGtStatus(gtToast(okCount > 0 ? "ok" : "err", okCount + " squad" + (okCount === 1 ? "" : "s") + " created" + (failCount ? (", " + failCount + " failed") : "") + ". Open Squads to see them."));
+    var failText = fails.length ? (" - " + fails.map(function (f) { return f.name.replace(GAUNTLET_NAME_PREFIX, "#") + ": " + f.reason; }).join("; ")) : "";
+    setGtStatus(gtToast(okCount > 0 && failCount === 0 ? "ok" : "err",
+      okCount + " squad" + (okCount === 1 ? "" : "s") + " created" + (failCount ? (", " + failCount + " failed" + failText) : "") + ". Open Squads to see them."));
   }
 
   // runRemoveGauntlet(): delete every MGFC Gauntlet squad from the live list (device-independent).

@@ -386,6 +386,51 @@ create, and remove are all unchanged (§3g, §3h); this is a redesigned front-en
 
 ---
 
+## 3j. New in v16 - real formations, correct sides, and squads that always create
+
+Three fixes/rewrites to the Squad Builder, all so the squads it builds match what the game will
+actually accept.
+
+**All formations, straight from the game (the dropdown).**
+- The formation list is no longer hardcoded. On load (and each time you open the builder)
+  `buildFormationCatalog()` reads the game's own catalog via `repositories.Squad.getFormations()`
+  and fills five tables, all keyed by the game's formation name (`f.name`, e.g. `f433`, `f4231a`):
+  `FORMATIONS` (11 position-group strings), `FORMATION_DOTS` (pitch coords + slot label per slot),
+  `FORMATION_SIDES` (L/R/C per slot), `FORMATION_LABEL` (display name), `FORMATION_ORDER`.
+- That means **every** formation the game offers is available - ~29 of them, including both
+  **4-2-3-1** variants (the RM/CAM/LM one and the three-CAM `f4231a`), the four 4-3-3s, 4-4-1-1, the
+  5-at-the-back shapes, etc. The picker is now a **dropdown** (desktop and mobile) showing display
+  names via `fmtFormation`.
+- `create()` gets the formation's own name as its key (no translation table), and the slots/pitch
+  are built from `f.positions` in the game's order, so what you build = what the game expects.
+- The one thing the game data lacks is pitch x/y, so `POS_COORD` supplies a fixed per-position-id
+  layout (cosmetic only - just where to draw the dot). To nudge a formation that looks off, edit
+  `POS_COORD` for that position id.
+- If `getFormations()` ever returns empty (formations not loaded), the builder shows "Open the
+  Squads screen once, then reopen" instead of guessing.
+
+**Left/right placement (`canPlaySlot` + `POS_SIDE`).**
+- `POS_GROUP` still merges both flanks into one group for **scoring** (RB / LB, RM / LM, RW / LW),
+  but placement now respects the side. `POS_SIDE` marks the right/left position ids (from the game's
+  `window.PlayerPosition` enum), and `canPlaySlot(it, group, side)` only lets a player into a
+  sided slot if they actually play that side. A both-sided player still qualifies for either. Depth
+  (`gauntletDepth`) is side-aware too, so a shortage on one flank (e.g. no left-backs) is reported.
+
+**Squads that don't get rejected with a 460.**
+- **Loan players are excluded** from the pool (`isLoanPlayer`): match-count loans (`it.loans > -1`,
+  e.g. an Icon loan) *and* timed/expiring loans (`it.endTime > 0`; permanent cards use `-1`). The
+  game refuses a loan in a saved squad, so drafting one guaranteed a failed create.
+- **No duplicate player per squad.** The game rejects a squad with the same player twice (even two
+  different cards/rarities of him). Each squad carries a `keys` set of `playerKey(it)`, and the
+  draft skips a candidate whose player is already in that squad (XI **and** bench). `playerKey`
+  prefers a numeric `assetId` but those come back 0/undefined on club items, so it falls back to the
+  player's `firstName|lastName` from `getStaticData()` - the only identity two card versions reliably
+  share. Different squads can still each have that player.
+- Create also retries a failed squad up to 3× with a longer settle (`RETRY_ATTEMPTS` /
+  `RETRY_SETTLE_MS`) and reports the real per-squad reason in the toast.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
