@@ -450,6 +450,38 @@ actually accept.
 - Create also retries a failed squad up to 3× with a longer settle (`RETRY_ATTEMPTS` /
   `RETRY_SETTLE_MS`) and reports the real per-squad reason in the toast.
 
+## 3k. New in v20 - OVR-aware draft + correct icon chemistry
+
+Two fixes so the builder starts your best cards (see the `CHANGELOG` for the plain-English version):
+- **OVR-aware draft.** The draft ranks by `draftScoreFromScore(sc)` = `DRAFT_OVR_MIX * OVR +
+  (1 - DRAFT_OVR_MIX) * Justaino`, `DRAFT_OVR_MIX = 0.6`. `scorePlayer` / the Meta rating tab are
+  untouched; the Justaino score is still what's displayed. Candidates carry a `disp` (Justaino) field
+  through `chemPick`, stored as `cell.score` so the pitch "JS" and disc-colour tiers stay Justaino.
+- **Icons.** `isIcon(it)` = `it.leagueId === 2118` (discovered live - no `isIcon()` method, and
+  `rareflag` varies per promo). In `chemAffinity`, an icon on either side links every league (+1) and
+  counts double (+2) for its nation; `chemSummary` lifts the real-league bloc by +1 per icon and
+  doubles their nation. The "XI avg" stat is `sq.ovrAvg` (whole-number OVR average of the 11 starters);
+  `sq.avg` is the Justaino-score average, kept for reference.
+
+## 3l. New in v21 - per-squad formations
+
+Each of the N Gauntlet squads can now use its own formation.
+- **Data model.** `gtFormations` is an array (one formation name per squad). `ensureFormations()` fills
+  any missing/invalid entry with the global default `gtFormation` and trims extras when the count
+  shrinks; `setAllFormations(v)` sets `gtFormation` and every entry. `doBuild()` passes the whole array
+  to `buildGauntlet(gtFormations, gtCount)`.
+- **`buildGauntlet(formationInput, n)`** now accepts a formation NAME (broadcast to all) **or** an
+  ARRAY (one per squad); `normFormations` normalises either into N valid names, so the console helper
+  `window.FC26.buildGauntlet("f433", 3)` still works. Each squad carries its own `sq.formation`, and the
+  starter draft gives each squad its own scarcest-first `slotOrder` (still 11 snaked rounds, still
+  no-overlap). `gauntletDepth(formations, n)` sums demand across the per-squad formations.
+- **UI.** The top **"All"** picker calls `setAllFormations` (sets every squad). Desktop: each squad tab
+  (`renderGtSquadSwitch`) is a `<div>` holding a per-squad formation `<select>` (`.gt-tabsel`); its
+  `mousedown`/`click` are stopped so it doesn't re-trigger the tab. Mobile: the number pills pick the
+  squad and a single `.gt-mform` "Squad N formation" `<select>` edits the active one. `renderGtPitch`
+  draws from `FORMATION_DOTS[sq.formation]`, and `runCreateGauntlet` passes `sq.formation` per squad to
+  `createGameSquad` (which already took a formation per squad).
+
 ---
 
 ## 4. The evo-eligible list (important)

@@ -131,7 +131,7 @@
   // readable source (so a console/test build clearly reads "dev"); when you cut a
   // release, release.js stamps the real "vN" into the built bookmarklet. So an
   // INSTALLED copy shows exactly which published version it is, e.g. "v4".
-  var FC26_VERSION = "dev";
+  var FC26_VERSION = "v21";
 
   var TRAIT_OFFSET = 301;   // traitId = rewardId - 301
   var CAP_PLUS = 3;         // a player can hold at most 3 PlayStyle+  (PS+)
@@ -1062,28 +1062,48 @@
     return false;
   }
 
+  // Normalise a formation input into an array of N valid formation names. Accepts a
+  // single string (broadcast to all N squads) or an array (one name per squad); any
+  // missing/invalid entry falls back to the default formation. This is what lets the
+  // whole Squad Builder be per-squad while old callers (and the console helper) can
+  // still pass one formation string.
+  function normFormations(input, n) {
+    var fallback = FORMATIONS["f433"] ? "f433" : (FORMATION_ORDER[0] || null);
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var f = Array.isArray(input) ? input[i] : input;
+      if (!f || !FORMATIONS[f]) f = fallback;
+      out.push(f);
+    }
+    return out;
+  }
+
   // DEPTH CHECK - run BEFORE building so we never show broken squads.
   // Two tests:
-  //   1. Total: the club needs at least 11 * N usable players.
-  //   2. Per group: each group needs (times it appears in the formation) * N
-  //      candidates who can play it. Players overlap groups, so passing this is
-  //      necessary but not a hard guarantee; a FAILURE, though, is a real,
-  //      specific shortage worth reporting by name.
-  function gauntletDepth(formationSlots, n, sides) {
+  //   1. Total: the club needs at least 18 * N usable players (11 starters + 7 subs each).
+  //   2. Per group+side: demand is SUMMED across the per-squad formations (a mix like
+  //      [4-3-3, 3-5-2] asks for different things), so each key needs that summed count
+  //      of candidates who can play it. Players overlap groups, so passing is necessary
+  //      but not a hard guarantee; a FAILURE is a real, specific shortage to report.
+  function gauntletDepth(formations, n) {
     var players = gauntletPool();
-    // Count how many of each group+side the formation asks for. Sided slots are keyed
+    // Sum how many of each group+side the N formations ask for. Sided slots are keyed
     // "group|R" / "group|L" so a shortage on ONE flank (e.g. no left-backs) is reported,
     // not hidden by a healthy count on the other. Central slots key on group alone.
     var need = {};
-    formationSlots.forEach(function (g, idx) {
-      var side = (sides && sides[idx]) || "C";
-      var key = (side === "C") ? g : (g + "|" + side);
-      need[key] = (need[key] || 0) + 1;
-    });
+    for (var s = 0; s < n; s++) {
+      var slots = FORMATIONS[formations[s]] || [];
+      var fsides = formationSides(formations[s]);
+      slots.forEach(function (g, idx) {
+        var side = fsides[idx] || "C";
+        var key = (side === "C") ? g : (g + "|" + side);
+        need[key] = (need[key] || 0) + 1;
+      });
+    }
     var shortages = [];
     Object.keys(need).forEach(function (key) {
       var parts = key.split("|"), g = parts[0], side = parts[1] || "C";
-      var required = need[key] * n;
+      var required = need[key];   // already summed across squads
       var have = players.filter(function (it) { return canPlaySlot(it, g, side); }).length;
       if (have < required) shortages.push({ group: (side === "C" ? g : (g + " (" + side + ")")), required: required, have: have });
     });
@@ -1191,54 +1211,55 @@
     return DRAFT_OVR_MIX * ovr + (1 - DRAFT_OVR_MIX) * sc.total;
   }
 
-  // THE SNAKE DRAFT.
-  // Fill the formation slot by slot (one "round" per slot). In each round every
-  // squad drafts one player for that slot's group; the draft ORDER flips each
-  // round (1..N, then N..1, then 1..N, ...) so no single squad always gets first
-  // pick. Each pick takes the best still-available player (highest OVR-aware draft
-  // score for that group), then removes them from the shared pool so no player is
-  // ever reused across squads. We fill the SCARCEST groups first (fewest
-  // candidates) so tight positions get served before the pool is thinned by easy ones.
-  function buildGauntlet(formationName, n) {
-    var formationSlots = FORMATIONS[formationName];
-    if (!formationSlots) return { error: "Unknown formation: " + formationName };
+  // THE SNAKE DRAFT (per-squad formations).
+  // Each squad can have its OWN formation, so each squad has its OWN slot order (its
+  // formation's 11 slots, scarcest-first in the initial pool). We still run 11 rounds
+  // and snake the SQUAD order each round (1..N, then N..1, ...) so no squad always
+  // picks first; in round r every squad drafts for ITS OWN r-th scarcest slot. Each
+  // pick (highest OVR-aware draft score) is removed from the shared pool, so no player
+  // is reused across squads. `formationInput` is a formation NAME (all squads the same)
+  // or an ARRAY of names (one per squad); a plain string keeps old callers working.
+  function buildGauntlet(formationInput, n) {
     n = Math.max(1, Math.min(5, n | 0));
-
-    // The L/R side each slot demands (central slots = "C", no side gate).
-    var sides = formationSides(formationName);
-    var depth = gauntletDepth(formationSlots, n, sides);
+    var formations = normFormations(formationInput, n);   // -> array of N valid names
+    for (var vi = 0; vi < n; vi++) {
+      if (!FORMATIONS[formations[vi]]) return { error: "Unknown formation: " + formations[vi] };
+    }
+    var depth = gauntletDepth(formations, n);
 
     // Pool of available players (we splice out of a working copy as we draft).
     var pool = gauntletPool().slice();
 
-    // Order the 11 slots scarcest-first. We keep each slot's ORIGINAL index so
-    // the finished squad can be shown back in normal formation order (GK first).
-    // Scarcity is SIDE-aware (canPlaySlot), so a slot with few left-siders sorts early.
-    var slotOrder = formationSlots.map(function (group, idx) {
-      var side = sides[idx] || "C";
-      var cand = pool.filter(function (it) { return canPlaySlot(it, group, side); }).length;
-      return { group: group, idx: idx, side: side, cand: cand };
-    }).sort(function (a, b) { return a.cand - b.cand; });
-
-    // Prepare N empty squads. Each has 11 starter slots (by original index) plus a
-    // bench that we fill after the XIs are done.
-    // Each squad also carries a `keys` set of the PLAYER identities already in it, so we never
-    // place the same player twice (different cards of one player = a 460 on create).
+    // Prepare N squads. Each carries its OWN formation, a slots array sized to that
+    // formation (kept in the formation's original position order, GK first), a `keys`
+    // set (so one player is never placed twice in a squad), and its OWN scarcest-first
+    // slot order. Scarcity is side-aware (canPlaySlot), so a slot with few left-siders
+    // sorts early.
     var squads = [];
     for (var s = 0; s < n; s++) {
-      squads.push({ slots: new Array(formationSlots.length), fillCount: 0, subs: [], keys: new Set() });
+      var fname = formations[s];
+      var fslots = FORMATIONS[fname];
+      var fsides = formationSides(fname);
+      var slotOrder = fslots.map(function (group, idx) {
+        var side = fsides[idx] || "C";
+        var cand = pool.filter(function (it) { return canPlaySlot(it, group, side); }).length;
+        return { group: group, idx: idx, side: side, cand: cand };
+      }).sort(function (a, b) { return a.cand - b.cand; });
+      squads.push({ formation: fname, slots: new Array(fslots.length), fillCount: 0, subs: [], keys: new Set(), slotOrder: slotOrder });
     }
 
-    // Draft, round by round (one round per formation slot).
-    slotOrder.forEach(function (slot, round) {
-      // Flip direction every other round (the "snake").
+    // Draft, round by round. 11 rounds (one starter per squad per round); snake the
+    // squad order each round. In round r each squad drafts for ITS OWN r-th slot.
+    for (var round = 0; round < 11; round++) {
       var order = [];
       for (var i = 0; i < n; i++) order.push(i);
       if (round % 2 === 1) order.reverse();
 
       order.forEach(function (squadIdx) {
         var squad = squads[squadIdx];
-        // Every available player who can play this slot's group, with their score.
+        var slot = squad.slotOrder[round];
+        if (!slot) return;   // every formation has 11 slots, so this is just a guard
+        // Every available player who can play this slot's group+side, with their draft score.
         var cands = [];
         for (var pi = 0; pi < pool.length; pi++) {
           if (!canPlaySlot(pool[pi], slot.group, slot.side)) continue;
@@ -1258,7 +1279,7 @@
           squad.fillCount++;
         }
       });
-    });
+    }
 
     // BENCH DRAFT. After every XI is complete, hand out 7 subs per squad, still
     // snaking so no squad hogs the leftovers. Bench slots aren't position-locked
@@ -1310,7 +1331,7 @@
       sq.chem = chemSummary(squadPlaced(sq));    // biggest league/nation cluster in the 18
     });
 
-    return { formation: formationName, n: n, slots: formationSlots, squads: squads, depth: depth };
+    return { formations: formations, n: n, squads: squads, depth: depth };
   }
 
   // Console helpers: window.FC26.buildGauntlet("f433", 3), .FORMATIONS
@@ -3230,7 +3251,7 @@
       "#fc26-panel .rs-manage-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:6px 9px;cursor:pointer;font-size:11px;font-weight:600}" +
       "#fc26-panel .rs-manage-body{margin-top:8px}" +
       // Pinned mobile mini-spotlight (rating + name + caps), always visible below the tabs.
-      "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-launch-tx b{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:10.5px;color:var(--muted)}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:20px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" + "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
+      "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-launch-tx b{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:10.5px;color:var(--muted)}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:20px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-tabsel{width:100%;margin-top:7px;padding:5px 7px;font-size:11px;font-weight:700}" + "#fc26-panel .gt-mform{flex:none;display:flex;align-items:center;gap:8px;padding-bottom:8px}" + "#fc26-panel .gt-mform-lab{flex:none;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-mform-sel{flex:1;min-width:0}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" + "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
   }
 
@@ -3603,7 +3624,8 @@
 
   var gtBuild = null;          // last buildGauntlet() result (the drafted squads)
   // Default to 4-3-3 (f433) when the game offers it, else the first formation in the catalog.
-  var gtFormation = FORMATIONS["f433"] ? "f433" : FORMATION_ORDER[0];
+  var gtFormation = FORMATIONS["f433"] ? "f433" : FORMATION_ORDER[0];   // GLOBAL default (the top picker; sets every squad)
+  var gtFormations = [];       // per-squad formation names; squad i uses gtFormations[i]
   var gtCount = 3;
   var gtSquadIdx = 0;          // which squad's pitch is showing
   var gtBenchOpen = false;     // mobile bench collapsible
@@ -3663,12 +3685,24 @@
   function gtToast(kind, t) { return "<div class='gt-toast " + kind + "'><span class='gt-badge'>" + (kind === "ok" ? "\u2713" : "!") + "</span><span>" + esc(t) + "</span></div>"; }
   function setGtStatus(html) { if (gtEls.statusEl) gtEls.statusEl.innerHTML = html; }
 
-  // doBuild(): run the draft for the current formation + count into gtBuild.
+  // Per-squad formations. gtFormations[i] is squad i's formation; any missing/invalid entry
+  // (e.g. a squad we just added when the count grew) falls back to the GLOBAL default
+  // gtFormation. The top "All" picker sets every squad; each squad's own dropdown overrides one.
+  function ensureFormations() {
+    for (var i = 0; i < gtCount; i++) {
+      if (!gtFormations[i] || !FORMATIONS[gtFormations[i]]) gtFormations[i] = gtFormation;
+    }
+    gtFormations.length = gtCount;   // trim extras if the count shrank
+  }
+  function setAllFormations(v) { gtFormation = v; for (var i = 0; i < gtCount; i++) gtFormations[i] = v; }
+
+  // doBuild(): run the draft for the current per-squad formations + count into gtBuild.
   function doBuild() {
     if (!FORMATION_ORDER.length || !FORMATIONS[gtFormation]) { gtBuild = { empty: true, noFormations: true }; return; }
     var players = getClubPlayers();
     if (!players.length) { gtBuild = { empty: true }; return; }
-    gtBuild = buildGauntlet(gtFormation, gtCount);
+    ensureFormations();
+    gtBuild = buildGauntlet(gtFormations, gtCount);   // pass the per-squad array
     if (gtSquadIdx >= gtCount) gtSquadIdx = 0;
   }
 
@@ -3713,16 +3747,18 @@
     top.appendChild(back); top.appendChild(ttl);
     if (mobile) {
       // Formation is a DROPDOWN (29 formations won't fit a segmented control); labelled by display name.
-      top.appendChild(gtSelectEl(FORMATION_ORDER, gtFormation, function (v) { gtFormation = v; onBuildChange(); }, fmtFormation));
+      // This top picker is the GLOBAL default: it sets EVERY squad. Per-squad overrides are below the pills.
+      top.appendChild(gtSelectEl(FORMATION_ORDER, gtFormation, function (v) { setAllFormations(v); onBuildChange(); }, fmtFormation));
       top.appendChild(gtSelectEl([3, 4, 5], gtCount, function (v) { gtCount = parseInt(v, 10); onBuildChange(); }, function (n) { return n + " sq"; }));
     }
     builderHost.appendChild(top);
 
     if (!mobile) {
       var ctr = document.createElement("div"); ctr.className = "gt-bd-controls";
-      ctr.appendChild(gtLab("Form"));
+      ctr.appendChild(gtLab("All"));
       // Dropdown (not a segmented control) - the full catalog is too long for buttons.
-      ctr.appendChild(gtSelectEl(FORMATION_ORDER, gtFormation, function (v) { gtFormation = v; onBuildChange(); }, fmtFormation));
+      // GLOBAL default: sets every squad. Each squad's tab has its own override dropdown.
+      ctr.appendChild(gtSelectEl(FORMATION_ORDER, gtFormation, function (v) { setAllFormations(v); onBuildChange(); }, fmtFormation));
       ctr.appendChild(gtLab("Squads"));
       ctr.appendChild(gtSegEl([3, 4, 5], gtCount, function (v) { gtCount = v; onBuildChange(); }));
       var grow = document.createElement("span"); grow.style.flex = "1"; ctr.appendChild(grow);
@@ -3740,6 +3776,8 @@
       builderHost.appendChild(main);
     } else {
       var pills = document.createElement("div"); pills.className = "gt-sqpills"; gtEls.pills = pills; builderHost.appendChild(pills);
+      // Per-squad formation override for the ACTIVE squad (pills are too small to embed a select).
+      var mform = document.createElement("div"); mform.className = "gt-mform"; gtEls.mform = mform; builderHost.appendChild(mform);
       var summary = document.createElement("div"); summary.className = "gt-summary"; gtEls.summary = summary; builderHost.appendChild(summary);
       builderHost.appendChild(gtMkPitch());
       var b2 = document.createElement("div"); b2.className = "gt-bench2";
@@ -3764,10 +3802,20 @@
       for (var i = 0; i < gtCount; i++) {
         (function (idx) {
           var sq = (gtBuild && gtBuild.squads) ? gtBuild.squads[idx] : null;
-          var b = document.createElement("button"); b.type = "button"; b.className = "gt-tab"; b.setAttribute("aria-selected", String(idx === gtSquadIdx));
-          b.innerHTML = "<div><span class='tn'>Squad " + (idx + 1) + "</span><span class='ta'>" + (sq ? sq.ovrAvg : "\u2014") + "</span></div><div class='ts'>" + esc(fmtFormation(gtFormation)) + "</div>";
-          b.addEventListener("click", function () { gtSquadIdx = idx; renderGtPitch(); renderGtInfo(); renderGtBench(); renderGtSquadSwitch(); });
-          gtEls.tabs.appendChild(b);
+          var fname = gtFormations[idx] || gtFormation;
+          // A DIV (not a button) so it can hold a native <select> for this squad's formation.
+          var tab = document.createElement("div"); tab.className = "gt-tab"; tab.setAttribute("aria-selected", String(idx === gtSquadIdx));
+          var hd = document.createElement("div");
+          hd.innerHTML = "<span class='tn'>Squad " + (idx + 1) + "</span><span class='ta'>" + (sq ? sq.ovrAvg : "\u2014") + "</span>";
+          tab.appendChild(hd);
+          // This squad's own formation override (changing it re-drafts and keeps this squad selected).
+          var sel = gtSelectEl(FORMATION_ORDER, fname, function (v) { gtFormations[idx] = v; gtSquadIdx = idx; onBuildChange(); }, fmtFormation);
+          sel.className = "gt-select gt-tabsel";
+          sel.addEventListener("mousedown", function (e) { e.stopPropagation(); });   // don't let the select's click re-trigger the tab
+          sel.addEventListener("click", function (e) { e.stopPropagation(); });
+          tab.appendChild(sel);
+          tab.addEventListener("click", function () { gtSquadIdx = idx; renderGtBody(); });
+          gtEls.tabs.appendChild(tab);
         })(i);
       }
     }
@@ -3781,14 +3829,22 @@
         })(j);
       }
     }
+    // Mobile: a single formation dropdown for the ACTIVE squad, refreshed as the pills change.
+    if (gtEls.mform) {
+      gtEls.mform.innerHTML = "";
+      var lab = document.createElement("span"); lab.className = "gt-mform-lab"; lab.textContent = "Squad " + (gtSquadIdx + 1) + " formation";
+      var msel = gtSelectEl(FORMATION_ORDER, gtFormations[gtSquadIdx] || gtFormation, function (v) { gtFormations[gtSquadIdx] = v; onBuildChange(); }, fmtFormation);
+      msel.className = "gt-select gt-mform-sel";
+      gtEls.mform.appendChild(lab); gtEls.mform.appendChild(msel);
+    }
   }
 
   function renderGtPitch() {
     var pitch = gtEls.pitch; if (!pitch) return;
     Array.prototype.slice.call(pitch.querySelectorAll(".gt-dot")).forEach(function (d) { d.remove(); });
     if (!gtBuild || gtBuild.empty || !gtBuild.squads) return;
-    var coords = FORMATION_DOTS[gtFormation] || [];
     var sq = gtBuild.squads[gtSquadIdx] || gtBuild.squads[0];
+    var coords = FORMATION_DOTS[sq.formation] || [];   // this squad's own formation shape
     coords.forEach(function (c, i) {
       var pos = c[0], x = c[1], y = c[2], cell = sq.slots[i], p = cell && cell.player;
       var d = document.createElement("div");
@@ -3813,9 +3869,9 @@
     else if (empty) { warn = "No club players loaded yet. Close this, tap \u21BB Reload club, then reopen."; }
     else if (depthBad) {
       var d = gtBuild.depth, bits = d.shortages.map(function (s) { return s.group + " (" + s.have + "/" + s.required + ")"; }).join(", ");
-      warn = "<b>Can't build " + gtCount + " full " + esc(fmtFormation(gtFormation)) + " squads.</b> " +
+      warn = "<b>Can't build " + gtCount + " full squads.</b> " +
         (!d.totalOk ? ("Need " + d.totalNeeded + " players, have " + d.totalHave + ". ") : "") +
-        (d.shortages.length ? ("Short at: " + esc(bits) + ". ") : "") + "Try fewer squads or another formation.";
+        (d.shortages.length ? ("Short at: " + esc(bits) + ". ") : "") + "Try fewer squads or different formations.";
     }
     if (gtEls.stats) {
       if (warn) { gtEls.stats.className = "gt-warn2"; gtEls.stats.innerHTML = warn; }
@@ -3883,14 +3939,14 @@
   async function runCreateGauntlet() {
     if (state.gtRunning) return;
     if (!gtBuild || gtBuild.empty || !(gtBuild.depth && gtBuild.depth.ok)) { setGtStatus(gtSline("Nothing to create - pick a formation/count that builds full squads.")); return; }
-    var res = gtBuild, formationName = res.formation, squads = res.squads;
+    var res = gtBuild, squads = res.squads;
     var have = await countSavedSquads();
     if (have != null && (have + squads.length) > GAUNTLET_MAX_SQUADS) {
       setGtStatus(gtToast("err", "You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads - room for only " + Math.max(0, GAUNTLET_MAX_SQUADS - have) + " more. Remove some first."));
       return;
     }
-    var fLabel = fmtFormation(formationName);
-    var lines = squads.map(function (sq, i) { return "  " + (i + 1) + '. "' + GAUNTLET_NAME_PREFIX + (i + 1) + '" (' + fLabel + ") - " + sq.filled + " starters + " + sq.subFilled + " subs"; });
+    // Each squad names its OWN formation in the confirm, since they can differ now.
+    var lines = squads.map(function (sq, i) { return "  " + (i + 1) + '. "' + GAUNTLET_NAME_PREFIX + (i + 1) + '" (' + fmtFormation(sq.formation) + ") - " + sq.filled + " starters + " + sq.subFilled + " subs"; });
     var msg = "Create " + squads.length + " NEW saved squad" + (squads.length === 1 ? "" : "s") + " in your FC web app?\n\n" +
       lines.join("\n") + "\n\n" + (have != null ? ("You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads; this uses " + squads.length + " more.\n") : "") +
       "Your active squad is NOT touched. Undo any time with \"Remove Gauntlet squads\".\n\nContinue?";
@@ -3917,7 +3973,7 @@
           await sleep(RETRY_SETTLE_MS);
         }
         try {
-          var r = await createGameSquad(name, formationName, gauntletItemsForSquad(squad));
+          var r = await createGameSquad(name, squad.formation, gauntletItemsForSquad(squad));
           if (r && r.id != null) return { ok: true, id: r.id };
           lastReason = "created but no id returned";
           console.warn("[FC26] squad create returned no id", name, "(try " + attempt + ")", r);

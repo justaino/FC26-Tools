@@ -108,67 +108,49 @@ const cards = Object.keys(STAT_WEIGHTS).map(positionCard).join("\n");
 const generatedOn = new Date().toISOString().slice(0, 10);
 
 // --- worked example (Maradona at CAM) ---------------------------------------
-// Illustrative inputs, run through the SAME constants/tables as the tool, so the
-// numbers stay consistent whenever the meta is re-tuned and this page regenerated.
+// Uses the tool's OWN two sub-scores for this exact card (stat fit + PlayStyle fit,
+// read from the live app), then blends them through the SAME constants so the final
+// lands on the number the tool actually shows (91.1). The stat fit already folds in
+// skill moves & weak foot, which is why it isn't just a plain six-stat average.
 const EX = {
-  name: "Maradona", ovr: 97, group: "CAM",
-  stats: { pace: 87, shooting: 91, passing: 93, dribbling: 96, defending: 40, physical: 72 },
-  plus: ["Finesse Shot", "Incisive Pass", "Trickster"],   // his PlayStyle+ (meta ones for CAM)
-  basic: ["Technical", "Tiki Taka"]                        // his basic PlayStyles (meta ones for CAM)
+  name: "Maradona", ovr: 97, group: "CAM", role: "Shadow Striker",
+  statScore: 91.8,   // the tool's raw stat fit for this card (weighted stats + skill moves & weak foot)
+  psScore: 84.1      // the tool's PlayStyle fit as a Shadow Striker
 };
-const STAT_ABBR = { pace: "PAC", shooting: "SHO", passing: "PAS", dribbling: "DRI", defending: "DEF", physical: "PHY" };
 const r1 = (x) => Math.round(x * 10) / 10;
 
 function workedExample() {
-  const sw = STAT_WEIGHTS[EX.group];
-  const pw = PLAYSTYLE_WEIGHTS[EX.group] || {};
-
-  // Stat fit: weighted average of the six face stats (skill/weak-foot extras omitted here for clarity).
-  let wsum = 0, vsum = 0;
-  Object.keys(sw).forEach(function (k) { wsum += sw[k]; vsum += sw[k] * (EX.stats[k] || 0); });
-  const statFit = vsum / wsum;
-
-  // PlayStyle fit: PS+ worth PSPLUS_MULT x a basic, measured against the position ceiling.
-  let raw = 0;
-  const plusChips = EX.plus.map(function (n) {
-    const pts = (pw[n] || 0) * PSPLUS_MULT; raw += pts;
-    return '<span class="ex-chip plus">' + esc(n) + '+ <i>+' + r1(pts) + '</i></span>';
-  }).join("");
-  const basicChips = EX.basic.map(function (n) {
-    const pts = (pw[n] || 0); raw += pts;
-    return '<span class="ex-chip basic">' + esc(n) + ' <i>+' + pts + '</i></span>';
-  }).join("");
-  const ceiling = psMaxForGroup(EX.group);
-  const psFit = Math.min(1, raw / ceiling) * 100;
-
-  const meta = Math.min(100, Math.max(0, STAT_MIX * statFit + PS_MIX * psFit));
+  const statPart = STAT_MIX * EX.statScore;
+  const psPart = PS_MIX * EX.psScore;
+  const meta = Math.min(100, Math.max(0, statPart + psPart));   // precise, used for the final blend
   const final = Math.max(0, Math.min(100, (1 - OVR_MIX) * meta + OVR_MIX * EX.ovr));
-
-  const statChips = Object.keys(sw).map(function (k) {
-    return '<span class="ex-chip stat-chip">' + (STAT_ABBR[k] || k) + ' ' + EX.stats[k] + ' <i>&times;' + sw[k] + '</i></span>';
-  }).join("");
+  // Display the halves and meta as whole numbers, exactly like the tool's tooltip
+  // ("meta 88 (stats 46 + PlayStyles 42)") so the shown sum always adds up.
+  const statPartR = Math.round(statPart);
+  const psPartR = Math.round(psPart);
+  const metaDisplay = statPartR + psPartR;
 
   return `
   <div class="sec-title">A worked example - ${esc(EX.name)} at ${esc(EX.group)}</div>
   <div class="example">
-    <p class="ex-intro">Representative figures for a <b>${EX.ovr}</b> ${esc(EX.name)} judged at <b>${esc(EX.group)}</b>. This is the exact maths the tool runs - only the precise stats and PlayStyles change from card to card.</p>
+    <p class="ex-intro">The tool's own figures for a <b>${EX.ovr}</b> ${esc(EX.name)} judged at <b>${esc(EX.group)}</b> (best-fitting role: ${esc(EX.role)}). Both halves come from his real stats and PlayStyles, run through the ${esc(EX.group)} tables below.</p>
 
     <div class="ex-step">
       <div class="ex-h"><span class="ex-num">1</span><span>Stat fit</span><span class="ex-tag stat">${pct(STAT_MIX)}% of the meta half</span></div>
-      <div class="ex-chips">${statChips}</div>
-      <div class="ex-eq">weighted total ${vsum} &divide; total weight ${wsum} = <b class="stat">${r1(statFit)}</b> <span class="ex-small">(skill moves &amp; weak foot nudge this a touch higher)</span></div>
+      <div class="ex-eq">weighted average of his ${esc(EX.group)} stats, plus skill moves &amp; weak foot = <b class="stat">${r1(EX.statScore)}</b></div>
+      <div class="ex-eq ex-sub">&times; ${pct(STAT_MIX)}% = <b>${statPartR}</b> pts of the blend</div>
     </div>
 
     <div class="ex-step">
       <div class="ex-h"><span class="ex-num">2</span><span>PlayStyle fit</span><span class="ex-tag ps">${pct(PS_MIX)}% of the meta half</span></div>
-      <div class="ex-chips">${plusChips}${basicChips}</div>
-      <div class="ex-eq">raw ${r1(raw)} &divide; ${esc(EX.group)} ceiling ${ceiling} = <b class="ps">${r1(psFit)}</b> <span class="ex-small">(a PlayStyle+ is worth ${PSPLUS_MULT}&times; a basic)</span></div>
+      <div class="ex-eq">his meta PlayStyles as a ${esc(EX.role)} = <b class="ps">${r1(EX.psScore)}</b> <span class="ex-small">(a PlayStyle+ is worth ${PSPLUS_MULT}&times; a basic)</span></div>
+      <div class="ex-eq ex-sub">&times; ${pct(PS_MIX)}% = <b>${psPartR}</b> pts of the blend</div>
     </div>
 
     <div class="ex-step">
       <div class="ex-h"><span class="ex-num">3</span><span>Blend, then pull toward OVR</span></div>
-      <div class="ex-eq"><span class="stat">${pct(STAT_MIX)}%&times;${r1(statFit)}</span> + <span class="ps">${pct(PS_MIX)}%&times;${r1(psFit)}</span> = <b>${r1(meta)}</b> meta blend</div>
-      <div class="ex-eq">${pct(1 - OVR_MIX)}%&times;${r1(meta)} + ${pct(OVR_MIX)}%&times;${EX.ovr} OVR = <b class="final">${r1(final)}</b></div>
+      <div class="ex-eq"><span class="stat">${statPartR}</span> + <span class="ps">${psPartR}</span> = <b>${metaDisplay}</b> meta</div>
+      <div class="ex-eq">the ${metaDisplay} meta and ${EX.ovr} OVR, weighted ${pct(1 - OVR_MIX)} / ${pct(OVR_MIX)} = <b class="final">${r1(final)}</b></div>
     </div>
 
     <div class="ex-final">
@@ -248,6 +230,8 @@ const html = `<!DOCTYPE html>
   .ex-eq b.stat, .ex-eq .stat { color:var(--gold); }
   .ex-eq b.ps, .ex-eq .ps { color:var(--emerald); }
   .ex-eq b.final { color:var(--accent); }
+  .ex-eq.ex-sub { font-size:0.88rem; color:var(--muted); margin-top:0; }
+  .ex-eq.ex-sub b { color:var(--text); font-size:1rem; }
   .ex-small { font-family:'Inter',sans-serif; font-weight:400; font-size:0.72rem; color:var(--muted); }
   .ex-final { display:flex; align-items:center; gap:1rem; margin-top:1.25rem; padding-top:1.1rem; border-top:1px solid var(--border); }
   .ex-final-k { font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); line-height:1.5; }

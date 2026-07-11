@@ -5,6 +5,23 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v21 - 2026-07-11
+
+**Per-squad formations in the Squad Builder.**
+
+- **Each Gauntlet squad can now use its own formation** (Squad 1 = 4-3-3, Squad 2 = 4-2-3-1, Squad 3 =
+  3-5-2, and so on) instead of all sharing one. The draft still runs across all squads at once with the
+  same no-overlap and OVR-aware logic, so no player ends up in two squads.
+- **How to set them:** the top **"All"** formation picker sets every squad at once (a quick default),
+  then each squad overrides its own - on desktop via a dropdown on each squad tab, on mobile via a
+  "Squad N formation" dropdown under the number pills. The pitch, the depth check, and the "Create in
+  game" step all respect each squad's own formation.
+
+(Also, off the tool: the "How the meta rating works" page now has a worked Maradona-at-CAM example, and
+its numbers were corrected to match what the tool actually shows - 91.1.)
+
+---
+
 ## v20 - 2026-07-11
 
 **Squad Builder now starts your best cards (icons included) and shows a real squad OVR.**

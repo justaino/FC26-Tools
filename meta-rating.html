@@ -65,6 +65,8 @@
   .ex-eq b.stat, .ex-eq .stat { color:var(--gold); }
   .ex-eq b.ps, .ex-eq .ps { color:var(--emerald); }
   .ex-eq b.final { color:var(--accent); }
+  .ex-eq.ex-sub { font-size:0.88rem; color:var(--muted); margin-top:0; }
+  .ex-eq.ex-sub b { color:var(--text); font-size:1rem; }
   .ex-small { font-family:'Inter',sans-serif; font-weight:400; font-size:0.72rem; color:var(--muted); }
   .ex-final { display:flex; align-items:center; gap:1rem; margin-top:1.25rem; padding-top:1.1rem; border-top:1px solid var(--border); }
   .ex-final-k { font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); line-height:1.5; }
@@ -138,29 +140,29 @@
 
   <div class="sec-title">A worked example - Maradona at CAM</div>
   <div class="example">
-    <p class="ex-intro">Representative figures for a <b>97</b> Maradona judged at <b>CAM</b>. This is the exact maths the tool runs - only the precise stats and PlayStyles change from card to card.</p>
+    <p class="ex-intro">The tool's own figures for a <b>97</b> Maradona judged at <b>CAM</b> (best-fitting role: Shadow Striker). Both halves come from his real stats and PlayStyles, run through the CAM tables below.</p>
 
     <div class="ex-step">
       <div class="ex-h"><span class="ex-num">1</span><span>Stat fit</span><span class="ex-tag stat">50% of the meta half</span></div>
-      <div class="ex-chips"><span class="ex-chip stat-chip">PAC 87 <i>&times;7</i></span><span class="ex-chip stat-chip">SHO 91 <i>&times;7</i></span><span class="ex-chip stat-chip">PAS 93 <i>&times;9</i></span><span class="ex-chip stat-chip">DRI 96 <i>&times;9</i></span><span class="ex-chip stat-chip">DEF 40 <i>&times;2</i></span><span class="ex-chip stat-chip">PHY 72 <i>&times;4</i></span></div>
-      <div class="ex-eq">weighted total 3315 &divide; total weight 38 = <b class="stat">87.2</b> <span class="ex-small">(skill moves &amp; weak foot nudge this a touch higher)</span></div>
+      <div class="ex-eq">weighted average of his CAM stats, plus skill moves &amp; weak foot = <b class="stat">91.8</b></div>
+      <div class="ex-eq ex-sub">&times; 50% = <b>46</b> pts of the blend</div>
     </div>
 
     <div class="ex-step">
       <div class="ex-h"><span class="ex-num">2</span><span>PlayStyle fit</span><span class="ex-tag ps">50% of the meta half</span></div>
-      <div class="ex-chips"><span class="ex-chip plus">Finesse Shot+ <i>+14</i></span><span class="ex-chip plus">Incisive Pass+ <i>+14</i></span><span class="ex-chip plus">Trickster+ <i>+7</i></span><span class="ex-chip basic">Technical <i>+3</i></span><span class="ex-chip basic">Tiki Taka <i>+3</i></span></div>
-      <div class="ex-eq">raw 41 &divide; CAM ceiling 53.5 = <b class="ps">76.6</b> <span class="ex-small">(a PlayStyle+ is worth 3.5&times; a basic)</span></div>
+      <div class="ex-eq">his meta PlayStyles as a Shadow Striker = <b class="ps">84.1</b> <span class="ex-small">(a PlayStyle+ is worth 3.5&times; a basic)</span></div>
+      <div class="ex-eq ex-sub">&times; 50% = <b>42</b> pts of the blend</div>
     </div>
 
     <div class="ex-step">
       <div class="ex-h"><span class="ex-num">3</span><span>Blend, then pull toward OVR</span></div>
-      <div class="ex-eq"><span class="stat">50%&times;87.2</span> + <span class="ps">50%&times;76.6</span> = <b>81.9</b> meta blend</div>
-      <div class="ex-eq">65%&times;81.9 + 35%&times;97 OVR = <b class="final">87.2</b></div>
+      <div class="ex-eq"><span class="stat">46</span> + <span class="ps">42</span> = <b>88</b> meta</div>
+      <div class="ex-eq">the 88 meta and 97 OVR, weighted 65 / 35 = <b class="final">91.1</b></div>
     </div>
 
     <div class="ex-final">
       <div class="ex-final-k">Justaino Score<span>Maradona at CAM</span></div>
-      <div class="ex-final-v">87.2</div>
+      <div class="ex-final-v">91.1</div>
     </div>
   </div>
 
