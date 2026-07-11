@@ -517,7 +517,8 @@
   }
 
   function copyCode(btnId) {
-    navigator.clipboard.writeText(CODE).then(() => {
+    // Show the green "Copied!" state on the button, then restore it after a moment.
+    const flash = function () {
       const btn = document.getElementById(btnId);
       btn.classList.add('copied');
       btn.innerHTML = '<span>✓</span> Copied!';
@@ -525,23 +526,23 @@
         btn.classList.remove('copied');
         btn.innerHTML = '<span>📋</span> Copy the bookmarklet code';
       }, 2500);
-    }).catch(() => {
-      // Fallback for older browsers
+    };
+    // The modern clipboard API (navigator.clipboard) only exists on a secure
+    // (HTTPS) origin. Over plain http:// it is undefined, so we must guard it -
+    // reading .writeText off undefined would throw before the .catch() runs.
+    // When it's missing we fall back to the old textarea + execCommand('copy'),
+    // which works on http:// too.
+    const p = navigator.clipboard ? navigator.clipboard.writeText(CODE) : Promise.reject();
+    p.then(flash).catch(() => {
       const ta = document.createElement('textarea');
       ta.value = CODE;
       ta.style.position = 'fixed';
       ta.style.opacity = '0';
       document.body.appendChild(ta);
       ta.select();
-      document.execCommand('copy');
+      try { document.execCommand('copy'); } catch (e) {}
       document.body.removeChild(ta);
-      const btn = document.getElementById(btnId);
-      btn.classList.add('copied');
-      btn.innerHTML = '<span>✓</span> Copied!';
-      setTimeout(() => {
-        btn.classList.remove('copied');
-        btn.innerHTML = '<span>📋</span> Copy the bookmarklet code';
-      }, 2500);
+      flash();
     });
   }
 
