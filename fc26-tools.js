@@ -131,7 +131,7 @@
   // readable source (so a console/test build clearly reads "dev"); when you cut a
   // release, release.js stamps the real "vN" into the built bookmarklet. So an
   // INSTALLED copy shows exactly which published version it is, e.g. "v4".
-  var FC26_VERSION = "v20";
+  var FC26_VERSION = "dev";
 
   var TRAIT_OFFSET = 301;   // traitId = rewardId - 301
   var CAP_PLUS = 3;         // a player can hold at most 3 PlayStyle+  (PS+)
