@@ -230,7 +230,8 @@
   <p class="lede">
     A floating panel for the EA FC 26 Web App that turns evolving your club into a
     couple of clicks - pick a player, tick the PlayStyles you want, and apply them
-    all at once. Built for Men Gallant FC.
+    all at once. It also ranks your club by position, manages your evolutions, and
+    builds full Gauntlet squads on a pitch. Built for Men Gallant FC.
   </p>
 
   <!-- Safety note -->
@@ -244,7 +245,7 @@
   <!-- 1. Overview / picker -->
   <section class="feature">
     <div class="shot">
-      <img src="screenshots/overview.png" alt="The tool's desktop panel: club list with players selected, a preview card, and the PlayStyle grid"
+      <img src="screenshots/overview.png" alt="The tool's desktop panel: club list on the left, a player preview card in the middle, and the PlayStyle deck on the right"
            onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','overview.png');this.remove();">
     </div>
     <div class="copy">
@@ -253,7 +254,7 @@
       <ul>
         <li><b>Loads every player</b> <span>in your club - not just your active squad - with instant search by name and a one-tap reload.</span></li>
         <li><b>A preview card for the picked player</b> <span>shows rating, rarity and positions, plus capacity “pips” for your 3 PlayStyle+ / 8 basic slots and the styles it already has as icon chips.</span></li>
-        <li><b>Evo-eligible filter</b> <span>- an “Only evo-eligible” toggle hides cards that can't take evos, and it learns which rarities work as you go.</span></li>
+        <li><b>Only evo-eligible</b> <span>- a single toggle hides cards that can't take evos, and it learns which rarities work as you go.</span></li>
       </ul>
     </div>
   </section>
@@ -261,7 +262,7 @@
   <!-- 2. Suggest + apply -->
   <section class="feature">
     <div class="shot">
-      <img src="screenshots/apply.png" alt="PlayStyles applying one by one, each tile ticking green, with a Stop button and live progress"
+      <img src="screenshots/apply.png" alt="PlayStyles applying one by one on the Review step, each tile ticking green, with a delay box, a Stop button and a live 6 of 11 counter"
            onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','apply.png');this.remove();">
     </div>
     <div class="copy">
@@ -269,7 +270,7 @@
       <h2>Smart Suggest &amp; one-click apply</h2>
       <ul>
         <li><b>✨ Suggest</b> <span>picks the recommended PlayStyles for a chosen position and role (best ones as PlayStyle+). If the player already owns a top pick, it falls through to the next best so every slot gets filled.</span></li>
-        <li><b>Apply them all at once</b> <span>- each tile spins then ticks as it lands, with a live “7/11” counter and a summary at the end.</span></li>
+        <li><b>Apply them all at once</b> <span>- each tile spins then ticks as it lands, with a live “6/11” counter and a summary at the end.</span></li>
         <li><b>You stay in control</b> <span>- set a delay between applies, and hit <b>Stop</b> at any time. Owned styles and caps are respected automatically.</span></li>
         <li><b>No page reload</b> <span>- the card refreshes itself the moment a style lands.</span></li>
       </ul>
@@ -279,7 +280,7 @@
   <!-- 3. Batch -->
   <section class="feature">
     <div class="shot">
-      <img src="screenshots/batch.png" alt="Three players ticked for batch apply, with a roll-call of who the PlayStyles will go to"
+      <img src="screenshots/batch.png" alt="Several club players ticked with a highlighted bar reading 2 selected for batch apply"
            onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','batch.png');this.remove();">
     </div>
     <div class="copy">
@@ -293,61 +294,27 @@
     </div>
   </section>
 
-  <!-- 4. Manage / undo -->
+  <!-- 4. Manage / undo / eligibility -->
   <section class="feature">
     <div class="shot">
-      <img src="screenshots/remove.png" alt="A fully-evolved card with all slots filled, plus Remove Latest Evo and Clear all evos buttons and a success summary"
-           onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','remove.png');this.remove();">
+      <img src="screenshots/manage.png" alt="The Manage eligible rarities panel expanded, with a search box, an Update to OG list button, a pending change and Save changes, next to a card's Remove Latest Evo and Clear all evos buttons"
+           onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','manage.png');this.remove();">
     </div>
     <div class="copy">
       <div class="eyebrow">Change your mind? No problem</div>
-      <h2>Manage &amp; undo evolutions</h2>
+      <h2>Manage, undo &amp; fine-tune eligibility</h2>
       <ul>
         <li><b>Remove Latest Evo</b> <span>peels off the most recent upgrade,</span> <b>Clear all evos</b> <span>rolls a card all the way back - both ask you to confirm first and show live progress.</span></li>
-        <li><b>See exactly what a card has</b> <span>- the pips and chips make it obvious how many slots are used and which styles are on.</span></li>
-        <li><b>A friendly summary</b> <span>after every run: “Added 11 to Ito”, with the full list of what went on.</span></li>
+        <li><b>Manage eligible rarities</b> <span>- search, tick and save exactly which card types the “Only evo-eligible” filter trusts, then “Update to OG list” to lock in your set.</span></li>
+        <li><b>A friendly summary</b> <span>after every run: “Added 11 to Lukić”, with the full list of what went on.</span></li>
       </ul>
     </div>
   </section>
 
-  <!-- 5. Responsive -->
+  <!-- 5. Meta rating -->
   <section class="feature">
     <div class="shot">
-      <img src="screenshots/mobile.png" alt="The tool on a phone as a step-by-step wizard with a 1-2-3 progress bar"
-           onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','mobile.png');this.remove();">
-    </div>
-    <div class="copy">
-      <div class="eyebrow">Wherever you play</div>
-      <h2>Made for desktop <em>and</em> phone</h2>
-      <ul>
-        <li><b>On a computer</b> <span>it's a two-pane console you can drag around and resize to taste.</span></li>
-        <li><b>On a phone</b> <span>it becomes a simple step-by-step wizard - Player → PlayStyles → Apply - so it's easy to use one-handed.</span></li>
-        <li><b>An emerald frosted-glass look</b> <span>that sits neatly over the Web App.</span></li>
-      </ul>
-    </div>
-  </section>
-
-  <!-- 6. Minimise -->
-  <section class="feature">
-    <div class="shot">
-      <img src="screenshots/minimised.png" alt="The tool collapsed into a small pill in the bottom corner, with buttons to expand or close it"
-           onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','minimised.png');this.remove();">
-    </div>
-    <div class="copy">
-      <div class="eyebrow">Never blocks your view</div>
-      <h2>Tuck it into a corner pill</h2>
-      <ul>
-        <li><b>Minimise anytime</b> <span>and the whole panel collapses to a small pill, so it never gets in the way of the game.</span></li>
-        <li><b>Great on mobile</b> <span>- shrink it out of sight to see the full screen, then tap the + to bring it straight back (or the × to close it).</span></li>
-        <li><b>Drag the pill</b> <span>wherever it's least in the way; it remembers where you left it.</span></li>
-      </ul>
-    </div>
-  </section>
-
-  <!-- 7. Meta rating -->
-  <section class="feature">
-    <div class="shot">
-      <img src="screenshots/meta.png" alt="The Meta rating panel ranking club players for a position, each with a 0-100 score, and the Justaino rating pill on a player's card"
+      <img src="screenshots/meta.png" alt="The Meta rating panel ranking club strikers, each with a 0-100 score split into stat fit plus PlayStyle bonus, next to a player's preview card"
            onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','meta.png');this.remove();">
     </div>
     <div class="copy">
@@ -358,6 +325,57 @@
         <li><b>Rank your whole club for a position</b> <span>- pick ST, CB, GK and so on, and see your best options in order, with the stat / PlayStyle split behind each score.</span></li>
         <li><b>PlayStyles matter, a lot</b> <span>- 30% of the score is locked behind meta PlayStyles (PlayStyle+ counts double), so a lower-rated card with the right styles can outrank a shinier one.</span></li>
         <li><b>Nothing hidden</b> <span>- <a href="meta-rating.html" style="color:var(--emerald);text-decoration:none;border-bottom:1px solid rgba(79,227,172,0.4)">see the exact weights for every position →</a></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 6. Squad Builder / Gauntlet -->
+  <section class="feature">
+    <div class="shot">
+      <img src="screenshots/squad-builder.png" alt="The Squad Builder: a full 11-a-side lineup laid out on a pitch, five squad tabs across the top, an XI average and placed count, a bench, and a Create 5 in game button"
+           onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','squad-builder.png');this.remove();">
+    </div>
+    <div class="copy">
+      <div class="eyebrow">New: build for the Gauntlet</div>
+      <h2>Squad Builder on a pitch</h2>
+      <ul>
+        <li><b>No-overlap Gauntlet squads</b> <span>- ask for 3, 4 or 5 squads and it splits your club so no player is used twice, then lays each one out on a full pitch.</span></li>
+        <li><b>Pick any formation</b> <span>- choose from the game's own formation list, and it places every player in the right slot with their best rating on show.</span></li>
+        <li><b>Create them in the game</b> <span>- one “Create in game” button builds the lot for real (loan and timed players left out), and “Remove Gauntlet squads” cleans them up again.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 7. Responsive -->
+  <section class="feature">
+    <div class="shot">
+      <img src="screenshots/mobile.png" alt="The tool on a phone as a step-by-step wizard: Lineup, PlayStyle Deck and Review tabs across the top, with the deck open and a Suggest button"
+           onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','mobile.png');this.remove();">
+    </div>
+    <div class="copy">
+      <div class="eyebrow">Wherever you play</div>
+      <h2>Made for desktop <em>and</em> phone</h2>
+      <ul>
+        <li><b>On a computer</b> <span>it's a three-pane console you can drag around and resize to taste.</span></li>
+        <li><b>On a phone</b> <span>it becomes a simple step-by-step wizard - Lineup → PlayStyle Deck → Review - so it's easy to use one-handed.</span></li>
+        <li><b>A frosted-glass look</b> <span>that sits neatly over the Web App, on either screen.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 8. Minimise + themes -->
+  <section class="feature">
+    <div class="shot">
+      <img src="screenshots/minimised.png" alt="The tool collapsed into a small pill in the corner of the Home screen, with buttons to expand or close it"
+           onerror="this.parentNode.classList.add('ph');this.parentNode.setAttribute('data-ph','minimised.png');this.remove();">
+    </div>
+    <div class="copy">
+      <div class="eyebrow">Never blocks your view</div>
+      <h2>Tuck it away, in your colours</h2>
+      <ul>
+        <li><b>Minimise anytime</b> <span>and the whole panel collapses to a small pill, so it never gets in the way of the game. Tap the + to bring it back or the × to close it.</span></li>
+        <li><b>Pick a theme</b> <span>- a dropdown in the header switches the whole panel's colours (Prime Teal, UCL Night and more) to suit your mood.</span></li>
+        <li><b>Great on mobile too</b> <span>- shrink it out of sight to see the full screen, then bring it straight back when you need it.</span></li>
       </ul>
     </div>
   </section>

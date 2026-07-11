@@ -6,21 +6,21 @@ and shows a placeholder box for any that aren't here yet - so nothing breaks if 
 is missing.
 
 Capture tips: take them on the **EA FC 26 Web App** with the tool's panel open, and
-**crop tightly to the panel** (the emerald frosted-glass box), not the whole screen.
-Desktop shots unless a row says "phone".
+**crop tightly to the panel** (the frosted-glass box), not the whole screen. Desktop
+shots unless a row says "phone".
 
-Only **5** shots (3 required, 2 optional) - the desktop panel shows many features at
-once, so one image covers several. The Features page groups the related features
-around each screenshot.
+There are **8** shots, one per feature block on the page (in page order):
 
-| Filename | Required? | What it should show (and which features it covers) |
+| Filename | Shot | What it should show (and which feature it covers) |
 |---|---|---|
-| `overview.png` | ✅ Required | The **full desktop panel** (two-pane Split Console). Set it up so ONE frame shows as much as possible: a few players in the list with **a couple of checkboxes ticked** (picker + multi-select), the **search box** with text, the **preview card** (rating, pips, current-PlayStyle chips), the **✨ Suggest** row with a position+role chosen, and the **PlayStyle grid** with a few tiles ticked. This one image carries picker, search, multi-select, preview, Suggest and the PlayStyle grid. |
-| `apply.png` | ✅ Required | An **Apply result** - the "Added N to <player>" summary with the chips (or mid-apply with tiles ticking). Shows the one-click apply + progress. |
-| `mobile.png` | ✅ Required | **Phone view** - the mobile "Wizard" (the 1-2-3 step indicator at the top with one step's content). Capture on your phone. Shows the responsive layout. |
-| `batch.png` | Optional | **Batch apply results** - the per-player sections after applying to several ticked players (added / skipped per player). Skip if the overview already sells multi-select. |
-| `remove.png` | Optional | The **Remove / reset** controls ("Remove Latest Evo" + "Clear all evos"), ideally mid-confirm or with the progress spinner. |
-| `minimised.png` | Optional | The panel **minimised** to a small pill in the corner (with the + / × buttons). Shows the minimise feature. |
+| `overview.png` | Desktop | The **full three-pane console** - club list (with "Only evo-eligible"), the player preview card, and the PlayStyle deck with Suggest. Carries picker, search, preview and the deck. |
+| `apply.png` | Phone | The **Review step mid-apply** - tiles ticking green, the delay box, a **Stop** button and a live "6/11" counter. Shows one-click apply + progress. |
+| `batch.png` | Phone | The Lineup step with **several players ticked** and the "N selected for batch apply" bar. Shows multi-select / batch. |
+| `manage.png` | Desktop | **Manage eligible rarities** expanded (search, "Update to OG list", a pending change, Save) next to a card's **Remove Latest Evo / Clear all evos** buttons. Covers undo + eligibility. |
+| `meta.png` | Desktop | The **Meta rating** list ranking a position (e.g. ST, top 20), each row scored as stat fit + PlayStyle bonus. Shows the Justaino Rating. |
+| `squad-builder.png` | Desktop | The **Squad Builder** - a full lineup on a pitch, the squad tabs, XI average / placed count, bench, and the **Create in game** button. Shows the Gauntlet builder. |
+| `mobile.png` | Phone | The **mobile wizard** - the Lineup / PlayStyle Deck / Review tabs with the deck open and a **Suggest** button. Shows the responsive layout. |
+| `minimised.png` | Desktop | The panel **minimised** to a small pill in the corner (with the + / × buttons). Shows minimise (and, in the header, the theme picker). |
 
 Missing files just show a labelled placeholder, so you can add them in any order.
 Want an extra shot featured? Drop it in and tell me the filename.
