@@ -484,6 +484,32 @@ Each of the N Gauntlet squads can now use its own formation.
 
 ---
 
+## 3m. New in v23 - instant refresh after apply / remove (how it works)
+
+Applied and removed evos now update the card on screen straight away, without a manual
+`↻ Reload club`. This matters most on mobile, where the old approach often didn't update at all.
+
+- **The old bug.** After an apply, the tool used to call `loadFullClub()` (the app's `Club.search`)
+  to pull the card back with its new PlayStyles. But once your club is in memory, that search
+  **caches the whole club and keeps serving the pre-evo copy**, so the card looked unchanged until a
+  later manual reload happened to catch a refresh.
+- **The fix - use the service response.** `services.Academy.addItemToSlot(...)` (our `applyEvo`)
+  returns the freshly-graded card at **`res.data.updatedItem`** (confirmed live; the response's
+  `data` keys are `activeSlots / inactiveSlots / isMaximumNumberOfSlotsReached / updatedItem /
+  objectiveUpdates`). `applyUpdatedItem(res)` pulls that item out, and `upsertClubItem(item)` drops
+  it into our `state.clubItems` snapshot (replacing the old copy by id). So the list + preview redraw
+  from the response itself - no dependence on the cached search. `runSingle`, `runBatch`, and
+  `runRemove` all do this; they only fall back to the old reload-and-poll loop if a response somehow
+  carries no usable item.
+- **`upsertClubItem` on mobile.** If our snapshot is empty/thin (the full club can be slow to load on
+  a phone, so the list is served from the app's own collection), it seeds `state.clubItems` from
+  `repositories.Item.getClub()` first, then replaces the one applied card - otherwise it would collapse
+  the list to a single player.
+- **Removal responses.** `removeEvoUpgrade` is read the same way (`res.data` first, `res.response` as a
+  fallback) for both the reverted card and the `lastEvoRemoved` flag.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
@@ -794,6 +820,7 @@ edits + regenerate + rebuild for you.
 | Panel won't open / looks half-styled | Click the bookmark again (it rebuilds); if still stuck, hard reset (§2). |
 | New colours didn't apply | Re-click the bookmark - it now re-injects styles every time. |
 | "No club players found" | Open your Club in the app, then click `↻ Reload club`. |
+| Applied evo doesn't show on the card | Fixed in v23 (reads the apply response directly). If it recurs, click `↻ Reload club` - and check you're on the latest bookmarklet. |
 | An apply fails with `460 ineligible` | That card can't take that PlayStyle (already has it, capped, or rarity/OVR not allowed). Normal for non-eligible cards. |
 | Eligible filter shows a card that won't evo | Select it → **Remove** on its card (the seed was a guess). |
 | Console prints `undefined` | That's just the Console echoing "no return value" - look at the lines above it. |
