@@ -2453,8 +2453,54 @@
     } catch (e) {}
   }
   // findPlayerById(id): re-locate the player after a run so the preview reflects
-  // its new PlayStyles.
-  function findPlayerById(id) { return getClubPlayers().filter(function (p) { return p.id === id; })[0]; }
+  // its new PlayStyles. First checks our loaded snapshot (state.clubItems); if it's
+  // not there (e.g. a card just re-added to the club that our snapshot missed), falls
+  // back to reading the app's OWN live club collection directly.
+  function findPlayerById(id) {
+    var hit = getClubPlayers().filter(function (p) { return p.id === id; })[0];
+    if (hit) return hit;
+    try {
+      var c = window.repositories.Item.getClub();
+      var raw = (c && c.items && typeof c.items.values === "function") ? Array.from(c.items.values()) : [];
+      return raw.filter(function (p) { try { return p && p.id === id && p.isPlayer && p.isPlayer(); } catch (e) { return false; } })[0];
+    } catch (e) { return undefined; }
+  }
+
+  // upsertClubItem(item): drop a fresh item entity into our snapshot (state.clubItems),
+  // replacing the old copy with the same id (or appending if new). We use this to plant
+  // the freshly-graded card the apply call hands back, so the picker/preview update WITHOUT
+  // waiting on a club re-search (see applyUpdatedItem below).
+  function upsertClubItem(item) {
+    if (!item || item.id == null) return;
+    // If our snapshot is empty/thin (common on mobile, where the full club can be slow to
+    // load and the list is being served from the app's OWN collection instead), seed it from
+    // that collection FIRST. Otherwise pushing the single fresh card would collapse the list
+    // to one player and hide everyone else.
+    if (!state.clubItems || !state.clubItems.length) {
+      try {
+        var c = window.repositories.Item.getClub();
+        state.clubItems = (c && c.items && typeof c.items.values === "function") ? Array.from(c.items.values()) : (state.clubItems || []);
+      } catch (e) { state.clubItems = state.clubItems || []; }
+    }
+    for (var i = 0; i < state.clubItems.length; i++) {
+      if (state.clubItems[i] && state.clubItems[i].id === item.id) { state.clubItems[i] = item; return; }
+    }
+    state.clubItems.push(item);
+  }
+
+  // applyUpdatedItem(res): the apply call (Academy.addItemToSlot) returns its result under
+  // res.data, and the freshly-graded card is res.data.updatedItem (confirmed live - the
+  // response's data keys are activeSlots/inactiveSlots/isMaximumNumberOfSlotsReached/
+  // updatedItem/objectiveUpdates). That item ALREADY reflects the new PlayStyles, so we can
+  // update our snapshot straight from it instead of hoping a club re-search returns fresh
+  // data. Returns the item, or null if the response didn't carry one.
+  function applyUpdatedItem(res) {
+    try {
+      var d = res && res.data;
+      var it = d && (d.updatedItem || d.item);
+      return (it && it.id != null) ? it : null;
+    } catch (e) { return null; }
+  }
 
   // makeClubCriteria(offset, count): build the app's search criteria object for
   // club players (one "page" starting at offset). Returns null if the app doesn't
@@ -2469,32 +2515,70 @@
     return c;
   }
 
-  // loadFullClub(): page through services.Club.search to gather EVERY club player
-  // (not just the cached squad) and store them in state.clubItems, then redraw the
-  // picker. Read-only - it's the same search the app's Club screen uses.
+  // loadFullClub(): gather EVERY club player (not just the cached squad) into
+  // state.clubItems, then redraw the picker. Read-only - it's the same search the
+  // app's Club screen uses.
+  //
+  // How services.Club.search really behaves (discovered live):
+  //  - FRESH load (club store still empty): it FETCHES from the server one page at a
+  //    time and DOES respect offset/count - a single offset-0 call only returns the
+  //    first ~90, so we MUST page with a rising offset to collect everyone.
+  //  - Once the whole club is in the client store: it returns the ENTIRE club from
+  //    memory and IGNORES offset, so the next page just repeats (no NEW players) and
+  //    reports `retrievedAll: true`-ish - that's our natural stop.
+  //  - The store also fills in over a few seconds after load (slower on mobile), so the
+  //    server may not have every page ready on the first pass.
+  // The old bug was ending the sweep on the FIRST empty/duplicate page; on mobile a
+  // transient blank page mid-fetch froze a partial club. So now we: (a) page by offset
+  // accumulating UNIQUE players, (b) RETRY a blank/errored page a few times before
+  // trusting it, (c) stop a pass only after TWO pages bring no new players (guards a
+  // one-off duplicate), and (d) RE-SWEEP a few times until the club stops growing or the
+  // app reports retrievedAll - so a still-filling club keeps getting picked up without a
+  // manual reload.
   async function loadFullClub() {
     var svc = getServices();
     var S = svc && svc.Club;
     if (!S || !S.search || !window.UTSearchCriteriaDTO) { status.textContent = "Club search unavailable on this page."; return; }
-    var all = [], seen = {}, offset = 0, guard = 0;
+    var all = [], seen = {};                 // UNIQUE players kept across every pass (by item id)
+    var SWEEP_CAP = 8, PAGE_CAP = 200, BLANK_RETRY_MAX = 4;
+    var sweep = 0, lastTotal = -1, stableSweeps = 0, retrievedAll = false, hardFail = null;
     status.textContent = "Loading full club...";
-    while (guard++ < 100) {
-      var crit = makeClubCriteria(offset, 91);
-      if (!crit) break;
-      var res;
-      try { res = await awaitService(S.search(crit)); }
-      catch (e) { if (offset === 0) { status.textContent = "Club load failed: " + errMsg(e); return; } break; }
-      var items = (res && res.response && res.response.items) || (res && res.data && res.data.items) || [];
-      if (!items.length) break;
-      var added = 0;
-      for (var i = 0; i < items.length; i++) {
-        var it = items[i], id = it && it.id;
-        if (id != null && !seen[id]) { seen[id] = 1; all.push(it); added++; }
+    while (sweep++ < SWEEP_CAP) {
+      var offset = 0, pageGuard = 0, blankRetries = 0, noNewStreak = 0, passDone = false;
+      while (pageGuard++ < PAGE_CAP) {
+        var crit = makeClubCriteria(offset, 91);
+        if (!crit) { passDone = true; break; }
+        var res;
+        try { res = await awaitService(S.search(crit)); }
+        catch (e) {
+          if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(500); continue; }   // transient error - retry same offset
+          if (!all.length) hardFail = errMsg(e);
+          passDone = true; break;
+        }
+        var inner = (res && res.response) || (res && res.data) || {};
+        var items = inner.items || [];
+        if (inner.retrievedAll === true) retrievedAll = true;
+        if (!items.length) {
+          if (retrievedAll) { passDone = true; break; }
+          if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(400); continue; }    // transient blank page - retry
+          passDone = true; break;                                                  // genuinely empty -> end of this pass
+        }
+        blankRetries = 0;
+        var added = 0;
+        for (var i = 0; i < items.length; i++) { var it = items[i], id = it && it.id; if (id != null && !seen[id]) { seen[id] = 1; all.push(it); added++; } }
+        offset += items.length;
+        status.textContent = "Loading full club... " + all.length;
+        if (retrievedAll) { passDone = true; break; }
+        noNewStreak = (added === 0) ? (noNewStreak + 1) : 0;
+        if (noNewStreak >= 2) { passDone = true; break; }   // two pages, no new players -> seen them all this pass
+        await sleep(120);
       }
-      offset += items.length;
-      status.textContent = "Loading full club... " + all.length;
-      if (added === 0) break;                 // no new players -> we've seen them all
-      await sleep(120);                        // gentle pause between pages
+      if (hardFail && !all.length) { status.textContent = "Club load failed: " + hardFail; return; }
+      if (retrievedAll) break;                              // app confirms the whole club is loaded
+      if (all.length === lastTotal) { if (++stableSweeps >= 2) break; }   // total not growing across passes -> done
+      else stableSweeps = 0;
+      lastTotal = all.length;
+      await sleep(500);                                     // give the still-filling club a moment, then sweep again
     }
     state.clubItems = all;
     renderPlayers();
@@ -2668,6 +2752,7 @@
     loaderHost.appendChild(loader);
     function setLoad(t) { var el = loader.querySelector(".rm-txt"); if (el) el.textContent = t; }
     var id = it.id, removed = 0, guard = 0, maxIter = all ? 40 : 1, failMsg = "";  // 40 = generous backstop; lastEvoRemoved is the real stop
+    var freshItem = null, cardLeftClub = false;
     while (guard++ < maxIter) {
       if (state.abort) break;
       setLoad((all ? "Clearing evos… " : "Removing evo… ") + removed + " removed");
@@ -2676,21 +2761,31 @@
       try { res = await removeEvo(id); }
       catch (e) { failMsg = errMsg(e); break; }
       removed++;
-      var last = !!(res && res.response && res.response.lastEvoRemoved);
+      // Academy responses live under res.data (confirmed for apply); accept res.response too,
+      // in case removal reports differently. updatedItem is the freshly-reverted card.
+      var rd = (res && res.data) || (res && res.response) || {};
+      var ru = applyUpdatedItem(res); if (ru && ru.id === id) freshItem = ru;
+      var last = !!(rd.lastEvoRemoved);
+      if (last) cardLeftClub = true;                            // final upgrade gone - the card reverts and leaves the club evo list
       if (!all || last) break;                                  // single removal, or reached the final one
       await sleep(Math.max(0, parseInt(delayInput.value, 10) || 0));
     }
     setLoad("Refreshing…");
     refreshClub();
-    // Reload the club and re-point the preview, retrying until the removal shows (the
-    // player's PlayStyle count changed from what it was, or the card left the club).
+    // Prefer the reverted card the response handed back (data.updatedItem) - reliable, no
+    // dependence on a club re-search. Fall back to reloading + polling only if we got nothing.
     var have = currentPlayStyles(it).length;
-    for (var att = 0; att < 4; att++) {
-      try { await loadFullClub(); } catch (e) {}
-      var fresh = findPlayerById(id);
-      state.player = fresh || null;
-      if (!fresh || currentPlayStyles(fresh).length !== have) break;
-      if (att < 3) { status.textContent = "Waiting for removal to register..."; await sleep(700); }
+    if (freshItem && !cardLeftClub) {
+      upsertClubItem(freshItem); state.player = freshItem;
+    } else {
+      for (var att = 0; att < 4; att++) {
+        try { await loadFullClub(); } catch (e) {}
+        if (freshItem && !cardLeftClub) { upsertClubItem(freshItem); state.player = freshItem; break; }
+        var fresh = findPlayerById(id);
+        state.player = fresh || null;
+        if (!fresh || currentPlayStyles(fresh).length !== have) break;
+        if (att < 3) { status.textContent = "Waiting for removal to register..."; await sleep(700); }
+      }
     }
     state.selected = new Set();
     // renderPreview rebuilds the card (removing the loader); the status line reports the result.
@@ -2780,6 +2875,7 @@
     state.running = true; state.abort = false; setRunning(true);
     var prevCounts = {};                                   // PlayStyle counts before, per player (to detect the grants landing)
     targets.forEach(function (t) { prevCounts[t.id] = currentPlayStyles(t).length; });
+    var freshById = {};                                    // freshest card per player from the apply responses (data.updatedItem)
     var sections = buildBatchUI(targets, slotIds);
     var totalSteps = sections.reduce(function (n, s) { return n + s.rows.length; }, 0);
     var step = 0, totalOk = 0, totalFail = 0;
@@ -2791,7 +2887,9 @@
         if (tile) tile.classList.add("applying");
         status.textContent = "[" + (pi + 1) + "/" + sections.length + "] " + playerName(it) + " - " + row.evo.n + " ...";
         try {
-          await applyEvo(row.slotId, it.id);                          // adds + grants the PlayStyle
+          var bres = await applyEvo(row.slotId, it.id);               // adds + grants the PlayStyle
+          var bui = applyUpdatedItem(bres);                           // the response's freshly-graded card
+          if (bui && bui.id === it.id) freshById[it.id] = bui;        // keep the latest for this player
           try { await claimEvo(row.slotId); } catch (ce) { console.warn("[FC26] claim skipped", ce); }
           okC++; totalOk++;
           if (tile) { tile.classList.remove("applying"); tile.classList.add("done"); var b = tile.querySelector(".ap-badge"); if (b) b.textContent = "✓"; }
@@ -2818,10 +2916,14 @@
       applyBox.appendChild(backBtn);
     }
     refreshClub();
-    // Reload the club and re-point our held items to the fresh copies, RETRYING until at
-    // least one player's PlayStyle count grows (the grant can lag the apply, same as the
-    // single-player flow). Keeps the preview/roll-call accurate without a manual reload.
-    if (totalOk > 0) {
+    // The apply responses handed back each player's freshly-graded card (data.updatedItem),
+    // already carrying the new PlayStyles - plant them straight into our snapshot so the list
+    // and roll-call update WITHOUT depending on a club re-search (which caches the whole club
+    // and can keep serving pre-grant copies). Only if NO response gave us a usable fresh item
+    // do we fall back to the old reload-until-a-count-grows poll.
+    var haveFresh = false;
+    targets.forEach(function (t) { var f = freshById[t.id]; if (f) { upsertClubItem(f); haveFresh = true; } });
+    if (totalOk > 0 && !haveFresh) {
       for (var att = 0; att < 4; att++) {
         try { await loadFullClub(); } catch (e) {}
         var grew = false;
@@ -2830,10 +2932,10 @@
         if (att < 3) { status.textContent = "Waiting for grants to register..."; await sleep(700); }
       }
     }
-    // Re-point active player + batch entries to the fresh club items.
-    if (state.player) { var fp = findPlayerById(state.player.id); if (fp) state.player = fp; }
+    // Re-point active player + batch entries to the fresh club items (prefer the response's copy).
+    if (state.player) { var fp = freshById[state.player.id] || findPlayerById(state.player.id); if (fp) state.player = fp; }
     var newBatch = new Map();
-    targets.forEach(function (t) { var f = findPlayerById(t.id) || t; newBatch.set(f.id, f); });
+    targets.forEach(function (t) { var f = freshById[t.id] || findPlayerById(t.id) || t; newBatch.set(f.id, f); });
     state.batch = newBatch;
     state.selected = new Set();                                       // applied ones are now owned
     renderPreview(); renderEvos(); renderPlayers(); updateBatchUI();
@@ -2856,6 +2958,7 @@
     var prevCount = currentPlayStyles(it).length;   // PlayStyles before this run (to detect the grant landing)
     var tiles = buildApplyTiles(slotIds);   // the animated queue under the buttons
     var okList = [];                         // evos that succeeded (for the summary)
+    var freshItem = null;                    // the freshest card the apply responses hand back (data.updatedItem)
     for (var i = 0; i < slotIds.length; i++) {
       if (state.abort) { status.textContent = "Stopped at " + i + "/" + slotIds.length + "."; break; }
       var slotId = slotIds[i];
@@ -2865,7 +2968,9 @@
       if (tile) tile.classList.add("applying");               // spin while it applies
       status.textContent = label + " ...";
       try {
-        await applyEvo(slotId, itemId);                       // adds + grants the PlayStyle
+        var ares = await applyEvo(slotId, itemId);            // adds + grants the PlayStyle
+        var ui = applyUpdatedItem(ares);                       // the response's freshly-graded card
+        if (ui && ui.id === itemId) freshItem = ui;            // keep the latest (reflects every apply so far)
         // Always try to claim/finish (best-effort). For PlayStyle evos the grant
         // already happened on apply, so claim commonly returns 460 - that's harmless
         // and we just carry on.
@@ -2892,21 +2997,25 @@
     // add it to the evo-eligible list (persisted). Grows the list over time.
     if (ok > 0) { setRarityEligible(rareflag, true); }
     refreshClub();                                            // also nudge the app's own views
-    // On this build the item entity we hold is NOT updated in place by the grant - only a
-    // fresh club search returns the new PlayStyles. So auto-do exactly what "Reload club"
-    // does, and RETRY until the grant actually shows: firing the search immediately after
-    // the apply can beat the server (it returns pre-grant data), which is why a manual
-    // reload a second later "worked" but the instant one didn't. We poll the re-pulled
-    // player's PlayStyle count until it grows (or we run out of tries), so the preview /
-    // pips refresh on their own - no manual Reload club needed.
+    // The apply call HANDS BACK the freshly-graded card (data.updatedItem), already carrying
+    // the new PlayStyles - so we trust that directly and plant it in our snapshot. This is the
+    // reliable path: it does NOT depend on a club re-search returning fresh data (that search
+    // caches the whole club in memory and can keep serving the pre-grant copy, which was the
+    // bug where applied evos didn't show up in the list). Only if the response somehow gave us
+    // no usable item do we fall back to the old poll-a-fresh-pull-until-it-grows loop.
     if (ok > 0) {
-      for (var att = 0; att < 4; att++) {
-        try { await loadFullClub(); } catch (e) {}            // fresh pull (also redraws the list)
-        var fresh = findPlayerById(itemId);
-        if (fresh) state.player = fresh;
-        var nowCount = state.player ? currentPlayStyles(state.player).length : prevCount;
-        if (nowCount > prevCount) break;                      // grant is now visible - stop retrying
-        if (att < 3) { status.textContent = "Waiting for the grant to register..."; await sleep(700); }
+      if (freshItem && currentPlayStyles(freshItem).length > prevCount) {
+        upsertClubItem(freshItem); state.player = freshItem;  // list + preview now reflect the grant, no reload needed
+      } else {
+        for (var att = 0; att < 4; att++) {
+          try { await loadFullClub(); } catch (e) {}          // fresh pull (also redraws the list)
+          if (freshItem) { upsertClubItem(freshItem); state.player = freshItem; }
+          var fresh = findPlayerById(itemId);
+          if (fresh && currentPlayStyles(fresh).length >= currentPlayStyles(state.player || fresh).length) state.player = fresh;
+          var nowCount = state.player ? currentPlayStyles(state.player).length : prevCount;
+          if (nowCount > prevCount) break;                    // grant is now visible - stop retrying
+          if (att < 3) { status.textContent = "Waiting for the grant to register..."; await sleep(700); }
+        }
       }
     } else {
       try { var f0 = findPlayerById(itemId); if (f0) state.player = f0; } catch (e) {}

@@ -5,6 +5,22 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v23 - 2026-07-12
+
+**Applied and removed evos now show up straight away, on desktop and mobile.**
+
+- **The player list and preview refresh instantly after an apply.** Before, applying an evo
+  sometimes left the card looking unchanged until you hit "↻ Reload club" (and on the phone it
+  often didn't update at all). The tool was relying on the app's club search to hand back fresh
+  data, but that search caches the whole club in memory and kept serving the old, pre-evo copy.
+  Now the tool reads the freshly-graded card straight out of the apply response itself, so the
+  new PlayStyles appear the moment the apply finishes - no manual reload.
+- **Same fix for batch apply and for removing evos.** Batch apply updates every touched card,
+  and "Remove Latest Evo" / "Clear all evos" revert the card on screen right away, all from the
+  service response instead of a re-search.
+
+---
+
 ## v22 - 2026-07-12
 
 **Meta rating tuned for the new FC 26 PlayStyles, lighter OVR, and a smarter, forgiving player search.**
