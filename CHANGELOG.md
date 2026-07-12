@@ -5,6 +5,29 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v22 - 2026-07-12
+
+**Meta rating tuned for the new FC 26 PlayStyles, lighter OVR, and a smarter, forgiving player search.**
+
+- **Gamechanger and Inventive now count.** These new FC 26 PlayStyles (finishing flair and creative
+  passing) were barely weighted, so cards that own them were under-rated. They're now weighted as
+  solid mid-tier PlayStyles on the attacking and creative roles that actually want them (strikers,
+  wingers, CAM, and playmaker midfielders) - and left off the defensive roles, matching the meta.
+- **OVR now matters less.** The final score used to be pulled 35% toward a card's in-game OVR; that's
+  down to 15%, so the rating leans much harder on the stats and PlayStyles that decide how a card
+  actually plays. A high-OVR card with weak face stats no longer coasts on its number.
+- **Player search ignores accents and matches first OR last name.** Searching "guler" now finds
+  Güler, "mbappe" finds Mbappé, and typing just a first name works too. No more empty results because
+  of a special character.
+- **Rarity 103 is named.** Cards of that rarity now read "Festival of Football: National Pride Red"
+  instead of "Rarity 103".
+- **The "How the meta rating works" page is now fully honest.** It's rebuilt from the same role tables
+  the tool actually scores with, and each position now has a "By role" breakdown you can click open to
+  see the exact ordered PlayStyle weights. The Maradona worked example uses his real figures
+  (stat 92.5, PlayStyle 83.3, final **89.3** at the new 15% OVR).
+
+---
+
 ## v21 - 2026-07-11
 
 **Per-squad formations in the Squad Builder.**

@@ -708,35 +708,78 @@ bookmarklet). If it ever feels big, prune a few old ones with `remove`.
 
 ---
 
-## 7b. Re-tuning the meta rating each season
+## 7b. Re-tuning the meta rating each season ⭐ READ THIS BEFORE TOUCHING WEIGHTS
 
-The meta rating (§3d) is **my opinion of the current FC 26 meta**, frozen in a few
-places at the top of `fc26-tools.js`. Player data is read live, so new/better cards score
-themselves automatically - you only touch these when the *game's* meta shifts (a patch, a
-new season):
+The meta rating / "Justaino Score" (§3d) is **my opinion of the current FC 26 meta**, frozen
+in a handful of tables at the top of `fc26-tools.js`. Player data is read live, so new/better
+cards score themselves automatically - you only edit these when the *game's* meta shifts.
 
-1. **`STAT_WEIGHTS`** - how much each stat counts per position. Numbers are relative, so
-   only the ratios matter.
-2. **`ROLES`** - the ordered priority PlayStyle list per role (this is what the v2 scorer actually
-   uses; `roleWeightsFromList` turns rank into points). `PLAYSTYLE_WEIGHTS` is now only a fallback for
-   a group with no `ROLES` entry. The 0-100 PlayStyle "ceiling" is derived automatically.
-3. **`STAT_MIX` / `PS_MIX`** - how hard PlayStyles swing overall (must add to 1.0). Also
-   **`PSPLUS_MULT`** (how many basics a PlayStyle+ is worth, currently 3.5), **`PS_CEIL_PLUS`** (how many
-   relevant PS+ the "full marks" ceiling assumes, currently 5 - raise it so QUANTITY of relevant PS+
-   matters more), and **`OVR_MIX`** (how much the final rating leans on in-game OVR, currently 0.35).
+### ⚠️ The one thing to understand first: PlayStyle weights come from `ROLES`, NOT `PLAYSTYLE_WEIGHTS`
 
-**After editing any of the above, do BOTH:**
+There are two PlayStyle tables in the file, and it's easy to edit the wrong one:
+
+- **`ROLES`** = the **real source**. This is what the score actually uses. Edit THIS to change
+  how PlayStyles count.
+- **`PLAYSTYLE_WEIGHTS`** = a **dead fallback**. It only runs if a position had *no* `ROLES` entry -
+  and they all have one, so it never runs. **Leave it alone; editing it changes nothing.** (It's kept
+  only as a safety net.)
+
+### How `ROLES` works - position → role → an ORDERED list
+
+`ROLES` is grouped by position, then by role, and each role is an **ordered priority list** of
+PlayStyles. **A PlayStyle's position in the list sets how much it's worth** - the code
+(`roleWeightsFromList`) turns rank into points automatically:
+
+| Where it sits in the role's list | Weight it earns |
+|---|---|
+| 1st or 2nd | **4** |
+| 3rd or 4th | **3** |
+| 5th or 6th | **2** |
+| 7th onward | **1** |
+| not in the list at all | **0** |
+
+A card is scored against **every role its position offers**, and the **best-fitting role wins**.
+A **PlayStyle+ counts `PSPLUS_MULT`× a basic** (currently 3.5×).
+
+**So to re-tune a PlayStyle, you just move it up or down its role's list** (or add/remove it).
+Think of it like a priority column: row order = ranking.
+
+**Worked example - make Gamechanger matter more for a Shadow Striker (CAM):**
+find `"Shadow Striker"` inside `ROLES` and move `"Gamechanger"` earlier in the array.
+```
+Before: ["Finesse Shot","Incisive Pass","Rapid","Low Driven Shot","Technical", ... ,"Gamechanger", ...]
+                                                                  (7th = weight 1)
+After:  ["Finesse Shot","Incisive Pass","Rapid","Gamechanger","Low Driven Shot","Technical", ...]
+                                                  (4th = weight 3)
+```
+Moving it up bumps everything below it down one place - that's normal and fine.
+
+### The other knobs (all near the top of `fc26-tools.js`, each commented)
+
+1. **`STAT_WEIGHTS`** - how much each of the 6 stats counts per position. Numbers are relative
+   (only the ratios matter).
+2. **`STAT_MIX` / `PS_MIX`** - the split between stat fit and PlayStyle fit (must add to 1.0;
+   currently 0.50 / 0.50).
+3. **`OVR_MIX`** - how much the final score leans on the card's in-game OVR (currently **0.15**;
+   a light tiebreak). Set to 0 to ignore OVR entirely. *(Note: the squad builder's draft uses a
+   SEPARATE knob, `DRAFT_OVR_MIX = 0.6` - that's §3k, not the meta rating.)*
+4. **`PSPLUS_MULT`** - how many basics a PlayStyle+ is worth (currently 3.5).
+5. **`PS_CEIL_PLUS`** - how many relevant PS+ the "full marks" ceiling assumes (currently 5 -
+   raise it so QUANTITY of relevant PS+ matters more).
+
+### ⚠️ After editing ANY of the above, run BOTH commands
+
 ```
 node meta-page.js     # regenerate the public transparency page (meta-rating.html)
 node minify.js        # rebuild the bookmarklet (then release.js when shipping - §7a)
 ```
-`meta-page.js` reads the tables straight out of `fc26-tools.js`, so the site page can
-never drift from the tool. If you forget it, the tool is still correct but the page is
-stale.
+`meta-page.js` reads the tables (including `ROLES`) straight out of `fc26-tools.js`, so the
+site page **can never drift from the tool**. If you forget it, the tool is still correct but the
+page is stale.
 
 **Note:** if EA adds a brand-new PlayStyle to the *game*, it also needs a line in the
 `PS` / `PSP` catalogs (so the tool knows it exists) before you can weight it. Renaming or
-reweighting existing ones is just editing numbers.
+reweighting existing ones is just moving names around in `ROLES`.
 
 The easy path: ask Claude to *"refresh the FC 26 meta"* and it will re-research the
 current consensus, propose a before/after of the weight changes, and on approval do the

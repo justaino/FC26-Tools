@@ -4,9 +4,11 @@
 //
 //   node meta-page.js
 //
-// Run it whenever you change STAT_WEIGHTS / PLAYSTYLE_WEIGHTS / STAT_MIX / PS_MIX in
+// Run it whenever you change STAT_WEIGHTS / ROLES / STAT_MIX / PS_MIX / OVR_MIX in
 // fc26-tools.js (e.g. the seasonal meta refresh - see RUNBOOK section 7b). It reads
-// those four things out of the source and rewrites meta-rating.html to match.
+// those out of the source and rewrites meta-rating.html to match. The PlayStyle
+// weights shown are derived from ROLES (the real scoring source), so the page can
+// never drift from the tool.
 
 const fs = require("fs");
 const path = require("path");
@@ -39,19 +41,48 @@ function extractNumber(name) {
 }
 
 const STAT_WEIGHTS = extractObject("STAT_WEIGHTS");
-const PLAYSTYLE_WEIGHTS = extractObject("PLAYSTYLE_WEIGHTS");
+const ROLES = extractObject("ROLES");               // the REAL PlayStyle scoring source (per-role priority lists)
 const STAT_MIX = extractNumber("STAT_MIX");
 const PS_MIX = extractNumber("PS_MIX");
 const PSPLUS_MULT = extractNumber("PSPLUS_MULT");   // a PlayStyle+ is worth this many basics
-const OVR_MIX = extractNumber("OVR_MIX");            // light OVR tiebreak
+const PS_CEIL_PLUS = extractNumber("PS_CEIL_PLUS"); // how many owned-as-PS+ the ceiling assumes
+const OVR_MIX = extractNumber("OVR_MIX");           // light OVR tiebreak
+
+// The tool doesn't score off one flat per-position table - it scores each card against every ROLE a
+// position offers (the ordered priority lists in ROLES) and keeps the best-fitting one. We mirror
+// that here so the page shows the SAME weights the score uses (no more PLAYSTYLE_WEIGHTS drift).
+//
+// roleWeightsFromList: turn a role's ordered list into {name: weight} by rank (top pair = 4, next
+// pair = 3, next pair = 2, tail = 1) - identical to fc26-tools.js.
+function roleWeightsFromList(list) {
+  const w = {};
+  for (let i = 0; i < list.length; i++) {
+    const wt = i < 2 ? 4 : i < 4 ? 3 : i < 6 ? 2 : 1;
+    if (w[list[i]] == null) w[list[i]] = wt;
+  }
+  return w;
+}
+
+// groupWeights: a position can be played in several roles, and the score takes the BEST-fitting one,
+// so for the page we show each PlayStyle at the HIGHEST weight any of the position's roles gives it
+// (i.e. the best case this position can value it). Built straight from ROLES.
+function groupWeights(group) {
+  const merged = {};
+  const roles = ROLES[group] || {};
+  for (const r of Object.keys(roles)) {
+    const w = roleWeightsFromList(roles[r]);
+    for (const n in w) if (merged[n] == null || w[n] > merged[n]) merged[n] = w[n];
+  }
+  return merged;
+}
 
 // Same "ceiling" the tool uses to turn raw PlayStyle points into a 0-100 score:
-// best 3 owned as PS+ (x PSPLUS_MULT) plus EVERY other meta PlayStyle as a basic.
-function psMaxForGroup(group) {
-  const vals = Object.values(PLAYSTYLE_WEIGHTS[group] || {}).sort((a, b) => b - a);
+// best PS_CEIL_PLUS owned as PS+ (x PSPLUS_MULT) plus EVERY other meta PlayStyle as a basic.
+function psMaxForWeights(weights) {
+  const vals = Object.values(weights).sort((a, b) => b - a);
   let topPlus = 0, restBasic = 0;
-  for (let i = 0; i < 3 && i < vals.length; i++) topPlus += vals[i];
-  for (let i = 3; i < vals.length; i++) restBasic += vals[i];
+  for (let i = 0; i < PS_CEIL_PLUS && i < vals.length; i++) topPlus += vals[i];
+  for (let i = PS_CEIL_PLUS; i < vals.length; i++) restBasic += vals[i];
   return (topPlus * PSPLUS_MULT + restBasic) || 1;
 }
 
@@ -62,10 +93,32 @@ function esc(s) {
 function titleCase(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 const pct = (mix) => Math.round(mix * 100);
 
+// roleDetails: one collapsible <details> per role in the position, showing that role's
+// EXACT ordered PlayStyle priority list with the weight each rank earns - i.e. the real
+// thing the score measures a card against. Pure HTML (<details>/<summary>), no scripts.
+function roleDetails(group) {
+  const roles = ROLES[group] || {};
+  return Object.keys(roles).map(function (rn) {
+    const list = roles[rn];
+    const rows = list.map(function (n, i) {
+      const w = i < 2 ? 4 : i < 4 ? 3 : i < 6 ? 2 : 1;   // same rank->weight as roleWeightsFromList
+      return '<div class="ps-row">' +
+        '<span class="ps-rank">' + (i + 1) + '</span>' +
+        '<span class="ps-name">' + esc(n) + '</span>' +
+        '<span class="ps-val w' + w + '">' + w + '</span></div>';
+    }).join("");
+    return '<details class="role-det">' +
+      '<summary><span class="role-nm">' + esc(rn) + '</span>' +
+        '<span class="role-hint">' + list.length + ' PlayStyles, in priority order</span></summary>' +
+      '<div class="ps-list role-list">' + rows + '</div>' +
+    '</details>';
+  }).join("");
+}
+
 // --- build one position card ------------------------------------------------
 function positionCard(group) {
   const stats = STAT_WEIGHTS[group];
-  const styles = PLAYSTYLE_WEIGHTS[group] || {};
+  const styles = groupWeights(group);   // derived from ROLES - the same weights the score uses
   const maxStat = Math.max.apply(null, Object.values(stats));
 
   // stat weights as proportional bars (biggest weight fills the track)
@@ -89,7 +142,7 @@ function positionCard(group) {
 
   return '<section class="pos-card">' +
     '<div class="pos-head"><span class="pos-name">' + esc(group) + '</span>' +
-      '<span class="pos-ceiling" title="Owning the best meta PlayStyles this position wants scores full marks on the PlayStyle half">PlayStyle ceiling ' + psMaxForGroup(group) + ' pts</span>' +
+      '<span class="pos-ceiling" title="Owning the best meta PlayStyles this position wants scores full marks on the PlayStyle half">PlayStyle ceiling ' + (Math.round(psMaxForWeights(styles) * 10) / 10) + ' pts</span>' +
     '</div>' +
     '<div class="pos-cols">' +
       '<div class="pos-col">' +
@@ -97,9 +150,13 @@ function positionCard(group) {
         statRows +
       '</div>' +
       '<div class="pos-col">' +
-        '<div class="col-h ps-h">Meta PlayStyles <span>bonus points (a PlayStyle+ counts ' + PSPLUS_MULT + '&times; a basic)</span></div>' +
+        '<div class="col-h ps-h">Meta PlayStyles <span>best weight across this position\'s roles (a PlayStyle+ counts ' + PSPLUS_MULT + '&times; a basic)</span></div>' +
         '<div class="ps-list">' + styleRows + '</div>' +
       '</div>' +
+    '</div>' +
+    '<div class="pos-roles">' +
+      '<div class="col-h role-h">By role <span>the exact ordered weights the score uses - a card is judged on its best-fitting role. Click to open.</span></div>' +
+      roleDetails(group) +
     '</div>' +
   '</section>';
 }
@@ -114,8 +171,12 @@ const generatedOn = new Date().toISOString().slice(0, 10);
 // skill moves & weak foot, which is why it isn't just a plain six-stat average.
 const EX = {
   name: "Maradona", ovr: 97, group: "CAM", role: "Shadow Striker",
-  statScore: 91.8,   // the tool's raw stat fit for this card (weighted stats + skill moves & weak foot)
-  psScore: 84.1      // the tool's PlayStyle fit as a Shadow Striker
+  // Computed from his real card run through the CAM tables in fc26-tools.js:
+  //   stats PAC 97 / SHO 93 / PAS 94 / DRI 98 / DEF 44 / PHY 86, plus 5-star weak foot & skill moves
+  //   PlayStyle+: Finesse Shot, Incisive Pass, Technical, Rapid, First Touch
+  //   PlayStyles: Chip Shot, Dead Ball, Gamechanger, Pinged Pass, Tiki Taka, Inventive
+  statScore: 92.5,   // the tool's raw stat fit for this card (weighted CAM stats + skill moves & weak foot)
+  psScore: 83.3      // the tool's PlayStyle fit as a Shadow Striker (best-fitting CAM role)
 };
 const r1 = (x) => Math.round(x * 10) / 10;
 
@@ -261,6 +322,25 @@ const html = `<!DOCTYPE html>
   .ps-row { display:flex; align-items:center; justify-content:space-between; gap:0.5rem; font-size:0.78rem; }
   .ps-name { color:#c3c8d2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ps-val { flex:0 0 auto; font-family:'Rajdhani',sans-serif; font-weight:700; color:var(--emerald); background:rgba(79,227,172,0.1); border-radius:6px; padding:1px 8px; font-variant-numeric:tabular-nums; }
+
+  /* per-role breakdown (collapsible) - the exact ordered weights the score uses */
+  .pos-roles { margin-top:1.15rem; padding-top:1rem; border-top:1px solid var(--border); }
+  .role-det { border:1px solid var(--border); border-radius:10px; margin-top:0.5rem; overflow:hidden; background:rgba(255,255,255,0.015); }
+  .role-det[open] { border-color:rgba(79,227,172,0.35); }
+  .role-det summary { display:flex; align-items:center; gap:0.6rem; cursor:pointer; padding:0.55rem 0.8rem; list-style:none; user-select:none; }
+  .role-det summary::-webkit-details-marker { display:none; }
+  .role-det summary::before { content:'\\25B8'; color:var(--emerald); font-size:0.7rem; transition:transform 0.15s; }
+  .role-det[open] summary::before { transform:rotate(90deg); }
+  .role-nm { flex:1; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:0.92rem; color:var(--text); letter-spacing:0.01em; }
+  .role-hint { flex:0 0 auto; font-size:0.66rem; color:var(--muted); }
+  .role-list { padding:0.15rem 0.8rem 0.75rem; }
+  .role-list .ps-row { padding:0.12rem 0; }
+  .ps-rank { flex:0 0 auto; min-width:1.4em; text-align:right; font-size:0.68rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .role-list .ps-name { flex:1; }
+  .ps-val.w4 { color:#7dffcf; background:rgba(79,227,172,0.18); }
+  .ps-val.w3 { color:var(--emerald); background:rgba(79,227,172,0.12); }
+  .ps-val.w2 { color:#a6d8c8; background:rgba(79,227,172,0.07); }
+  .ps-val.w1 { color:var(--muted); background:rgba(255,255,255,0.04); }
 
   footer { text-align:center; color:var(--muted); font-size:0.8rem; margin-top:3rem; line-height:1.7; }
   footer .gen { opacity:0.7; }
