@@ -510,6 +510,50 @@ Applied and removed evos now update the card on screen straight away, without a 
 
 ---
 
+## 3n. New in v24 - the Justaino Score page (Rankings + Best XI) and the mobile score fix
+
+The **Meta rating is renamed "Justaino Score"** and moved out of the lineup column onto its own
+full-screen page, built on the same shell as the Squad Builder. There is also a small mobile fix.
+
+**How to use it.** In the Lineup column, tap the **Justaino Score** tile (📊, next to Squad Builder).
+The page has a back arrow (‹) and two tabs:
+
+- **Rankings** - unchanged behaviour: pick a position and how many players to show; the club is
+  ranked by Justaino Score for that position. Tap a row for the detail card (below).
+- **Best XI** - pick a **formation** and a **"Top N"** count. Team 1 is your strongest XI for that
+  formation by Justaino Score; Team 2 is the strongest XI of the players **left after** Team 1, and
+  so on (a depth chart - no player appears in two teams). The pills switch which team is on the
+  pitch; the stat strip shows **JST avg** (the XI's Justaino average), **OVR avg**, **Placed** and
+  the biggest **League** bloc. **Nothing is created in the game** - this is a preview only. To
+  actually build/save squads, use the Squad Builder.
+
+**Player detail card.** Tapping a ranked row OR a pitch dot opens a detail card **inside the page**
+(it does not jump into the evo tool): big OVR + Justaino pill, a **JST Score by position** breakdown
+(every position the card can play, scored, best first), face stats, and current PlayStyles. The back
+arrow returns to whichever tab you came from. The **Edit PlayStyles →** button is the only thing that
+leaves the page - it closes Justaino Score and opens that player in the PlayStyle Deck.
+
+**How it's built (for maintenance).**
+- `buildMetaBoards(formationName, teamCount)` (near `buildGauntlet`) does the depth-chart draft.
+  It reuses `gauntletPool()` (excludes loan/expiring cards), `canPlaySlot`, and `scorePlayer(...).total`
+  (pure Justaino Score, **not** the OVR-heavy `draftScoreFromScore` the Squad Builder uses). Exposed as
+  `window.FC26.buildMetaBoards("f433", 3)` for console checks.
+- The page is a hidden `metaPageHost` (a `.gt-builder`) toggled by `openMetaPage()`/`closeMetaPage()`,
+  mirroring the Squad Builder's `openBuilder`/`closeBuilder`. `applyPanelChrome()` adds the mobile
+  `gt-open` height class when either page is open, and `applyLayout()` re-shows it after a phone/desktop
+  flip. `renderMetaPage()` draws the tabs + the active view; `metaView` is `"rank"` or `"xi"`;
+  `metaDetail` (an item) makes it draw `renderMetaDetail()` instead.
+- The pitch, dots and stat strip reuse the Squad Builder's `.gt-pitch/.gt-dot/.gt-statstrip` styles;
+  the ranking rows reuse `.meta-row` etc.; the detail card reuses the spotlight's `.pv-*` styles.
+  Only a few `.mp-*` rules are new (tabs, page body, detail card, per-position chips).
+
+**Mobile Justaino score fix.** On a phone the player is shown by the **PlayStyle Deck summary bar**
+(`renderDeckSummary`) and the **Review** header (`renderReviewSummary`), which showed the OVR but not
+the score. Both now render a compact `JUSTAINO xx.x · GRP` pill (`.ds-jr`) stacked under the OVR, from
+the same `bestJustaino(it)` the desktop spotlight uses. Single player only (a batch has no one score).
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

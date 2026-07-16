@@ -5,6 +5,31 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v24 - 2026-07-16
+
+**The Justaino Score gets its own page - with a best-XI pitch - and finally shows on mobile.**
+
+- **"Meta rating" is now "Justaino Score", and it has its own full-screen page.** The old
+  cramped drop-down inside the Lineup column is gone. In its place is a **Justaino Score** tile
+  (next to Squad Builder) that opens a full page with two tabs:
+  - **Rankings** - the same per-position club ranking as before (pick a position + how many to
+    show), just with room to breathe and its own scroll.
+  - **Best XI** - your **strongest XI on a pitch** for any formation, picked by Justaino Score.
+    A "Top N" control adds a **2nd, 3rd, ... XI as a depth chart** (each team uses the best
+    players left after the ones above it, so nobody appears twice). Each dot shows OVR, name and
+    JS score; a stat strip shows the team's **JST avg**, OVR avg, placed count and biggest league
+    bloc. It's **view-only** - nothing is created in the game (that's still the Squad Builder's job).
+- **Tap any player for a full detail card - without leaving the page.** Tapping a ranked row or a
+  pitch dot slides to a player detail card (big score, a **JST Score by position** breakdown, face
+  stats and current PlayStyles). The back arrow returns you exactly where you were (Rankings or Best
+  XI). An "Edit PlayStyles" button is the one deliberate door into the evo tool. Before, tapping a
+  player quietly jumped you into the PlayStyle Deck behind the page - that's fixed.
+- **Your Justaino Score now shows on mobile.** On a phone, tapping a player shows the score as a
+  pill directly under the big OVR number (in both the PlayStyle Deck and the Review step), matching
+  what desktop always showed. It was missing on mobile before.
+
+---
+
 ## v23 - 2026-07-12
 
 **Applied and removed evos now show up straight away, on desktop and mobile.**

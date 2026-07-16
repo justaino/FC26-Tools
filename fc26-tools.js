@@ -1360,6 +1360,62 @@
   window.FC26.gauntletDepth = gauntletDepth;
   window.FC26.FORMATIONS = FORMATIONS;
 
+  // ---- Meta Ratings "Best XI" boards (view-only depth chart) ----------------
+  // buildMetaBoards(formationName, teamCount): fill ONE formation's 11 slots teamCount times
+  // as a DEPTH CHART. Team 1 is your strongest XI by the Justaino META score (scorePlayer.total,
+  // NOT the OVR-heavy draft blend the Squad Builder uses); Team 2 is the strongest XI of the
+  // players left after Team 1; Team 3 the next, etc. Each player is used once (their strongest
+  // slot), so you never see the same face twice. It's purely a preview - nothing is created in
+  // game. Reuses gauntletPool (excludes loan/expiring cards), canPlaySlot, scorePlayer, chemSummary.
+  function buildMetaBoards(formationName, teamCount) {
+    teamCount = Math.max(1, Math.min(5, teamCount | 0));
+    if (!FORMATIONS[formationName]) return { error: "Unknown formation: " + formationName };
+    var fslots = FORMATIONS[formationName];
+    var fsides = formationSides(formationName);
+    var pool = gauntletPool();
+    var usedKeys = new Set();        // players already placed in an EARLIER team (used once across the board)
+    var teams = [];
+    for (var t = 0; t < teamCount; t++) {
+      // Fill scarcest slot first (fewest eligible players LEFT), so a rare left-back isn't
+      // stranded after the pool's been picked over - same idea as the Squad Builder draft.
+      var slotOrder = fslots.map(function (group, idx) {
+        var side = fsides[idx] || "C";
+        var cand = pool.filter(function (it) { return !usedKeys.has(playerKey(it)) && canPlaySlot(it, group, side); }).length;
+        return { group: group, idx: idx, side: side, cand: cand };
+      }).sort(function (a, b) { return a.cand - b.cand; });
+
+      var slots = new Array(fslots.length);
+      var placed = [], sum = 0, ovrSum = 0, filled = 0;
+      slotOrder.forEach(function (slot) {
+        var best = null, bestScore = -1;
+        for (var pi = 0; pi < pool.length; pi++) {
+          var it = pool[pi];
+          if (usedKeys.has(playerKey(it))) continue;                 // already used by this or an earlier team
+          if (!canPlaySlot(it, slot.group, slot.side)) continue;
+          var sc = scorePlayer(it, slot.group).total;                // pure META score (not OVR-weighted)
+          if (sc > bestScore) { bestScore = sc; best = it; }
+        }
+        if (best) {
+          slots[slot.idx] = { group: slot.group, player: best, score: bestScore };
+          usedKeys.add(playerKey(best)); placed.push(best);
+          sum += bestScore; ovrSum += (best.rating || 0); filled++;
+        } else {
+          slots[slot.idx] = { group: slot.group, player: null, score: null };
+        }
+      });
+      teams.push({
+        formation: formationName,
+        slots: slots,
+        filled: filled,
+        avg: filled ? Math.round((sum / filled) * 10) / 10 : 0,   // Justaino meta average of the XI
+        ovrAvg: filled ? Math.round(ovrSum / filled) : 0,          // true OVR average of the XI
+        chem: chemSummary(placed)
+      });
+    }
+    return { formation: formationName, teamCount: teamCount, teams: teams };
+  }
+  window.FC26.buildMetaBoards = buildMetaBoards;
+
   // ---- FEATURE: create the built Gauntlet squads in the game (writes to the account) ----
   // This is the ONLY part of the tool that creates data on your account. It never touches your
   // active squad, and every squad it makes is tracked so "Remove Gauntlet squads" can undo them
@@ -1819,7 +1875,7 @@
   // and desktop, so the open panel gets the room instead of fighting the list for space.
   // Otherwise show the list. Also refreshes the stub's count.
   function updateLineupCollapse() {
-    var panelOpen = (typeof eligOpen !== "undefined" && eligOpen) || (typeof metaOpen !== "undefined" && metaOpen);
+    var panelOpen = (typeof eligOpen !== "undefined" && eligOpen);   // Meta rating is now its own full-panel page, not an inline section
     var collapse = panelOpen && !lineupPeek;
     playerList.style.display = collapse ? "none" : "";
     lineupStub.style.display = collapse ? "block" : "none";
@@ -2583,6 +2639,8 @@
     state.clubItems = all;
     renderPlayers();
     try { renderMetaRating(); } catch (e) {}   // refresh the Meta rating list if it's open
+    // If the Meta page is open on the Best XI tab, rebuild it now that the full club is in.
+    try { if (state.metaPageOpen && metaView === "xi") { metaBoards = null; renderMetaPage(); } } catch (e) {}
     status.textContent = "Club loaded: " + getClubPlayers().length + " players.";
   }
 
@@ -3168,6 +3226,21 @@
       "#fc26-panel .meta-score b{color:var(--accent);font-size:14px;font-variant-numeric:tabular-nums}" +
       "#fc26-panel .meta-split{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .meta-note{margin-top:7px;font-size:10px;color:var(--muted);opacity:.85}" +
+      // Meta Ratings full-page layout (tabs + a scrolling body that fills the panel).
+      "#fc26-panel .mp-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" +
+      "#fc26-panel .mp-tabs .gt-sqpill{flex:1}" +
+      "#fc26-panel .mp-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" +
+      "#fc26-panel .mp-controls{flex:none;padding-bottom:8px}" +
+      "#fc26-panel .mp-list{flex:1;min-height:0;max-height:none;margin-top:0}" +
+      "#fc26-panel .mp-soon{padding:24px 10px;text-align:center;color:var(--muted);font-size:12px;opacity:.85}" +
+      // Meta player detail card (in-page): its own scroller + a per-position meta breakdown row + the exit button.
+      "#fc26-panel .mp-detail{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto}" +
+      "#fc26-panel .mp-posrow{display:flex;flex-wrap:wrap;gap:6px}" +
+      "#fc26-panel .mp-poschip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;font-size:11px;background:var(--tile);border:1px solid var(--tile-border);color:var(--muted)}" +
+      "#fc26-panel .mp-poschip b{color:var(--ink);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .mp-poschip.top{background:var(--sel);border-color:var(--accent);color:var(--ink)}" +
+      "#fc26-panel .mp-poschip.top b{color:var(--accent)}" +
+      "#fc26-panel .mp-edit{width:100%;margin-top:14px;padding:11px;border:0;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}" +
       // ---- Feature 3: Gauntlet squad builder -----------------------------------
       "#fc26-panel .gt-build{flex:none;background:var(--accent);color:var(--accent-ink);border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.04em}" +
       "#fc26-panel .gt-out{margin-top:8px;display:flex;flex-direction:column;gap:10px}" +
@@ -3362,7 +3435,11 @@
       "#fc26-panel .fc26-decksum{margin-bottom:11px;border-radius:12px;background:var(--card);border:1px solid var(--card-border)}" +
       "#fc26-panel .fc26-decksum.open{border-color:var(--accent)}" +
       "#fc26-panel .ds-bar{display:flex;align-items:center;gap:10px;padding:9px 11px}" +
-      "#fc26-panel .ds-r{flex:none;font-weight:800;font-size:22px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .ds-r{font-weight:800;font-size:22px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      // ds-rwrap stacks the OVR number with the Justaino pill beneath it (the mobile echo of the
+      // desktop spotlight's OVR + .pv-jr). ds-jr is a compact version of .pv-jr sized for the slim bar.
+      "#fc26-panel .ds-rwrap{flex:none;display:flex;flex-direction:column;align-items:center;gap:3px}" +
+      "#fc26-panel .ds-jr{font-size:8.5px;font-weight:800;letter-spacing:.03em;color:var(--accent-ink);background:var(--accent);border-radius:999px;padding:1px 6px;line-height:1.2;white-space:nowrap}" +
       "#fc26-panel .ds-w{flex:1 1 auto;min-width:0}" +
       "#fc26-panel .ds-n{display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
       "#fc26-panel .ds-gk{flex:none;color:var(--accent);font-size:8px;border:1px solid var(--accent);border-radius:4px;padding:0 3px}" +
@@ -3586,7 +3663,7 @@
     // rule it OUT-SPECIFICS the 1-class pill rule (.fc26-min) - so a panel minimized with the
     // builder open would keep its full height and only "half close". Minimized never needs the
     // builder height, so we simply don't add gt-open when minimized.
-    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + (state.builderOpen && !state.minimized ? " gt-open" : "");
+    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + ((state.builderOpen || state.metaPageOpen) && !state.minimized ? " gt-open" : "");
     applyPanelSize();     // set/clear our explicit size BEFORE clamping position (so the rect is right)
     var slot = posSlot();
     var pos = slot ? positions[slot] : null;
@@ -3662,60 +3739,287 @@
   // Group 1 - Squad (search + eligible filter + player list). On desktop this becomes
   // a flex column (via .fc26-squad) so the player list flexes to fill the left pane.
   // --------------------------------------------------------------------------
-  // FEATURE 2 - the "Meta rating" panel: a collapsible section that ranks the
-  // whole club for a chosen position by scorePlayer(). This is the on-screen
-  // results view (no console needed) for tuning the two weight tables.
+  // FEATURE 2 - the "Meta Ratings" page. This used to be a collapsible section in the
+  // lineup column; it's now its OWN full-panel screen (same shell as the Squad Builder):
+  // a launcher tile flips the main layout out and a full-panel host in. The page has two
+  // sub-views (tabs): "Rankings" (rank the club per position, moved here verbatim) and
+  // "Best XI" (a depth-chart pitch, wired in step 2). Reuses scorePlayer/metaTop and the
+  // Squad Builder's page chrome + pitch, so there's very little new code.
   // --------------------------------------------------------------------------
-  var metaSection = document.createElement("div");
-  metaSection.className = "meta-section";
-  var metaToggle = document.createElement("button");
-  metaToggle.type = "button";
-  metaToggle.className = "meta-toggle";
-  var metaBox = document.createElement("div");
-  metaBox.className = "meta-box";
-  metaBox.style.display = "none";
-  // controls: which position to rank as, and how many to show
-  var metaControls = document.createElement("div");
-  metaControls.className = "meta-controls";
+  // The launcher tile (this is what the lineup column shows; it opens the full screen).
+  var metaLaunch = document.createElement("div");
+  metaLaunch.className = "meta-section";
+  var metaLaunchBtn = document.createElement("button");
+  metaLaunchBtn.type = "button";
+  metaLaunchBtn.className = "gt-launch";
+  metaLaunchBtn.innerHTML = "<span class='gt-launch-ic'>📊</span>" +
+    "<span class='gt-launch-tx'><b>Justaino Score</b><i>Rank your club by position and see your best XIs</i></span>" +
+    "<span class='gt-launch-go'>›</span>";
+  metaLaunchBtn.addEventListener("click", openMetaPage);
+  metaLaunch.appendChild(metaLaunchBtn);
+
+  // The full-screen page lives inside the panel body, hidden until opened (reuses the
+  // Squad Builder's .gt-builder container styling: flex column, own scroll).
+  var metaPageHost = document.createElement("div");
+  metaPageHost.className = "gt-builder";
+  metaPageHost.style.display = "none";
+  body.appendChild(metaPageHost);
+
+  // Which sub-view of the Meta page is showing.
+  var metaView = "rank";   // "rank" (per-position rankings) | "xi" (best-XI pitch)
+  // When set, the Meta page shows a full detail card for this player INSTEAD of the list/pitch.
+  // Tapping a ranking row or a pitch dot opens it; its back arrow returns to the view you were on.
+  // This keeps Meta Ratings a self-contained browse experience (no jumping into the evo wizard).
+  var metaDetail = null;
+
+  // Best XI view state.
+  var GT_PITCH_SVG_META = "<svg viewBox='0 0 68 92' preserveAspectRatio='none' aria-hidden='true'><g fill='none' stroke='rgba(120,180,255,.22)' stroke-width='0.35'><rect x='1.5' y='1.5' width='65' height='89' rx='1.2'/><line x1='1.5' y1='46' x2='66.5' y2='46'/><circle cx='34' cy='46' r='8.5'/><circle cx='34' cy='46' r='0.6' fill='rgba(120,180,255,.22)' stroke='none'/><rect x='15' y='1.5' width='38' height='14'/><rect x='25' y='1.5' width='18' height='5.5'/><rect x='15' y='76.5' width='38' height='14'/><rect x='25' y='85' width='18' height='5.5'/></g></svg>";
+  var metaXiFormation = FORMATIONS["f433"] ? "f433" : (FORMATION_ORDER[0] || null);   // chosen formation
+  var metaXiCount = 3;     // how many depth-chart teams (Team 1 = best XI, Team 2 = next, ...)
+  var metaXiIdx = 0;       // which team's pitch is showing
+  var metaBoards = null;   // last buildMetaBoards() result
+
+  // metaRebuildBoards(): (re)run the depth-chart draft for the current formation + count.
+  function metaRebuildBoards() {
+    buildFormationCatalog();   // best-effort refresh in case formations weren't loaded when the panel opened
+    if (!FORMATION_ORDER.length || !FORMATIONS[metaXiFormation]) {
+      if (FORMATIONS["f433"]) metaXiFormation = "f433"; else if (FORMATION_ORDER[0]) metaXiFormation = FORMATION_ORDER[0];
+    }
+    if (!FORMATION_ORDER.length || !FORMATIONS[metaXiFormation]) { metaBoards = { empty: true, noFormations: true }; return; }
+    if (!getClubPlayers().length) { metaBoards = { empty: true }; return; }
+    metaBoards = buildMetaBoards(metaXiFormation, metaXiCount);
+    if (metaXiIdx >= metaXiCount) metaXiIdx = 0;
+  }
+
+  // Persistent Rankings controls + list (created once; the page render re-appends them).
   var metaPos = document.createElement("select");
-  metaPos.className = "meta-pos";
+  metaPos.className = "meta-pos gt-select";
   metaPos.innerHTML = META_GROUPS.map(function (g) { return "<option>" + esc(g) + "</option>"; }).join("");
   var metaCount = document.createElement("select");
-  metaCount.className = "meta-count";
+  metaCount.className = "meta-count gt-select";
   metaCount.innerHTML = [10, 20, 30, 50].map(function (n) { return "<option value='" + n + "'" + (n === 20 ? " selected" : "") + ">top " + n + "</option>"; }).join("");
-  metaControls.appendChild(metaPos);
-  metaControls.appendChild(metaCount);
   var metaList = document.createElement("div");
-  metaList.className = "meta-list";
+  metaList.className = "meta-list mp-list";
   var metaNote = document.createElement("div");
   metaNote.className = "meta-note";
-  metaBox.appendChild(metaControls);
-  metaBox.appendChild(metaList);
-  metaBox.appendChild(metaNote);
-  metaSection.appendChild(metaToggle);
-  metaSection.appendChild(metaBox);
-
-  var metaOpen = false;
-  function updateMetaToggle() { metaToggle.textContent = (metaOpen ? "▾ " : "▸ ") + "Meta rating (rank my club by position)"; }
-  metaToggle.addEventListener("click", function () {
-    metaOpen = !metaOpen;
-    metaBox.style.display = metaOpen ? "block" : "none";
-    if (metaOpen) renderMetaRating();
-    updateMetaToggle();
-    lineupPeek = false;                                        // opening/closing re-collapses the list on mobile
-    if (typeof updateLineupCollapse === "function") updateLineupCollapse();
-  });
   metaPos.addEventListener("change", renderMetaRating);
   metaCount.addEventListener("change", renderMetaRating);
 
-  // renderMetaRating(): rank the loaded club for the chosen position and draw the
-  // rows. Safe to call any time - it no-ops while the section is closed.
+  state.metaPageOpen = false;
+
+  // openMetaPage()/closeMetaPage(): mirror openBuilder/closeBuilder - flip the main layout
+  // out, the meta page in (and add the mobile "gt-open" height class via applyPanelChrome).
+  function openMetaPage() {
+    state.metaPageOpen = true;
+    metaDetail = null;                       // always open on the list/pitch, not a stale detail
+    metaPageHost.style.display = "flex";
+    layoutHost.style.display = "none";
+    applyPanelChrome();
+    renderMetaPage();
+  }
+  function closeMetaPage() {
+    state.metaPageOpen = false;
+    metaDetail = null;
+    metaPageHost.style.display = "none";
+    layoutHost.style.display = "flex";
+    applyPanelChrome();
+  }
+  function setMetaView(v) { metaView = v; renderMetaPage(); }
+
+  // showMetaDetail(it): open the in-page player detail. Selects the player (keepStep=true so it
+  // never advances the mobile evo wizard behind the overlay), then redraws the page in detail mode.
+  function showMetaDetail(it) {
+    try { selectPlayer(it, true); } catch (e) { state.player = it; }
+    metaDetail = it;
+    renderMetaPage();
+  }
+  function closeMetaDetail() { metaDetail = null; renderMetaPage(); }
+
+  // renderMetaPage(): (re)build the whole page for the current sub-view. Header (back +
+  // title), a two-tab strip (Rankings / Best XI), then the active view's body.
+  function renderMetaPage() {
+    if (!state.metaPageOpen) return;
+    metaPageHost.innerHTML = "";
+    if (metaDetail) { renderMetaDetail(); return; }   // detail card takes over the whole page
+
+    var top = document.createElement("div"); top.className = "gt-bd-top";
+    var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeMetaPage);
+    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>Justaino Score</b>";
+    top.appendChild(back); top.appendChild(ttl);
+    metaPageHost.appendChild(top);
+
+    // Sub-view tab strip (reuses the Squad Builder's pill styling).
+    var tabs = document.createElement("div"); tabs.className = "mp-tabs";
+    [["rank", "Rankings"], ["xi", "Best XI"]].forEach(function (t) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "gt-sqpill";
+      b.textContent = t[1]; b.setAttribute("aria-selected", String(metaView === t[0]));
+      b.addEventListener("click", function () { setMetaView(t[0]); });
+      tabs.appendChild(b);
+    });
+    metaPageHost.appendChild(tabs);
+
+    var view = document.createElement("div"); view.className = "mp-body";
+    if (metaView === "rank") {
+      var controls = document.createElement("div"); controls.className = "meta-controls mp-controls";
+      controls.appendChild(metaPos); controls.appendChild(metaCount);
+      view.appendChild(controls);
+      view.appendChild(metaList);
+      view.appendChild(metaNote);
+    } else {
+      renderMetaXiInto(view);
+    }
+    metaPageHost.appendChild(view);
+    renderMetaRating();
+  }
+
+  // renderMetaDetail(): the in-page player detail card (shown when metaDetail is set). Read-focused:
+  // big OVR + Justaino pill, a per-position meta breakdown, face stats, and current PlayStyles. The
+  // back arrow returns to whichever view you came from (Rankings / Best XI); "Edit PlayStyles" is the
+  // one explicit door OUT into the evo tool. Reuses the spotlight's pv-* styles + faceStatsHTML.
+  function renderMetaDetail() {
+    var it = metaDetail;
+    var fromLabel = (metaView === "xi") ? "Best XI" : "Rankings";
+
+    var top = document.createElement("div"); top.className = "gt-bd-top";
+    var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "‹"; back.title = "Back to " + fromLabel; back.addEventListener("click", closeMetaDetail);
+    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Back to " + esc(fromLabel) + "</span><b>Player detail</b>";
+    top.appendChild(back); top.appendChild(ttl);
+    metaPageHost.appendChild(top);
+
+    var body = document.createElement("div"); body.className = "mp-body mp-detail";
+
+    // Headline: OVR + best Justaino pill + name/rarity/positions.
+    var jr = null; try { jr = bestJustaino(it); } catch (e) {}
+    var jrHTML = jr ? "<span class='pv-jr'>JUSTAINO " + jr.score.total.toFixed(1) + " &middot; " + esc(jr.group) + "</span>" : "";
+    var posLine = ""; try { var pg = playerPositionGroups(it); if (pg && pg.length) posLine = " &middot; " + esc(pg.join(", ")); } catch (e) {}
+
+    // Per-position meta breakdown: every group the card can play, scored, best first, top one accented.
+    var perPos = "";
+    try {
+      var groups = playerPositionGroups(it);
+      if (groups.length) {
+        var scored = groups.map(function (g) { return { g: g, t: scorePlayer(it, g).total }; }).sort(function (a, b) { return b.t - a.t; });
+        perPos = "<div class='pv-group'><div class='pv-gl'>JST Score by position</div><div class='mp-posrow'>" +
+          scored.map(function (s, i) { return "<span class='mp-poschip" + (i === 0 ? " top" : "") + "'>" + esc(s.g) + " <b>" + s.t.toFixed(1) + "</b></span>"; }).join("") +
+          "</div></div>";
+      }
+    } catch (e) {}
+
+    // Current PlayStyles, split PS+ / Basic (same chip markup as the spotlight card).
+    var plus = [], basic = [];
+    currentPlayStyles(it).forEach(function (p) { (p.isIcon ? plus : basic).push({ traitId: p.traitId, name: traitName[p.traitId] || ("trait " + p.traitId) }); });
+    function groupHTML(label, list, isPlus) {
+      if (!list.length) return "";
+      var chips = list.map(function (e) { return "<span class='pv-chip" + (isPlus ? " plus" : "") + "'><i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + e.traitId + "'></i>" + esc(e.name) + "</span>"; }).join("");
+      return "<div class='pv-group'><div class='pv-gl'>" + label + "</div><div class='pv-chips'>" + chips + "</div></div>";
+    }
+    var noneMsg = (!plus.length && !basic.length) ? "<div class='pv-none'>No PlayStyles yet.</div>" : "";
+
+    body.innerHTML =
+      "<div class='pv-hero'>" +
+        "<div class='pv-numwrap'><span class='pv-num'>" + (it.rating != null ? it.rating : "?") + "</span>" + jrHTML + "</div>" +
+        "<div class='pv-herowho'>" +
+          "<div class='pv-nm'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='pv-gk'>GK</span>" : "") + "</div>" +
+          "<div class='pv-sub'>" + esc(rarityName(it)) + posLine + "</div>" +
+        "</div>" +
+      "</div>" +
+      perPos +
+      faceStatsHTML(it) +
+      noneMsg +
+      groupHTML("PlayStyle+", plus, true) +
+      groupHTML("Basic", basic, false) +
+      "<button type='button' class='mp-edit'>Edit PlayStyles →</button>";
+    metaPageHost.appendChild(body);
+
+    // "Edit PlayStyles": leave the Meta page and open this player in the evo tool's Deck.
+    var edit = body.querySelector(".mp-edit");
+    if (edit) edit.addEventListener("click", function () {
+      closeMetaPage();
+      if (currentMode() === "mobile") { goStep(2); } else { renderPreview(); }
+    });
+  }
+
+  // renderMetaXiInto(view): build the Best XI sub-view - a formation + team-count picker, team
+  // pills (Team 1 / 2 / 3...), an average stat strip, and the chosen team on a pitch. The dot
+  // drawing mirrors the Squad Builder's renderGtPitch (reusing all the .gt-pitch/.gt-dot styles).
+  function renderMetaXiInto(view) {
+    // (Re)build boards if we have none yet, or the last attempt was empty (e.g. club loaded since).
+    if (!metaBoards || metaBoards.empty) metaRebuildBoards();
+
+    // Formation + team-count controls.
+    var controls = document.createElement("div"); controls.className = "meta-controls mp-controls";
+    controls.appendChild(gtSelectEl(FORMATION_ORDER, metaXiFormation, function (v) { metaXiFormation = v; metaRebuildBoards(); renderMetaPage(); }, fmtFormation));
+    controls.appendChild(gtSelectEl([1, 2, 3, 4, 5], metaXiCount, function (v) { metaXiCount = parseInt(v, 10); metaRebuildBoards(); renderMetaPage(); }, function (n) { return "Top " + n; }));
+    view.appendChild(controls);
+
+    // If we can't build (no formations / no club), show a friendly note and stop.
+    if (!metaBoards || metaBoards.empty) {
+      var w = document.createElement("div"); w.className = "gt-warn2";
+      w.innerHTML = metaBoards && metaBoards.noFormations
+        ? "Formations haven't loaded yet. Open the <b>Squads</b> screen in the app once, then reopen this page."
+        : "No club players loaded yet. Go back, tap <b>↻ Reload club</b>, then reopen this page.";
+      view.appendChild(w);
+      return;
+    }
+
+    var teams = metaBoards.teams;
+    if (metaXiIdx >= teams.length) metaXiIdx = 0;
+    var team = teams[metaXiIdx];
+
+    // Team pills (only shown when there's more than one team to switch between).
+    if (teams.length > 1) {
+      var pills = document.createElement("div"); pills.className = "gt-sqpills";
+      teams.forEach(function (tm, i) {
+        var b = document.createElement("button"); b.type = "button"; b.className = "gt-sqpill";
+        b.textContent = "Team " + (i + 1); b.setAttribute("aria-selected", String(i === metaXiIdx));
+        b.addEventListener("click", function () { metaXiIdx = i; renderMetaPage(); });
+        pills.appendChild(b);
+      });
+      view.appendChild(pills);
+    }
+
+    // Average stat strip: Justaino meta avg, true OVR avg, placed count, biggest league bloc.
+    var strip = document.createElement("div"); strip.className = "gt-statstrip";
+    strip.innerHTML =
+      "<div class='gt-stat'><div class='v a'>" + team.avg + "</div><div class='k'>JST avg</div></div>" +
+      "<div class='gt-stat'><div class='v g'>" + team.ovrAvg + "</div><div class='k'>OVR avg</div></div>" +
+      "<div class='gt-stat'><div class='v'>" + team.filled + "/11</div><div class='k'>Placed</div></div>" +
+      "<div class='gt-stat'><div class='v'>" + team.chem.maxLeague + "</div><div class='k'>League</div></div>";
+    view.appendChild(strip);
+
+    // The pitch (own element, so it never touches the Squad Builder's gtEls.pitch).
+    var pw = document.createElement("div"); pw.className = "gt-pitchwrap";
+    var pitch = document.createElement("div"); pitch.className = "gt-pitch"; pitch.innerHTML = GT_PITCH_SVG_META;
+    pw.appendChild(pitch);
+    view.appendChild(pw);
+
+    var coords = FORMATION_DOTS[team.formation] || [];
+    coords.forEach(function (c, i) {
+      var pos = c[0], x = c[1], y = c[2], cell = team.slots[i], p = cell && cell.player;
+      var d = document.createElement("div");
+      d.className = "gt-dot " + (p ? ("t-" + gtTier(cell.score)) : "empty");
+      d.style.left = x + "%"; d.style.top = y + "%";
+      if (p) {
+        d.innerHTML = "<div class='gt-disc'>" + (p.rating != null ? p.rating : "?") + "</div><div class='gt-nm'>" + esc(playerName(p)) + "</div><div class='gt-meta'>" + esc(pos) + " · JS " + Math.round(cell.score) + "</div>";
+        d.title = playerName(p) + " (" + (cell.group || pos) + ", Justaino " + cell.score + ") - tap for detail";
+        d.style.cursor = "pointer";
+        d.addEventListener("click", function () { showMetaDetail(p); });
+      } else {
+        d.innerHTML = "<div class='gt-disc'>–</div><div class='gt-nm'>open</div><div class='gt-meta'>" + esc(pos) + "</div>";
+      }
+      pitch.appendChild(d);
+    });
+  }
+
+  // renderMetaRating(): rank the loaded club for the chosen position and draw the rows.
+  // Safe to call any time (selectPlayer / loadFullClub call it) - it no-ops unless the
+  // Meta page is open on the Rankings view. Same rows/markup as the old collapsible view.
   function renderMetaRating() {
-    if (!metaOpen) return;
+    if (!state.metaPageOpen || metaView !== "rank") return;
     var group = metaPos.value;
     var n = parseInt(metaCount.value, 10) || 20;
     var players = getClubPlayers();
-    if (!players.length) { metaList.innerHTML = ""; metaNote.textContent = "No club players yet - load your club first (↻ Reload club)."; return; }
+    if (!players.length) { metaList.innerHTML = ""; metaNote.textContent = "No club players yet - load your club first (close this, tap ↻ Reload club, then reopen)."; return; }
     var rows = metaTop(group, n);
     metaList.innerHTML = "";
     rows.forEach(function (r, i) {
@@ -3733,12 +4037,11 @@
         "<span class='meta-ps'>" + psHTML + "</span>" +
         "<span class='meta-score'><b>" + sc.total.toFixed(1) + "</b><span class='meta-split'>" + sc.statPart + " + " + sc.psPart + "</span></span>";
       row.title = playerName(it) + " as " + group + (sc.role ? " (" + sc.role + ")" : "") + " (out of 100): meta " + sc.metaBlend + " (stats " + sc.statPart + " + PlayStyles " + sc.psPart + "), blended " + Math.round(OVR_MIX * 100) + "% with OVR " + sc.ovr + " = " + sc.total + "  [raw stat avg " + sc.stat + ", PlayStyle score " + sc.psScore + "]";
-      row.addEventListener("click", function () { selectPlayer(it); });
+      row.addEventListener("click", function () { showMetaDetail(it); });
       metaList.appendChild(row);
     });
-    metaNote.textContent = "Ranked " + rows.length + " as " + group + ". Score leans on meta PlayStyles (a PlayStyle+ counts " + PSPLUS_MULT + "x a basic), then stats. Tap a row to spotlight that player.";
+    metaNote.textContent = "Ranked " + rows.length + " as " + group + ". Score leans on meta PlayStyles (a PlayStyle+ counts " + PSPLUS_MULT + "x a basic), then stats. Tap a row for full detail.";
   }
-  updateMetaToggle();
 
   // --------------------------------------------------------------------------
   // GAUNTLET SQUAD BUILDER (Feature 3) - a collapsible section, same shape as the
@@ -4165,7 +4468,7 @@
 
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaSection); squadMod.appendChild(gtSection);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); buildMod.appendChild(ghSection);
@@ -4244,8 +4547,12 @@
       rEl = "—"; nameEl = "No player selected"; capEl = "pick one from the Lineup tab";
     }
     var showToggle = !!it;                             // stats only make sense with a player in focus
+    // Justaino pill under the OVR, so a phone shows the same score the desktop spotlight does.
+    // Single-player only (a batch has no one "best" score). Same source as the desktop card: bestJustaino().
+    var jr = (!many && it) ? (function () { try { return bestJustaino(it); } catch (e) { return null; } })() : null;
+    var jrPill = jr ? "<span class='ds-jr'>JUSTAINO " + jr.score.total.toFixed(1) + " · " + esc(jr.group) + "</span>" : "";
     var bar = "<div class='ds-bar'>" +
-      "<span class='ds-r'>" + rEl + "</span>" +
+      "<div class='ds-rwrap'><span class='ds-r'>" + rEl + "</span>" + jrPill + "</div>" +
       "<div class='ds-w'><div class='ds-n'>" + esc(nameEl) + gkBadge + "</div><div class='ds-c'>" + esc(capEl) + "</div></div>" +
       (showToggle ? "<button type='button' class='ds-toggle'>" + (open ? "▴ hide" : "▾ stats") + "</button>" : "") +
       "</div>";
@@ -4280,7 +4587,10 @@
     if (many) {
       target = "<span class='rs-r'>👥</span><div class='rs-w'><div class='rs-n'>" + state.batch.size + " players</div><div class='rs-c'>batch apply</div></div>";
     } else {
-      target = "<span class='rs-r'>" + (it.rating != null ? it.rating : "?") + "</span>" +
+      // Justaino pill under the OVR here too (matches the Deck bar + desktop spotlight). Reuses .ds-rwrap/.ds-jr.
+      var rjr = (function () { try { return bestJustaino(it); } catch (e) { return null; } })();
+      var rjrPill = rjr ? "<span class='ds-jr'>JUSTAINO " + rjr.score.total.toFixed(1) + " · " + esc(rjr.group) + "</span>" : "";
+      target = "<div class='ds-rwrap'><span class='rs-r'>" + (it.rating != null ? it.rating : "?") + "</span>" + rjrPill + "</div>" +
         "<div class='rs-w'><div class='rs-n'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='ds-gk'>GK</span>" : "") + "</div>" +
         "<div class='rs-c'>" + esc(rarityName(it)) + "</div></div>";
     }
@@ -4476,6 +4786,7 @@
     // Keep the full-screen Squad Builder in front if it's open (e.g. after a phone/desktop flip),
     // and rebuild it for the new mode. layoutHost was just rebuilt above, so hide it again.
     if (state.builderOpen) { layoutHost.style.display = "none"; builderHost.style.display = "flex"; renderBuilder(); }
+    if (state.metaPageOpen) { layoutHost.style.display = "none"; metaPageHost.style.display = "flex"; renderMetaPage(); }
     // applyPanelChrome (above) clamped using the height BEFORE this content was added, so
     // re-clamp now that the real height is known - otherwise the tall panel can start
     // partly off-screen and its scrollbar be unreachable.
