@@ -5,6 +5,28 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v26 - 2026-07-24
+
+**Create your Best XI as a real squad (with a proper bench), search the rankings, and FUTTIES support.**
+
+- **Create a squad straight from the Justaino Score → Best XI page.** Under the pitch there's now a
+  bench preview plus **Create / Remove** buttons. Create saves the XI you're looking at as a real
+  in-game squad named **"Justaino Score Squad N"**, in the formation shown. Your active squad is
+  never touched, and **Remove Justaino Score squads** deletes them again (separate from the
+  Gauntlet remove - each only touches its own squads).
+- **The bench is built for you as the next-best cover.** After the starting XI, it guarantees one
+  each of **ST, LM, RM, CM, CB and LB/RB**, then fills the last sub with your best remaining
+  player - all drafted from the players left after the XI. If your club is thin at a spot, it says
+  so and uses your next-best there instead.
+- **Works for the depth chart too.** Viewing Team 2 (your 2nd-best XI) and hitting Create makes
+  that squad with its own bench; Team 3 the same, and so on. Players can repeat across teams by
+  design (a Team 1 bench player can start for Team 2).
+- **Search a position ranking by name.** On the Rankings view there's a new search box: while on,
+  say, ST it finds a player (e.g. "Garnacho") and shows them at their **true rank** even if they're
+  outside the top N. Players who can't play the chosen position don't appear. Accent-tolerant.
+- **FUTTIES cards are now recognised and evo-eligible.** Added rarity **16 = FUTTIES** to the
+  rarity list and the eligible set (it turns on automatically for existing installs, once).
+
 ## v25 - 2026-07-24
 
 **PlayStyle+ cap raised to 4, and the tool is now "Justaino FC Hub".**

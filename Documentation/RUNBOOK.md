@@ -554,6 +554,45 @@ the same `bestJustaino(it)` the desktop spotlight uses. Single player only (a ba
 
 ---
 
+## 3o. New in v26 - create a Best XI as a real squad, rankings search, FUTTIES
+
+Three additions: the Justaino Score page can now **create squads**, its Rankings view has a
+**search box**, and **FUTTIES** (rarity 16) is recognised and evo-eligible.
+
+**Create a Best XI squad (with a bench).** On the **Justaino Score -> Best XI** view, under the
+pitch, whichever team you're viewing (Team 1 = best XI, Team 2 = 2nd best, ...) now shows a **bench
+preview** and **Create / Remove** buttons.
+- **Create** saves that XI as a real in-game squad named **"Justaino Score Squad N"** (N = the next
+  free number), in the formation shown. It confirms first (listing the whole bench), respects the
+  30-squad cap, never touches your active squad, and retries a create that gets a transient 460.
+- **The bench** is the next-best cover after the XI: guaranteed one each of **ST, LM, RM, CM, CB,
+  LB/RB** (wide mids/backs are side-correct), then the 7th sub is your best remaining player. Any
+  spot the club can't cover is reported and filled with your next-best instead. **No backup GK** by
+  design. Players may repeat across teams (Team 1's bench can start for Team 2) - that's intended.
+- **Remove Justaino Score squads** deletes every squad whose name starts with `Justaino Score `.
+  This is **separate** from the Gauntlet remove: each button only ever touches its own squads (own
+  name prefix + own tracked-id list in localStorage: `FC26_justainoScoreSquadIds`).
+
+*How it's built:* `buildBestXiSquad(formationName, team)` (near `buildMetaBoards`) takes a board
+team's XI and drafts the bench from `JSCORE_BENCH_REQS`, returning a Gauntlet-shaped
+`{ slots, subs }` so it reuses `gauntletItemsForSquad` + `createGameSquad`. UI + the
+`runCreateJustainoSquad` / `runRemoveJustainoSquads` handlers live in `renderMetaXiInto`. Console:
+`window.FC26.buildBestXiSquad("f433")` and the readable `window.FC26.previewBestXiSquad("f433")`.
+
+**Rankings search.** The Rankings view has a **"search this position by name..."** box. With text
+in it, the list shows only players who can play the chosen position **and** match the name, each at
+their **true rank** in your full list for that position (even if outside the top N). Empty box = the
+normal top-N view. Accent-tolerant (reuses `playerSearchText`/`normName`). `renderMetaRating` now
+ranks against the **full** list (`metaTop(group, 1e9)`) and filters/relabels ranks from there.
+
+**FUTTIES (rarity 16).** Added `"16": "FUTTIES"` to the (now one-per-line) `RARITIES` map and to
+`ELIG_SEED`. Because existing installs already have a saved eligible list, `ELIG_MERGE_ONCE = [16]`
+force-adds it **once** (tracked in `FC26_eligibleMerged`) so it turns on without wiping your own
+tweaks; remove it later and it stays removed. To make a future rarity eligible for everyone, add its
+id to both `ELIG_SEED` and `ELIG_MERGE_ONCE`.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

@@ -238,7 +238,90 @@
   // rareflag (a number EA uses internally) -> readable rarity name. Copied from the
   // reference script. If a rareflag isn't listed we just show the number, so a
   // missing entry is harmless.
-  var RARITIES = {"0":"Common","1":"Rare","3":"Team of the Week","5":"Team of the Year","8":"Star Performer","11":"Team of the Season","12":"Icon","14":"Knockout Royalty Hero","15":"Knockout Royalty ICON","18":"Festival of Football ICON","20":"FoF: Answer the Call","21":"Prime Hero","22":"Ratings Reload","23":"Future Stars Hero","26":"UCL Primetime Hero","27":"UWCL Primetime Hero","28":"Festival of Football: Captains","30":"FUT Birthday","31":"UEFA Women's Champions League Primetime","32":"UEFA Women's Champions League Road to the Final","33":"Thunderstruck","34":"FC Pro Live","35":"Winter Wildcards ICON","36":"Journey of Nations","46":"UEFA Europa League Primetime","49":"Winter Wildcards Hero","50":"UEFA Champions League Primetime","55":"Knockout Royalty","57":"Showdown Upgrade","58":"Showdown","62":"Festival of Football Showdown","63":"Festival of Football Showdown Upgrade","64":"TOTY Honourable Mentions","65":"TOTS Honourable Mentions","69":"World Tour Silver Superstar","71":"Future Stars","72":"Heroes","76":"Trophy Titans ICON","77":"Trophy Titans Hero","81":"Classic XI Hero","82":"Unbreakables","83":"Unbreakables Hero","85":"Unbreakables ICON","88":"Unbreakables Evolution","90":"Moments","91":"World Tour","94":"Festival of Football: Star Performer","96":"Joga Bonito","97":"Joga Bonito Hero","98":"Festival of Football: National Pride","103":"Festival of Football: National Pride Red","104":"Festival of Football: Glory Hunters Red","105":"UEFA Conference League Primetime","107":"Festival of Football: Path to Glory","108":"Time Warp","109":"Festival of Football: Glory Hunters","111":"Fantasy FC","112":"Time Warp ICON","116":"Festival of Football: Captains ICON","117":"Winter Wildcards","120":"TOTS Breakthrough","124":"UEFA Champions League Road to the Final","125":"UEFA Europa League Road to the Final","126":"UEFA Conference League Road to the Final","127":"Team of the Season Champions","130":"Festival of Football: Greats of the Game Hero","131":"Festival of Football: Greats of the Game ICON","132":"TOTY HM Evolution","135":"Fantasy FC Hero","147":"FUT Birthday EVO","148":"FUT Birthday Hero","149":"FUT Birthday ICON","150":"Cornerstones","151":"Ultimate Scream","155":"Team of the Year ICON","157":"Thunderstruck ICON","163":"eCL Icon","168":"Ultimate Scream Hero","170":"Future Stars ICON"};
+  // One entry per line, in numeric id order, so a new rarity is easy to add: just drop a
+  // "<id>": "<name>", line in the right place. Unknown ids fall back to "Rarity <id>".
+  var RARITIES = {
+    "0":   "Common",
+    "1":   "Rare",
+    "3":   "Team of the Week",
+    "5":   "Team of the Year",
+    "8":   "Star Performer",
+    "11":  "Team of the Season",
+    "12":  "Icon",
+    "14":  "Knockout Royalty Hero",
+    "15":  "Knockout Royalty ICON",
+    "16":  "FUTTIES",
+    "18":  "Festival of Football ICON",
+    "20":  "FoF: Answer the Call",
+    "21":  "Prime Hero",
+    "22":  "Ratings Reload",
+    "23":  "Future Stars Hero",
+    "26":  "UCL Primetime Hero",
+    "27":  "UWCL Primetime Hero",
+    "28":  "Festival of Football: Captains",
+    "30":  "FUT Birthday",
+    "31":  "UEFA Women's Champions League Primetime",
+    "32":  "UEFA Women's Champions League Road to the Final",
+    "33":  "Thunderstruck",
+    "34":  "FC Pro Live",
+    "35":  "Winter Wildcards ICON",
+    "36":  "Journey of Nations",
+    "46":  "UEFA Europa League Primetime",
+    "49":  "Winter Wildcards Hero",
+    "50":  "UEFA Champions League Primetime",
+    "55":  "Knockout Royalty",
+    "57":  "Showdown Upgrade",
+    "58":  "Showdown",
+    "62":  "Festival of Football Showdown",
+    "63":  "Festival of Football Showdown Upgrade",
+    "64":  "TOTY Honourable Mentions",
+    "65":  "TOTS Honourable Mentions",
+    "69":  "World Tour Silver Superstar",
+    "71":  "Future Stars",
+    "72":  "Heroes",
+    "76":  "Trophy Titans ICON",
+    "77":  "Trophy Titans Hero",
+    "81":  "Classic XI Hero",
+    "82":  "Unbreakables",
+    "83":  "Unbreakables Hero",
+    "85":  "Unbreakables ICON",
+    "88":  "Unbreakables Evolution",
+    "90":  "Moments",
+    "91":  "World Tour",
+    "94":  "Festival of Football: Star Performer",
+    "96":  "Joga Bonito",
+    "97":  "Joga Bonito Hero",
+    "98":  "Festival of Football: National Pride",
+    "103": "Festival of Football: National Pride Red",
+    "104": "Festival of Football: Glory Hunters Red",
+    "105": "UEFA Conference League Primetime",
+    "107": "Festival of Football: Path to Glory",
+    "108": "Time Warp",
+    "109": "Festival of Football: Glory Hunters",
+    "111": "Fantasy FC",
+    "112": "Time Warp ICON",
+    "116": "Festival of Football: Captains ICON",
+    "117": "Winter Wildcards",
+    "120": "TOTS Breakthrough",
+    "124": "UEFA Champions League Road to the Final",
+    "125": "UEFA Europa League Road to the Final",
+    "126": "UEFA Conference League Road to the Final",
+    "127": "Team of the Season Champions",
+    "130": "Festival of Football: Greats of the Game Hero",
+    "131": "Festival of Football: Greats of the Game ICON",
+    "132": "TOTY HM Evolution",
+    "135": "Fantasy FC Hero",
+    "147": "FUT Birthday EVO",
+    "148": "FUT Birthday Hero",
+    "149": "FUT Birthday ICON",
+    "150": "Cornerstones",
+    "151": "Ultimate Scream",
+    "155": "Team of the Year ICON",
+    "157": "Thunderstruck ICON",
+    "163": "eCL Icon",
+    "168": "Ultimate Scream Hero",
+    "170": "Future Stars ICON"
+  };
 
   // traitId -> PlayStyle base name, built from our catalog (traitId = rewardId - 301).
   // Used to label a player's CURRENT playstyles in the preview.
@@ -259,11 +342,29 @@
   // It's saved in the browser (localStorage) so it survives page reloads.
   var ELIG_KEY = "FC26_eligibleRarities";   // localStorage key: the rarity list
   var ELIG_ONLY_KEY = "FC26_onlyEligible";  // localStorage key: is the filter on?
-  var ELIG_SEED = [30, 94, 98, 103, 109];            // starter guess (from reference-evo.js) - edit freely
-  // loadEligible(): the saved list, or the seed on first ever run.
+  var ELIG_SEED = [16, 30, 94, 98, 103, 109];        // starter guess (from reference-evo.js) - edit freely. 16 = FUTTIES
+  // ELIG_MERGE_ONCE: rarities added to the eligible list AFTER first release. Each is force-added
+  // to an EXISTING saved list exactly once (tracked in ELIG_MERGED_KEY), so a newly-eligible
+  // rarity like FUTTIES(16) turns on for current installs too - without re-adding anything the
+  // user later chooses to remove. Add new post-release eligible rarities here.
+  var ELIG_MERGE_ONCE = [16];
+  var ELIG_MERGED_KEY = "FC26_eligibleMerged";
+  // loadEligible(): the saved list, or the seed on first ever run. Also runs the one-time merges.
   function loadEligible() {
-    try { var raw = window.localStorage.getItem(ELIG_KEY); if (raw) return new Set(JSON.parse(raw).map(Number)); } catch (e) {}
-    return new Set(ELIG_SEED);
+    var set = null;
+    try { var raw = window.localStorage.getItem(ELIG_KEY); if (raw) set = new Set(JSON.parse(raw).map(Number)); } catch (e) {}
+    if (!set) return new Set(ELIG_SEED);   // first ever run: seed the whole list
+    // One-time merges for existing users.
+    try {
+      var done = JSON.parse(window.localStorage.getItem(ELIG_MERGED_KEY) || "[]").map(Number);
+      var changed = false;
+      ELIG_MERGE_ONCE.forEach(function (r) { if (done.indexOf(r) === -1) { set.add(r); done.push(r); changed = true; } });
+      if (changed) {
+        window.localStorage.setItem(ELIG_KEY, JSON.stringify(Array.from(set)));
+        window.localStorage.setItem(ELIG_MERGED_KEY, JSON.stringify(done));
+      }
+    } catch (e) {}
+    return set;
   }
   // loadOnlyEligible(): the saved on/off state of the filter (default off).
   function loadOnlyEligible() {
@@ -1473,6 +1574,150 @@
     return { formation: formationName, teamCount: teamCount, teams: teams };
   }
   window.FC26.buildMetaBoards = buildMetaBoards;
+
+  // ---- FEATURE: turn a Best XI into a REAL 18-man squad (starters + rules-based bench) -------
+  // The Best XI page shows your strongest XI for a formation (buildMetaBoards, view-only). This
+  // takes that SAME XI and gives it a 7-man bench, so the whole thing can be created in game.
+  // The bench is drafted as the NEXT BEST players AFTER the XI (each club player used once, same
+  // rule as the board), but with GUARANTEED position cover: at least one each of a fixed set of
+  // spots, then the last sub is simply the best remaining player at their strongest position.
+  //
+  // JSCORE_BENCH_REQS: the required bench spots, IN DRAFT PRIORITY ORDER (scarcer / side-locked
+  // spots first so they aren't stranded). Each is a [group, side] pair matching canPlaySlot:
+  // side "L"/"R" pins a flank (LM vs RM), side "" means either side / central. No backup GK by
+  // design (matches the spec). If a spot can't be filled (club has no spare there) it's skipped
+  // and reported in `missing`, and its slot goes to the best-remaining fill instead.
+  var JSCORE_BENCH_REQS = [
+    { group: "ST",      side: "",  label: "ST" },
+    { group: "RM / LM", side: "L", label: "LM" },
+    { group: "RM / LM", side: "R", label: "RM" },
+    { group: "CM",      side: "",  label: "CM" },
+    { group: "CB",      side: "",  label: "CB" },
+    { group: "RB / LB", side: "",  label: "LB/RB" }
+  ];
+  var JSCORE_BENCH_SIZE = 7;   // a full FUT bench (same as the Gauntlet's SUBS_PER_SQUAD)
+
+  // buildBestXiSquad(formationName): the strongest XI for this formation (by Justaino meta score)
+  // PLUS a rules-based bench, shaped exactly like a Gauntlet squad ({ slots:[11], subs:[7] }) so
+  // it feeds straight into gauntletItemsForSquad + createGameSquad. Returns { error } if the
+  // formation is unknown. `missing` lists any required bench spot the club couldn't cover.
+  function buildBestXiSquad(formationName, team) {
+    if (!FORMATIONS[formationName]) return { error: "Unknown formation: " + formationName };
+    // 1) The XI. Default = the single strongest team. Callers viewing a depth-chart team (Team 2,
+    //    Team 3, ...) pass THAT team so we build its 2nd/3rd-best XI plus its own bench. Players
+    //    can repeat across teams by design - each squad is built independently (Team 1's bench may
+    //    reappear in Team 2's starters).
+    if (!team) {
+      var board = buildMetaBoards(formationName, 1);
+      if (board.error) return board;
+      team = board.teams[0];
+    }
+
+    // 2) Bench pool = every usable club player MINUS the 11 already in the XI (used-once rule).
+    var used = new Set();
+    team.slots.forEach(function (c) { if (c && c.player) used.add(playerKey(c.player)); });
+    var pool = gauntletPool().filter(function (it) { return !used.has(playerKey(it)); });
+
+    var subs = [];        // ordered bench cells (like squad.subs elsewhere)
+    var missing = [];     // required spot labels we couldn't fill (for the report / UI)
+
+    // bestForSlot(group, side): index into pool of the best remaining player for this spot,
+    // scored at that group (Justaino meta). null if nobody left can play it. side "" = group only.
+    function bestForSlot(group, side) {
+      var bestI = -1, bestScore = -1;
+      for (var i = 0; i < pool.length; i++) {
+        var ok = (side === "L" || side === "R") ? canPlaySlot(pool[i], group, side) : canPlayGroup(pool[i], group);
+        if (!ok) continue;
+        var sc = scorePlayer(pool[i], group).total;
+        if (sc > bestScore) { bestScore = sc; bestI = i; }
+      }
+      return bestI < 0 ? null : { i: bestI, score: bestScore };
+    }
+
+    // 2a) Fill the REQUIRED spots first, in priority order (best remaining for each).
+    JSCORE_BENCH_REQS.forEach(function (req) {
+      if (subs.length >= JSCORE_BENCH_SIZE) return;
+      var pick = bestForSlot(req.group, req.side);
+      if (!pick) { missing.push(req.label); return; }
+      var picked = pool.splice(pick.i, 1)[0];
+      used.add(playerKey(picked));
+      subs.push({ group: req.group, side: req.side, reqLabel: req.label, player: picked, score: pick.score });
+    });
+
+    // 2b) Fill the rest of the bench (up to 7) with the best remaining player at their
+    // strongest position (bestJustaino) - the plain "next best" cover slot.
+    while (subs.length < JSCORE_BENCH_SIZE) {
+      var bestI = -1, bestScore = -1, bestGroup = null;
+      for (var i = 0; i < pool.length; i++) {
+        var bj = bestJustaino(pool[i]);
+        if (!bj) continue;
+        if (bj.score.total > bestScore) { bestScore = bj.score.total; bestI = i; bestGroup = bj.group; }
+      }
+      if (bestI < 0) { subs.push({ group: null, side: "", reqLabel: null, player: null, score: null }); continue; }
+      var pk = pool.splice(bestI, 1)[0];
+      used.add(playerKey(pk));
+      subs.push({ group: bestGroup, side: "", reqLabel: null, player: pk, score: bestScore });
+    }
+
+    // Bench average over filled subs (for display).
+    var ssum = 0, sfilled = 0;
+    subs.forEach(function (c) { if (c.player) { ssum += c.score; sfilled++; } });
+
+    return {
+      formation: formationName,
+      slots: team.slots,          // 11 starters, formation order (for create)
+      subs: subs,                 // 7 bench cells
+      avg: team.avg, ovrAvg: team.ovrAvg, filled: team.filled,
+      subAvg: sfilled ? Math.round((ssum / sfilled) * 10) / 10 : 0,
+      subFilled: sfilled,
+      missing: missing,
+      chem: chemSummary(squadPlaced({ slots: team.slots, subs: subs }))
+    };
+  }
+  window.FC26.buildBestXiSquad = buildBestXiSquad;
+
+  // Console-friendly, non-JS-readable preview for testing Step 1:
+  //   window.FC26.previewBestXiSquad("f433")
+  // -> the XI and bench as plain "Position: Name (score)" strings, plus any missing bench spot.
+  window.FC26.previewBestXiSquad = function (formationName) {
+    var sq = buildBestXiSquad(formationName || "f433");
+    if (sq.error) return sq.error;
+    function nm(c) { return (c && c.player) ? (playerName(c.player) + " (" + (c.score != null ? c.score : "-") + ")") : "(empty)"; }
+    return {
+      formation: fmtFormation(sq.formation),
+      startingXI: sq.slots.map(function (c) { return (c && c.group ? c.group : "?") + " -> " + nm(c); }),
+      bench: sq.subs.map(function (c) { return (c.reqLabel ? c.reqLabel : "best") + " -> " + nm(c); }),
+      benchMissing: sq.missing.length ? sq.missing.join(", ") : "none",
+      xiOvrAvg: sq.ovrAvg, benchAvg: sq.subAvg
+    };
+  };
+
+  // ---- Justaino Score squad create/remove plumbing (kept SEPARATE from the Gauntlet ones) ----
+  // These squads get their OWN name prefix and their OWN tracked-id list, so the Best XI page's
+  // "Remove" only ever deletes Justaino Score squads (never Gauntlet ones) and vice versa. The
+  // low-level calls (createGameSquad / listSavedSquads / removeGameSquad / countSavedSquads) are
+  // shared - only the naming and tracking differ.
+  var JSCORE_NAME_PREFIX = "Justaino Score Squad ";   // full name = prefix + a number, e.g. "Justaino Score Squad 1"
+  // Match on the broader "Justaino Score " so removal catches every squad we ever named this way.
+  function isJscoreSquadName(name) { return typeof name === "string" && name.indexOf("Justaino Score ") === 0; }
+  var JSCORE_IDS_KEY = "FC26_justainoScoreSquadIds";
+  function loadJscoreSquadIds() {
+    try { var raw = window.localStorage.getItem(JSCORE_IDS_KEY); if (raw) return JSON.parse(raw) || []; } catch (e) {}
+    return [];
+  }
+  function saveJscoreSquadIds(list) {
+    try { window.localStorage.setItem(JSCORE_IDS_KEY, JSON.stringify(list || [])); } catch (e) {}
+  }
+  // nextJscoreSquadNumber(savedList): 1 + the highest "Squad N" already saved, scanning the LIVE
+  // squad list so numbering survives reloads and never collides with an existing Justaino squad.
+  function nextJscoreSquadNumber(savedList) {
+    var max = 0;
+    (savedList || []).forEach(function (s) {
+      var m = /Justaino Score Squad (\d+)/.exec(s.name || "");
+      if (m) { var n = parseInt(m[1], 10); if (n > max) max = n; }
+    });
+    return max + 1;
+  }
 
   // ---- FEATURE: create the built Gauntlet squads in the game (writes to the account) ----
   // This is the ONLY part of the tool that creates data on your account. It never touches your
@@ -3856,12 +4101,21 @@
   var metaCount = document.createElement("select");
   metaCount.className = "meta-count gt-select";
   metaCount.innerHTML = [10, 20, 30, 50].map(function (n) { return "<option value='" + n + "'" + (n === 20 ? " selected" : "") + ">top " + n + "</option>"; }).join("");
+  // Search box: find a specific player within the CURRENT position ranking (e.g. "Garnacho" while
+  // on ST). Matching players show at their TRUE rank even if outside the top N; players who can't
+  // play the chosen position never appear. Accent-tolerant (reuses playerSearchText / normName).
+  var metaSearch = document.createElement("input");
+  metaSearch.type = "text";
+  metaSearch.className = "meta-search gt-select";
+  metaSearch.placeholder = "search this position by name...";
+  metaSearch.style.cssText = "flex:1;min-width:0;width:100%;box-sizing:border-box";
   var metaList = document.createElement("div");
   metaList.className = "meta-list mp-list";
   var metaNote = document.createElement("div");
   metaNote.className = "meta-note";
   metaPos.addEventListener("change", renderMetaRating);
   metaCount.addEventListener("change", renderMetaRating);
+  metaSearch.addEventListener("input", renderMetaRating);
 
   state.metaPageOpen = false;
 
@@ -3921,6 +4175,9 @@
       var controls = document.createElement("div"); controls.className = "meta-controls mp-controls";
       controls.appendChild(metaPos); controls.appendChild(metaCount);
       view.appendChild(controls);
+      var searchRow = document.createElement("div"); searchRow.className = "meta-controls mp-controls";
+      searchRow.appendChild(metaSearch);
+      view.appendChild(searchRow);
       view.appendChild(metaList);
       view.appendChild(metaNote);
     } else {
@@ -4001,6 +4258,10 @@
   // pills (Team 1 / 2 / 3...), an average stat strip, and the chosen team on a pitch. The dot
   // drawing mirrors the Squad Builder's renderGtPitch (reusing all the .gt-pitch/.gt-dot styles).
   function renderMetaXiInto(view) {
+    // This sub-view now has content BELOW the pitch (bench + create), so let it scroll instead
+    // of the pitch eating all the height (mp-body is overflow:hidden by default). The pitch keeps
+    // a min-height (set below) so it stays usable and pushes overflow into the scroll.
+    view.style.overflowY = "auto";
     // (Re)build boards if we have none yet, or the last attempt was empty (e.g. club loaded since).
     if (!metaBoards || metaBoards.empty) metaRebuildBoards();
 
@@ -4046,7 +4307,7 @@
     view.appendChild(strip);
 
     // The pitch (own element, so it never touches the Squad Builder's gtEls.pitch).
-    var pw = document.createElement("div"); pw.className = "gt-pitchwrap";
+    var pw = document.createElement("div"); pw.className = "gt-pitchwrap"; pw.style.minHeight = "260px";
     var pitch = document.createElement("div"); pitch.className = "gt-pitch"; pitch.innerHTML = GT_PITCH_SVG_META;
     pw.appendChild(pitch);
     view.appendChild(pw);
@@ -4067,6 +4328,49 @@
       }
       pitch.appendChild(d);
     });
+
+    // --- CREATE THIS SQUAD (under whichever team is being viewed) ---------------------------
+    // Shows the rules-based bench (so you see the FULL squad before committing) and a Create
+    // button that saves it in game as "Justaino Score Squad N". Offered on ANY team whose XI is
+    // complete - Team 1 creates the best XI, Team 2 the 2nd-best, etc. buildBestXiSquad adds the
+    // 7-man bench to THIS team's XI (bench players can repeat across teams by design).
+    if (team.filled === 11) {
+      var jsq = buildBestXiSquad(metaXiFormation, team);
+      if (!jsq.error) {
+        var teamTag = (teams.length > 1) ? ("Team " + (metaXiIdx + 1) + " · ") : "";
+        // Bench preview: 7 chips, each "POS Name score". reqLabel is the guaranteed spot
+        // (ST/LM/RM/CM/CB/LB/RB); the last, unlabelled one shows as "SUB" (best remaining).
+        var benchBox = document.createElement("div"); benchBox.className = "gt-bench"; benchBox.style.marginTop = "10px";
+        var chips = jsq.subs.map(function (c) {
+          var lab = c.reqLabel || "SUB";
+          return c.player
+            ? "<span class='gt-chip'><span style='color:var(--muted);font-weight:800;font-size:9px;letter-spacing:.06em'>" + esc(lab) + "</span> " + esc(playerName(c.player)) + " <b>" + Math.round(c.score) + "</b></span>"
+            : "<span class='gt-chip' style='opacity:.55'>" + esc(lab) + " (none)</span>";
+        }).join("");
+        benchBox.innerHTML = "<div class='bl'>" + teamTag + "Bench · next best · 7 subs" + (jsq.subAvg ? " · avg " + jsq.subAvg : "") + "</div><div class='gt-chips'>" + chips + "</div>";
+        view.appendChild(benchBox);
+
+        // If a required bench spot couldn't be filled (club too thin there), say so honestly.
+        if (jsq.missing && jsq.missing.length) {
+          var mw = document.createElement("div"); mw.className = "gt-warn2"; mw.style.marginTop = "8px";
+          mw.innerHTML = "No spare <b>" + esc(jsq.missing.join(", ")) + "</b> in your club for the bench - those slots use your next-best players instead.";
+          view.appendChild(mw);
+        }
+
+        // Actions: Create + Remove + a status line (its OWN element, separate from the builder's).
+        var jActions = document.createElement("div"); jActions.className = "gt-actions"; jActions.style.marginTop = "10px";
+        var jArow = document.createElement("div"); jArow.className = "gt-arow";
+        var jCreate = document.createElement("button"); jCreate.type = "button"; jCreate.className = "gt-cbtn"; jCreate.textContent = "Create Justaino Score Squad";
+        var jRemove = document.createElement("button"); jRemove.type = "button"; jRemove.className = "gt-rbtn"; jRemove.textContent = "Remove Justaino Score squads";
+        jArow.appendChild(jCreate); jArow.appendChild(jRemove);
+        var jStatus = document.createElement("div"); jStatus.className = "gt-status";
+        jActions.appendChild(jArow); jActions.appendChild(jStatus);
+        view.appendChild(jActions);
+
+        jCreate.addEventListener("click", function () { runCreateJustainoSquad(jStatus, jCreate, jRemove); });
+        jRemove.addEventListener("click", function () { runRemoveJustainoSquads(jStatus, jCreate, jRemove); });
+      }
+    }
   }
 
   // renderMetaRating(): rank the loaded club for the chosen position and draw the rows.
@@ -4078,9 +4382,24 @@
     var n = parseInt(metaCount.value, 10) || 20;
     var players = getClubPlayers();
     if (!players.length) { metaList.innerHTML = ""; metaNote.textContent = "No club players yet - load your club first (close this, tap ↻ Reload club, then reopen)."; return; }
-    var rows = metaTop(group, n);
+
+    // FULL ranking for this position (every player who can play the group), so a searched
+    // player's TRUE rank is known even when they're outside the top N. metaTop with a huge n
+    // returns the whole sorted list; we tag each entry with its 1-based rank.
+    var full = metaTop(group, 1e9);
+    full.forEach(function (r, i) { r.rank = i + 1; });
+
+    // Search: when the box has text, show ONLY players in THIS position whose name matches, each
+    // at their real rank (in or out of the top N). Empty box = the normal top-N view. Players who
+    // can't play this position are never in `full`, so they never appear - exactly as intended.
+    var q = normName((metaSearch.value || "").trim());
+    var searching = q.length > 0;
+    var rows = searching
+      ? full.filter(function (r) { return playerSearchText(r.it).indexOf(q) !== -1; })
+      : full.slice(0, n);
+
     metaList.innerHTML = "";
-    rows.forEach(function (r, i) {
+    rows.forEach(function (r) {
       var it = r.it, sc = r.score;
       var row = document.createElement("div");
       row.className = "meta-row" + (state.player && state.player.id === it.id ? " on" : "");
@@ -4089,7 +4408,7 @@
       var psPlus = currentPlayStyles(it).filter(function (p) { return p.isIcon; });
       var psHTML = psPlus.map(function (p) { return "<i class='ico icon_icontrait" + p.traitId + "'></i>"; }).join("");
       row.innerHTML =
-        "<span class='meta-rank'>" + (i + 1) + "</span>" +
+        "<span class='meta-rank'>" + r.rank + "</span>" +
         "<span class='meta-ovr'>" + (it.rating != null ? it.rating : "?") + "</span>" +
         "<span class='meta-nm'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='meta-gk'>GK</span>" : "") + "</span>" +
         "<span class='meta-ps'>" + psHTML + "</span>" +
@@ -4098,7 +4417,13 @@
       row.addEventListener("click", function () { showMetaDetail(it); });
       metaList.appendChild(row);
     });
-    metaNote.textContent = "Ranked " + rows.length + " as " + group + ". Score leans on meta PlayStyles (a PlayStyle+ counts " + PSPLUS_MULT + "x a basic), then stats. Tap a row for full detail.";
+    if (searching) {
+      metaNote.textContent = rows.length
+        ? ("Found " + rows.length + " matching \"" + metaSearch.value.trim() + "\" as " + group + " - rank = their place in your full " + group + " list of " + full.length + ".")
+        : ("No " + group + " matching \"" + metaSearch.value.trim() + "\" in your club. Players who can't play " + group + " don't appear here.");
+    } else {
+      metaNote.textContent = "Ranked " + rows.length + " of " + full.length + " as " + group + ". Score leans on meta PlayStyles (a PlayStyle+ counts " + PSPLUS_MULT + "x a basic), then stats. Tap a row for full detail.";
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -4522,6 +4847,81 @@
     state.gtRunning = false;
     await refreshGauntletCount();
     setGtStatus(gtToast(okCount > 0 ? "ok" : "err", "Removed " + okCount + " squad" + (okCount === 1 ? "" : "s") + (failCount ? (", " + failCount + " failed - try again") : "") + "."));
+  }
+
+  // ---- Justaino Score squad: create / remove (driven from the Best XI page) --------------------
+  // Single squad = the current Best XI + rules-based bench. Mirrors the Gauntlet runners but uses
+  // the SEPARATE name prefix / tracked-id list so its Remove only touches Justaino Score squads.
+  // statusEl is the Best XI page's own status <div>; createBtn/removeBtn are disabled while busy.
+  async function runCreateJustainoSquad(statusEl, createBtn, removeBtn) {
+    if (state.jsRunning || state.gtRunning) return;
+    // Build the CURRENTLY-VIEWED team fresh (Team 1 = best XI, Team 2 = 2nd best, ...), then add
+    // its bench. Rebuilt at click time so it reflects the live club and the team on screen.
+    var board = buildMetaBoards(metaXiFormation, metaXiCount);
+    var vteam = (!board.error && board.teams) ? board.teams[metaXiIdx] : null;
+    var jsq = vteam ? buildBestXiSquad(metaXiFormation, vteam) : { error: "no team" };
+    if (jsq.error || jsq.filled !== 11) { statusEl.innerHTML = gtToast("err", "Couldn't build a full XI for this formation - try another."); return; }
+    var saved = await listSavedSquads();
+    if (saved == null) { statusEl.innerHTML = gtToast("err", "Couldn't read your squad list. Open the Squads screen once, then try again."); return; }
+    var have = saved.length;
+    if (have >= GAUNTLET_MAX_SQUADS) { statusEl.innerHTML = gtToast("err", "You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads - remove some first."); return; }
+    var name = JSCORE_NAME_PREFIX + nextJscoreSquadNumber(saved);   // "Justaino Score Squad N" (next free number)
+    // Confirm, listing the whole bench so the create is never a surprise.
+    var benchLines = jsq.subs.map(function (c) { return "  - " + (c.reqLabel || "SUB") + ": " + (c.player ? playerName(c.player) : "(none)"); });
+    var xiDesc = (metaXiIdx === 0) ? "your strongest 11 by Justaino Score" : ("your #" + (metaXiIdx + 1) + " best 11 by Justaino Score (depth chart)");
+    var teamNote = (metaXiCount > 1) ? (", Team " + (metaXiIdx + 1)) : "";
+    var msg = "Create \"" + name + "\" (" + fmtFormation(jsq.formation) + teamNote + ") in your FC web app?\n\n" +
+      "Starting XI: " + xiDesc + " (OVR avg " + jsq.ovrAvg + ").\n\n" +
+      "Bench (next best):\n" + benchLines.join("\n") + "\n\n" +
+      "You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads; this uses 1 more.\n" +
+      "Your active squad is NOT touched. Undo any time with \"Remove Justaino Score squads\".\n\nContinue?";
+    if (!window.confirm(msg)) return;
+    state.jsRunning = true; if (createBtn) createBtn.disabled = true; if (removeBtn) removeBtn.disabled = true;
+    statusEl.innerHTML = gtProgress("Creating " + name + "…", 40);
+    // Same settle/retry approach as the Gauntlet: a create too soon after another can 460.
+    var ok = false, newId = null, reason = "?", ATTEMPTS = 3, RETRY_SETTLE_MS = 1200;
+    for (var attempt = 1; attempt <= ATTEMPTS && !ok; attempt++) {
+      if (attempt > 1) { statusEl.innerHTML = gtProgress("Retrying " + name + " (try " + attempt + " of " + ATTEMPTS + ")…", 40); await sleep(RETRY_SETTLE_MS); }
+      try {
+        var r = await createGameSquad(name, jsq.formation, gauntletItemsForSquad(jsq));
+        if (r && r.id != null) { ok = true; newId = r.id; } else { reason = "created but no id returned"; console.warn("[FC26] Justaino squad create returned no id", name, r); }
+      } catch (e) { reason = errMsg(e); console.warn("[FC26] Justaino squad create FAILED", name, "(try " + attempt + ")", e); }
+    }
+    state.jsRunning = false; if (createBtn) createBtn.disabled = false; if (removeBtn) removeBtn.disabled = false;
+    if (ok) {
+      var tracked = loadJscoreSquadIds().slice(); tracked.push({ id: newId, name: name }); saveJscoreSquadIds(tracked);
+      statusEl.innerHTML = gtToast("ok", "Created \"" + name + "\". Open the Squads screen to see it.");
+    } else {
+      statusEl.innerHTML = gtToast("err", "Couldn't create " + name + " - " + reason + ". Try again.");
+    }
+  }
+
+  // runRemoveJustainoSquads(): delete every "Justaino Score ..." squad from the live list.
+  async function runRemoveJustainoSquads(statusEl, createBtn, removeBtn) {
+    if (state.jsRunning || state.gtRunning) return;
+    var list = await listSavedSquads();
+    if (list == null) { statusEl.innerHTML = gtToast("err", "Couldn't read your squad list. Open the Squads screen once, then try again."); return; }
+    var ours = list.filter(function (sq) { return sq.id !== 0 && isJscoreSquadName(sq.name); });
+    if (!ours.length) { saveJscoreSquadIds([]); statusEl.innerHTML = gtSline("No Justaino Score squads found to remove."); return; }
+    var msg = "Remove the " + ours.length + " Justaino Score squad" + (ours.length === 1 ? "" : "s") + " in your club?\n\n" +
+      ours.map(function (s) { return "  - " + s.name; }).join("\n") +
+      "\n\nThis removes squads named \"Justaino Score ...\" only; your own squads are safe.\n\nContinue?";
+    if (!window.confirm(msg)) return;
+    state.jsRunning = true; if (createBtn) createBtn.disabled = true; if (removeBtn) removeBtn.disabled = true;
+    var okCount = 0, failCount = 0, guard = 0;
+    while (guard++ < 60) {
+      var cur = await listSavedSquads();
+      if (cur == null) { failCount++; break; }
+      var target = null;
+      for (var j = 0; j < cur.length; j++) { if (cur[j].id !== 0 && isJscoreSquadName(cur[j].name)) { target = cur[j]; break; } }
+      if (!target) break;
+      statusEl.innerHTML = gtProgress("Removing " + target.name + "…", 40);
+      try { await removeGameSquad(target.id); okCount++; } catch (e) { failCount++; console.warn("[FC26] Justaino squad remove failed", target, e); break; }
+      await sleep(300);
+    }
+    saveJscoreSquadIds([]);
+    state.jsRunning = false; if (createBtn) createBtn.disabled = false; if (removeBtn) removeBtn.disabled = false;
+    statusEl.innerHTML = gtToast(okCount > 0 ? "ok" : "err", "Removed " + okCount + " squad" + (okCount === 1 ? "" : "s") + (failCount ? (", " + failCount + " failed - try again") : "") + ".");
   }
 
   var squadMod = document.createElement("div");
