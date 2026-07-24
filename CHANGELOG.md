@@ -5,6 +5,32 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v27 - 2026-07-24
+
+**New Club Dashboard page: player stats and fun facts about your whole club, at a glance.**
+
+- **A new "Club Dashboard" tile** (🏟️) sits in the Lineup column next to Justaino Score and Squad
+  Builder. It opens a full-screen page that reads your loaded club and shows six read-only cards. It
+  never creates or changes anything in game - it's purely a read-out.
+- **Hero strip** - the top-line numbers: how many Players, your Avg OVR (in gold), and how many
+  Nations, Leagues and Icons you own.
+- **Club records** - a standout player per stat: Fastest (PAC), Strongest (PHY), Sharpshooter (SHO),
+  Playmaker (PAS), Magician (DRI), The Wall (DEF), plus your Highest OVR card and your Top Justaino
+  Score card. The six face-stat records use outfield players only (keepers read a different set of
+  stats, so they can't win those); Highest OVR and Top Justaino Score include everyone.
+- **Rating spread** - a small histogram of how many cards you own in each OVR band (90+, 85-89,
+  80-84, 75-79, under 75), with the 90+ band in gold.
+- **Squad DNA** - your club's average of each outfield face stat (PAC/SHO/PAS/DRI/DEF/PHY) as bars,
+  plus a plain-English read of your two strongest areas and softest one.
+- **Position depth** - how many players can fill each position (ST, RW/LW, CAM, ..., GK). Any spot
+  with fewer than 5 players who can cover it is flagged amber so thin cover reads at a glance.
+- **PlayStyle insights** - total PlayStyle+ across the club, your most common PlayStyle+, your
+  most-kitted card, and how many cards have no PlayStyle+ yet.
+- Everything is mobile-friendly (the hero drops to three across, records stack to one column, chips
+  wrap) and follows whichever colour theme you have selected.
+
+---
+
 ## v26 - 2026-07-24
 
 **Create your Best XI as a real squad (with a proper bench), search the rankings, and FUTTIES support.**

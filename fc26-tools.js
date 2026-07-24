@@ -3763,7 +3763,68 @@
       "#fc26-panel .rs-manage-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:6px 9px;cursor:pointer;font-size:11px;font-weight:600}" +
       "#fc26-panel .rs-manage-body{margin-top:8px}" +
       // Pinned mobile mini-spotlight (rating + name + caps), always visible below the tabs.
-      "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-launch-tx b{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:10.5px;color:var(--muted)}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:20px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-tabsel{width:100%;margin-top:7px;padding:5px 7px;font-size:11px;font-weight:700}" + "#fc26-panel .gt-mform{flex:none;display:flex;align-items:center;gap:8px;padding-bottom:8px}" + "#fc26-panel .gt-mform-lab{flex:none;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-mform-sel{flex:1;min-width:0}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" + "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
+      "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-launch-tx b{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:10.5px;color:var(--muted)}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:20px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-tabsel{width:100%;margin-top:7px;padding:5px 7px;font-size:11px;font-weight:700}" + "#fc26-panel .gt-mform{flex:none;display:flex;align-items:center;gap:8px;padding-bottom:8px}" + "#fc26-panel .gt-mform-lab{flex:none;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-mform-sel{flex:1;min-width:0}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" +
+      // ---- Feature 5: Club Dashboard (display only) ----------------------------
+      // Scrolling page body that fills the panel under the shared gt-bd-top header.
+      "#fc26-panel .db-body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding-right:2px}" +
+      // Module 1 - hero strip: 5 stat cells (own bg + border + gap, so wrapping on a
+      // phone never leaves an odd empty block the way a gap-background grid would).
+      "#fc26-panel .db-hero{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}" +
+      "#fc26-panel .db-hcell{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:12px 10px;display:flex;flex-direction:column;gap:3px}" +
+      "#fc26-panel .db-hn{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .db-hn.g{color:var(--gold)}" +
+      "#fc26-panel .db-hl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
+      // On a phone 5 across is too tight - drop to 3 columns (5 cells wrap to 3 + 2).
+      "#fc26-panel.fc26-mobile .db-hero{grid-template-columns:repeat(3,1fr)}" +
+      // Generic dashboard section card + heading (reused by every module below the hero).
+      "#fc26-panel .db-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:12px}" +
+      "#fc26-panel .db-h3{margin:0 0 10px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800;display:flex;align-items:center;gap:8px}" +
+      "#fc26-panel .db-h3::after{content:'';flex:1;height:1px;background:var(--border)}" +
+      // Module 2 - Club records: a standout player per stat, 2 across (1 on a phone).
+      "#fc26-panel .db-recs{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}" +
+      "#fc26-panel .db-rec{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;background:var(--tile);border:1px solid var(--tile-border)}" +
+      "#fc26-panel .db-rec-ic{flex:none;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:15px;background:var(--sel);border:1px solid var(--accent)}" +
+      "#fc26-panel .db-rec-meta{flex:1;min-width:0}" +
+      "#fc26-panel .db-rec-lab{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
+      "#fc26-panel .db-rec-nm{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}" +
+      "#fc26-panel .db-rec-val{flex:none;font-size:20px;font-weight:800;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .db-rec-val.a{color:var(--accent)}" +
+      "#fc26-panel.fc26-mobile .db-recs{grid-template-columns:1fr}" +
+      // Module 3 - Rating spread: a bar per OVR band, height scaled to the biggest band.
+      "#fc26-panel .db-hist{display:flex;align-items:flex-end;gap:8px;height:104px;padding-top:16px}" +
+      "#fc26-panel .db-hcol{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}" +
+      "#fc26-panel .db-hbar{width:100%;border-radius:6px 6px 2px 2px;background:var(--accent);position:relative;min-height:3px}" +
+      "#fc26-panel .db-hcol.g .db-hbar{background:var(--gold)}" +
+      "#fc26-panel .db-hcount{position:absolute;top:-15px;left:0;right:0;text-align:center;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .db-hlab{font-size:9px;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}" +
+      // Module 4 - Squad DNA: average of each face stat as a labelled bar, plus a read-out.
+      "#fc26-panel .db-dna{display:flex;flex-direction:column;gap:9px}" +
+      "#fc26-panel .db-drow{display:grid;grid-template-columns:34px 1fr 26px;align-items:center;gap:10px}" +
+      "#fc26-panel .db-dk{font-size:10px;letter-spacing:.04em;font-weight:800;color:var(--muted)}" +
+      "#fc26-panel .db-dtrack{height:8px;border-radius:5px;background:rgba(255,255,255,.06);overflow:hidden}" +
+      "#fc26-panel .db-dfill{height:100%;border-radius:5px;background:var(--accent)}" +
+      "#fc26-panel .db-dv{font-size:12px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .db-dnanote{margin-top:11px;font-size:11.5px;color:var(--muted);line-height:1.5}" +
+      "#fc26-panel .db-dnanote b{color:var(--accent)}" +
+      // Module 5 - Position depth: one chip per position group; thin cover flagged amber
+      // (amber is semantic, like the Stop button's red - deliberately not the theme accent).
+      "#fc26-panel .db-depth{display:flex;flex-wrap:wrap;gap:8px}" +
+      "#fc26-panel .db-pchip{display:flex;align-items:center;gap:8px;padding:7px 11px;border-radius:9px;background:var(--tile);border:1px solid var(--tile-border)}" +
+      "#fc26-panel .db-pchip .pp{font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--ink)}" +
+      "#fc26-panel .db-pchip .pc{font-size:12px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .db-pchip.thin{border-color:rgba(255,180,84,.42);background:rgba(255,180,84,.09)}" +
+      "#fc26-panel .db-pchip.thin .pc{color:#ffb454}" +
+      "#fc26-panel .db-depthkey{margin-top:10px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}" +
+      "#fc26-panel .db-depthkey i{width:9px;height:9px;border-radius:3px;background:#ffb454;display:inline-block;flex:none}" +
+      // Module 6 - PlayStyle insights: a few one-line stats about the club's PlayStyle+ spread.
+      "#fc26-panel .db-ps{display:flex;flex-direction:column}" +
+      "#fc26-panel .db-prow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--card-border)}" +
+      "#fc26-panel .db-prow:first-child{padding-top:0}" +
+      "#fc26-panel .db-prow:last-child{border-bottom:0;padding-bottom:0}" +
+      "#fc26-panel .db-pl{font-size:12px;color:var(--muted)}" +
+      "#fc26-panel .db-pr{font-size:13px;font-weight:700;text-align:right}" +
+      "#fc26-panel .db-pr .g{color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
   }
 
@@ -3966,7 +4027,7 @@
     // rule it OUT-SPECIFICS the 1-class pill rule (.fc26-min) - so a panel minimized with the
     // builder open would keep its full height and only "half close". Minimized never needs the
     // builder height, so we simply don't add gt-open when minimized.
-    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + ((state.builderOpen || state.metaPageOpen) && !state.minimized ? " gt-open" : "");
+    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + ((state.builderOpen || state.metaPageOpen || state.dashOpen) && !state.minimized ? " gt-open" : "");
     applyPanelSize();     // set/clear our explicit size BEFORE clamping position (so the rect is right)
     var slot = posSlot();
     var pos = slot ? positions[slot] : null;
@@ -4924,9 +4985,335 @@
     statusEl.innerHTML = gtToast(okCount > 0 ? "ok" : "err", "Removed " + okCount + " squad" + (okCount === 1 ? "" : "s") + (failCount ? (", " + failCount + " failed - try again") : "") + ".");
   }
 
+  // ============================================================================
+  // FEATURE 5 - CLUB DASHBOARD (display only)
+  // A full-panel page (same shell as Justaino Score / Squad Builder) that reads the
+  // loaded club and shows player-stat summaries and fun facts. It NEVER creates or
+  // changes anything in game - it's a pure read-out. Built one module at a time;
+  // v1 modules: hero strip, club records, rating spread, squad DNA, position depth,
+  // PlayStyle insights. (This step ships the page shell + the hero strip.)
+  // ============================================================================
+
+  // The launcher tile (sits in the lineup column, next to Justaino Score + Squad Builder).
+  var dashLaunch = document.createElement("div");
+  dashLaunch.className = "meta-section";
+  var dashLaunchBtn = document.createElement("button");
+  dashLaunchBtn.type = "button";
+  dashLaunchBtn.className = "gt-launch";
+  dashLaunchBtn.innerHTML = "<span class='gt-launch-ic'>🏟️</span>" +
+    "<span class='gt-launch-tx'><b>Club Dashboard</b><i>Player stats and fun facts about your whole club</i></span>" +
+    "<span class='gt-launch-go'>›</span>";
+  dashLaunchBtn.addEventListener("click", openDashPage);
+  dashLaunch.appendChild(dashLaunchBtn);
+
+  // The full-screen page host (hidden until opened; reuses the .gt-builder shell styling:
+  // flex column, own scroll, fills the panel).
+  var dashHost = document.createElement("div");
+  dashHost.className = "gt-builder";
+  dashHost.style.display = "none";
+  body.appendChild(dashHost);
+
+  state.dashOpen = false;
+
+  // openDashPage()/closeDashPage(): flip the main layout out and the dashboard in,
+  // mirroring openMetaPage/closeMetaPage (applyPanelChrome adds the mobile gt-open height).
+  function openDashPage() {
+    state.dashOpen = true;
+    dashHost.style.display = "flex";
+    layoutHost.style.display = "none";
+    applyPanelChrome();
+    renderDashPage();
+  }
+  function closeDashPage() {
+    state.dashOpen = false;
+    dashHost.style.display = "none";
+    layoutHost.style.display = "flex";
+    applyPanelChrome();
+  }
+
+  // computeClubSummary(): the top-line hero numbers, all from LOCAL club data.
+  //   players - how many player cards are loaded
+  //   avgOvr  - mean in-game OVR (it.rating), rounded
+  //   nations - count of distinct nations  (it.nationId)
+  //   leagues - count of distinct leagues  (it.leagueId)
+  //   icons   - how many icons (they share the hidden icon league, via isIcon())
+  function computeClubSummary() {
+    var players = getClubPlayers();
+    var ovrSum = 0, ovrN = 0, nations = {}, leagues = {}, icons = 0;
+    players.forEach(function (it) {
+      var r = 0; try { r = it.rating || 0; } catch (e) {}
+      if (r) { ovrSum += r; ovrN++; }
+      try { if (it.nationId != null) nations[it.nationId] = 1; } catch (e2) {}
+      try { if (it.leagueId != null) leagues[it.leagueId] = 1; } catch (e3) {}
+      if (isIcon(it)) icons++;
+    });
+    return {
+      players: players.length,
+      avgOvr: ovrN ? Math.round(ovrSum / ovrN) : 0,
+      nations: Object.keys(nations).length,
+      leagues: Object.keys(leagues).length,
+      icons: icons
+    };
+  }
+
+  // computeClubRecords(): one standout player per stat, all from LOCAL club data.
+  // The six face-stat records use OUTFIELD players only (GK cards read a different set of
+  // six stats - diving/handling/... - so their pace/shooting/etc are 0 and never win here).
+  // Highest OVR and Top Justaino Score consider EVERY player (keepers included).
+  // Returns [{icon,label,name,value,accent}] in display order.
+  function computeClubRecords() {
+    var players = getClubPlayers();
+    var outfield = players.filter(function (it) { return !isGKPlayer(it); });
+    // leadStat(list,key): the player with the highest value of one face stat.
+    function leadStat(list, key) {
+      var best = null;
+      list.forEach(function (it) {
+        var v = readStats(it)[key] || 0;
+        if (v && (!best || v > best.v)) best = { it: it, v: v };
+      });
+      return best;
+    }
+    var recs = [];
+    function push(icon, label, lead, acc) {
+      if (lead && lead.it) recs.push({ icon: icon, label: label, name: playerName(lead.it), value: lead.v, accent: !!acc });
+    }
+    push("⚡", "Fastest · PAC", leadStat(outfield, "pace"));
+    push("💪", "Strongest · PHY", leadStat(outfield, "physical"));
+    push("🎯", "Sharpshooter · SHO", leadStat(outfield, "shooting"));
+    push("🎩", "Playmaker · PAS", leadStat(outfield, "passing"));
+    push("✨", "Magician · DRI", leadStat(outfield, "dribbling"));
+    push("🧱", "The Wall · DEF", leadStat(outfield, "defending"));
+    // Highest OVR (every player).
+    var ovrBest = null;
+    players.forEach(function (it) { var r = it.rating || 0; if (r && (!ovrBest || r > ovrBest.v)) ovrBest = { it: it, v: r }; });
+    push("👑", "Highest OVR", ovrBest);
+    // Top Justaino Score (every player, at their best position).
+    var jBest = null;
+    players.forEach(function (it) {
+      var j = null; try { j = bestJustaino(it); } catch (e) {}
+      if (j && (!jBest || j.score.total > jBest.v)) jBest = { it: it, v: j.score.total };
+    });
+    if (jBest && jBest.it) recs.push({ icon: "🔥", label: "Top Justaino Score", name: playerName(jBest.it), value: jBest.v.toFixed(1), accent: true });
+    return recs;
+  }
+
+  // computeRatingSpread(): how many players fall in each OVR band, for the histogram.
+  // Bands are inclusive on both ends; the 90+ band is flagged gold (your best cards).
+  function computeRatingSpread() {
+    var buckets = [
+      { label: "90+", min: 90, max: 200, gold: true, n: 0 },
+      { label: "85-89", min: 85, max: 89, n: 0 },
+      { label: "80-84", min: 80, max: 84, n: 0 },
+      { label: "75-79", min: 75, max: 79, n: 0 },
+      { label: "<75", min: 0, max: 74, n: 0 }
+    ];
+    getClubPlayers().forEach(function (it) {
+      var r = it.rating || 0;
+      for (var i = 0; i < buckets.length; i++) {
+        if (r >= buckets[i].min && r <= buckets[i].max) { buckets[i].n++; break; }
+      }
+    });
+    return buckets;
+  }
+
+  // computeSquadDNA(): the club's AVERAGE of each outfield face stat (PAC/SHO/PAS/DRI/DEF/PHY),
+  // in the fixed FACE_STATS order, plus a plain-English read of the strongest/softest areas.
+  // GKs are excluded (they read a different six stats). Each avg is a whole number 0-99.
+  function computeSquadDNA() {
+    var outfield = getClubPlayers().filter(function (it) { return !isGKPlayer(it); });
+    var sums = {}; FACE_STATS.forEach(function (k) { sums[k] = 0; });
+    outfield.forEach(function (it) { var st = readStats(it); FACE_STATS.forEach(function (k) { sums[k] += (st[k] || 0); }); });
+    var n = outfield.length;
+    var avgs = FACE_STATS.map(function (k) { return { key: k, label: FACE_LABELS[k], v: n ? Math.round(sums[k] / n) : 0 }; });
+    // A short read: name the top stat, the runner-up, and the softest.
+    var byVal = avgs.slice().sort(function (a, b) { return b.v - a.v; });
+    // Plain-English adjective per stat for the summary sentence.
+    var WORD = { pace: "pace", shooting: "shooting", passing: "passing", dribbling: "dribbling", defending: "defending", physical: "physicality" };
+    var note = "";
+    if (n) {
+      var top = byVal[0], second = byVal[1], low = byVal[byVal.length - 1];
+      note = "Strongest in <b>" + esc(WORD[top.key]) + "</b> (" + top.v + ") and <b>" + esc(WORD[second.key]) + "</b> (" + second.v + "); softest in <b>" + esc(WORD[low.key]) + "</b> (" + low.v + ").";
+    }
+    return { count: n, avgs: avgs, note: note };
+  }
+
+  // computePositionDepth(): how many club players can fill each position group (a player
+  // counts toward every group they can play), in META_GROUPS order. A group is "thin" when
+  // fewer than DEPTH_THIN players cover it. Reuses playerPositionGroups (same eligibility the
+  // Squad Builder uses).
+  var DEPTH_THIN = 5;
+  function computePositionDepth() {
+    var counts = {}; META_GROUPS.forEach(function (g) { counts[g] = 0; });
+    getClubPlayers().forEach(function (it) {
+      playerPositionGroups(it).forEach(function (g) { if (counts[g] != null) counts[g]++; });
+    });
+    return META_GROUPS.map(function (g) { return { group: g, n: counts[g], thin: counts[g] < DEPTH_THIN }; });
+  }
+
+  // computePlayStyleInsights(): a few fun stats about the club's PlayStyle+ (the "+" versions).
+  //   totalPlus   - how many PlayStyle+ across the whole club
+  //   mostCommon  - the PlayStyle+ owned by the most cards ({name, n}) or null
+  //   mostKitted  - the card with the most PlayStyle+ ({name, n}) or null
+  //   zeroPlus    - how many cards have no PlayStyle+ at all
+  function computePlayStyleInsights() {
+    var players = getClubPlayers();
+    var totalPlus = 0, zeroPlus = 0, byTrait = {}, mostKitted = null;
+    players.forEach(function (it) {
+      var plusCount = 0;
+      currentPlayStyles(it).forEach(function (p) {
+        if (p.isIcon) { plusCount++; totalPlus++; byTrait[p.traitId] = (byTrait[p.traitId] || 0) + 1; }
+      });
+      if (plusCount === 0) zeroPlus++;
+      if (plusCount > 0 && (!mostKitted || plusCount > mostKitted.n)) mostKitted = { it: it, n: plusCount };
+    });
+    var topTrait = null;
+    Object.keys(byTrait).forEach(function (t) { if (!topTrait || byTrait[t] > topTrait.n) topTrait = { traitId: +t, n: byTrait[t] }; });
+    return {
+      players: players.length,
+      totalPlus: totalPlus,
+      zeroPlus: zeroPlus,
+      mostCommon: topTrait ? { name: (traitName[topTrait.traitId] || ("trait " + topTrait.traitId)) + "+", n: topTrait.n } : null,
+      mostKitted: mostKitted ? { name: playerName(mostKitted.it), n: mostKitted.n } : null
+    };
+  }
+
+  // renderDashPage(): (re)build the whole dashboard. v1 step 1 = header + hero strip;
+  // later modules (records, spread, DNA, depth, PlayStyles) get appended to bodyEl here.
+  function renderDashPage() {
+    if (!state.dashOpen) return;
+    dashHost.innerHTML = "";
+
+    // Header (back + eyebrow + title) - same chrome as the other full-panel pages.
+    var top = document.createElement("div"); top.className = "gt-bd-top";
+    var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeDashPage);
+    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>Club Dashboard</b>";
+    top.appendChild(back); top.appendChild(ttl);
+    dashHost.appendChild(top);
+
+    // Scrolling body that fills the rest of the panel.
+    var bodyEl = document.createElement("div"); bodyEl.className = "db-body";
+
+    var players = getClubPlayers();
+    if (!players.length) {
+      var empty = document.createElement("div"); empty.className = "mp-soon";
+      empty.textContent = "No club loaded yet. Go back, tap ↻ Reload club, then reopen this page.";
+      bodyEl.appendChild(empty);
+      dashHost.appendChild(bodyEl);
+      return;
+    }
+
+    // ---- MODULE 1: hero strip (at-a-glance club summary) ----
+    var s = computeClubSummary();
+    var hero = document.createElement("div"); hero.className = "db-hero";
+    [[s.players, "Players", ""], [s.avgOvr, "Avg OVR", "g"], [s.nations, "Nations", ""], [s.leagues, "Leagues", ""], [s.icons, "Icons", ""]].forEach(function (c) {
+      var cell = document.createElement("div"); cell.className = "db-hcell";
+      cell.innerHTML = "<span class='db-hn " + c[2] + "'>" + c[0] + "</span><span class='db-hl'>" + esc(c[1]) + "</span>";
+      hero.appendChild(cell);
+    });
+    bodyEl.appendChild(hero);
+
+    // ---- MODULE 2: Club records (a standout player per stat) ----
+    var recs = computeClubRecords();
+    if (recs.length) {
+      var recCard = document.createElement("div"); recCard.className = "db-card";
+      var recH = document.createElement("div"); recH.className = "db-h3"; recH.textContent = "Club records"; recCard.appendChild(recH);
+      var recGrid = document.createElement("div"); recGrid.className = "db-recs";
+      recs.forEach(function (r) {
+        var t = document.createElement("div"); t.className = "db-rec";
+        t.innerHTML = "<div class='db-rec-ic'>" + r.icon + "</div>" +
+          "<div class='db-rec-meta'><div class='db-rec-lab'>" + esc(r.label) + "</div><div class='db-rec-nm'>" + esc(r.name) + "</div></div>" +
+          "<div class='db-rec-val" + (r.accent ? " a" : "") + "'>" + r.value + "</div>";
+        recGrid.appendChild(t);
+      });
+      recCard.appendChild(recGrid);
+      bodyEl.appendChild(recCard);
+    }
+
+    // ---- MODULE 3: Rating spread (OVR histogram) ----
+    var spread = computeRatingSpread();
+    var maxN = Math.max.apply(null, spread.map(function (b) { return b.n; }).concat([1]));
+    var spCard = document.createElement("div"); spCard.className = "db-card";
+    var spH = document.createElement("div"); spH.className = "db-h3"; spH.textContent = "Rating spread"; spCard.appendChild(spH);
+    var hist = document.createElement("div"); hist.className = "db-hist";
+    spread.forEach(function (b) {
+      var col = document.createElement("div"); col.className = "db-hcol" + (b.gold ? " g" : "");
+      var pct = Math.round(b.n / maxN * 100);
+      col.innerHTML = "<div class='db-hbar' style='height:" + pct + "%'><span class='db-hcount'>" + b.n + "</span></div>" +
+        "<span class='db-hlab'>" + esc(b.label) + "</span>";
+      hist.appendChild(col);
+    });
+    spCard.appendChild(hist);
+    bodyEl.appendChild(spCard);
+
+    // ---- MODULE 4: Squad DNA (average outfield face stats + read-out) ----
+    var dna = computeSquadDNA();
+    if (dna.count) {
+      var dnaCard = document.createElement("div"); dnaCard.className = "db-card";
+      var dnaH = document.createElement("div"); dnaH.className = "db-h3"; dnaH.textContent = "Squad DNA"; dnaCard.appendChild(dnaH);
+      var dnaWrap = document.createElement("div"); dnaWrap.className = "db-dna";
+      dna.avgs.forEach(function (a) {
+        var row = document.createElement("div"); row.className = "db-drow";
+        row.innerHTML = "<span class='db-dk'>" + esc(a.label) + "</span>" +
+          "<div class='db-dtrack'><div class='db-dfill' style='width:" + Math.min(100, a.v) + "%'></div></div>" +
+          "<span class='db-dv'>" + a.v + "</span>";
+        dnaWrap.appendChild(row);
+      });
+      dnaCard.appendChild(dnaWrap);
+      var dnaNote = document.createElement("div"); dnaNote.className = "db-dnanote"; dnaNote.innerHTML = dna.note; dnaCard.appendChild(dnaNote);
+      bodyEl.appendChild(dnaCard);
+    }
+
+    // ---- MODULE 5: Position depth (players who can fill each position group) ----
+    var depth = computePositionDepth();
+    var depCard = document.createElement("div"); depCard.className = "db-card";
+    var depH = document.createElement("div"); depH.className = "db-h3"; depH.textContent = "Position depth"; depCard.appendChild(depH);
+    var depWrap = document.createElement("div"); depWrap.className = "db-depth";
+    var anyThin = false;
+    depth.forEach(function (d) {
+      if (d.thin) anyThin = true;
+      var chip = document.createElement("div"); chip.className = "db-pchip" + (d.thin ? " thin" : "");
+      chip.innerHTML = "<span class='pp'>" + esc(d.group) + "</span><span class='pc'>" + d.n + "</span>";
+      depWrap.appendChild(chip);
+    });
+    depCard.appendChild(depWrap);
+    if (anyThin) {
+      var depKey = document.createElement("div"); depKey.className = "db-depthkey";
+      depKey.innerHTML = "<i></i> Highlighted = thin cover (fewer than " + DEPTH_THIN + " players can fill the slot)";
+      depCard.appendChild(depKey);
+    }
+    bodyEl.appendChild(depCard);
+
+    // ---- MODULE 6: PlayStyle insights ----
+    var psi = computePlayStyleInsights();
+    var psCard = document.createElement("div"); psCard.className = "db-card";
+    var psH = document.createElement("div"); psH.className = "db-h3"; psH.textContent = "PlayStyle insights"; psCard.appendChild(psH);
+    var psWrap = document.createElement("div"); psWrap.className = "db-ps";
+    function psRow(label, valHTML) {
+      return "<div class='db-prow'><span class='db-pl'>" + esc(label) + "</span><span class='db-pr'>" + valHTML + "</span></div>";
+    }
+    var rowsHTML = psRow("Total PlayStyle+ across the club", "<span class='g'>" + psi.totalPlus + "</span>");
+    if (psi.mostCommon) rowsHTML += psRow("Most common PlayStyle+", esc(psi.mostCommon.name) + " <span class='g'>&times;" + psi.mostCommon.n + "</span>");
+    if (psi.mostKitted) rowsHTML += psRow("Most-kitted card", esc(psi.mostKitted.name) + " <span class='g'>" + psi.mostKitted.n + " PS+</span>");
+    rowsHTML += psRow("Cards with zero PlayStyle+", "<span class='g'>" + psi.zeroPlus + "</span>");
+    psWrap.innerHTML = rowsHTML;
+    psCard.appendChild(psWrap);
+    bodyEl.appendChild(psCard);
+
+    dashHost.appendChild(bodyEl);
+  }
+
+  // Console helper: open the dashboard without clicking (and a summary read-out).
+  window.FC26.openDashPage = openDashPage;
+  window.FC26.clubSummary = computeClubSummary;
+  window.FC26.clubRecords = computeClubRecords;
+  window.FC26.ratingSpread = computeRatingSpread;
+  window.FC26.squadDNA = computeSquadDNA;
+  window.FC26.positionDepth = computePositionDepth;
+  window.FC26.playStyleInsights = computePlayStyleInsights;
+
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(dashLaunch);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); buildMod.appendChild(ghSection);

@@ -593,6 +593,48 @@ id to both `ELIG_SEED` and `ELIG_MERGE_ONCE`.
 
 ---
 
+## 3p. New in v27 - the Club Dashboard (display only)
+
+A third full-screen page (after Justaino Score and Squad Builder) that reads your loaded club and
+shows player stats + fun facts. It's **read-only** - it never creates or changes anything in game.
+
+**How to use it.** In the Lineup column tap the **🏟️ Club Dashboard** tile (next to Justaino Score /
+Squad Builder). The page scrolls through six cards, top to bottom:
+- **Hero strip** - Players, Avg OVR (gold), Nations, Leagues, Icons.
+- **Club records** - one standout card per stat: Fastest/Strongest/Sharpshooter/Playmaker/Magician/
+  The Wall (from the 6 face stats, outfield only), plus Highest OVR and Top Justaino Score (everyone).
+- **Rating spread** - a histogram of how many cards fall in each OVR band (90+ / 85-89 / 80-84 /
+  75-79 / <75).
+- **Squad DNA** - the average of each outfield face stat (PAC/SHO/PAS/DRI/DEF/PHY) as bars + a
+  one-line read of your strongest/softest areas.
+- **Position depth** - how many players can fill each position group; groups with fewer than
+  `DEPTH_THIN` (5) covers are flagged amber.
+- **PlayStyle insights** - total PlayStyle+, most common PlayStyle+, most-kitted card, cards with none.
+
+**How it's built.** Mirrors the other pages exactly: a launcher tile (`dashLaunch`, class
+`.gt-launch`), a full-panel host (`dashHost`, class `.gt-builder`, hidden until opened), and
+`openDashPage()` / `closeDashPage()` that flip `layoutHost` out and `dashHost` in - the same pattern
+as `openMetaPage`/`openBuilder`. `applyPanelChrome()` adds the mobile `gt-open` height class when
+`state.dashOpen` is set (alongside `builderOpen`/`metaPageOpen`). `renderDashPage()` draws the header
+(reusing `.gt-bd-top`) then a scrolling `.db-body` with the six cards.
+
+The data all comes from small pure helpers over `getClubPlayers()`, each exposed on `window.FC26`
+for console spot-checks: `computeClubSummary` (`FC26.clubSummary`), `computeClubRecords`
+(`FC26.clubRecords`), `computeRatingSpread` (`FC26.ratingSpread`), `computeSquadDNA`
+(`FC26.squadDNA`), `computePositionDepth` (`FC26.positionDepth`), `computePlayStyleInsights`
+(`FC26.playStyleInsights`). They reuse the existing engine: `readStats` for face stats,
+`bestJustaino`/`scorePlayer` for the Justaino record, `playerPositionGroups` for depth, `isIcon` for
+the icon count, and `currentPlayStyles`/`traitName` for the PlayStyle stats. Styling is a new block of
+`.db-*` classes in the injected `<style>`, all reading the theme tokens (`var(--accent)` etc.) so it
+follows the selected theme; the only fixed colour is the amber (`#ffb454`) used for thin-depth, which
+is semantic (like the Stop button's red), not the accent.
+
+*Not yet built (deferred):* **Top nations** and **Top leagues** bar charts - they need an ID->name
+catalog for `nationId`/`leagueId` (the club only gives the numbers), so they were left for a later
+version. Tapping a record to open that player is also a planned polish pass, not in v1.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
