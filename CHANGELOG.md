@@ -1,9 +1,23 @@
-# Changelog - Men Gallant FC · Justaino FC Web App Tool
+# Changelog - Men Gallant FC · Justaino FC Hub
 
 What's changed in each install-page version (`MGFC_Justaino_vN`). Newest first.
 Versions are cut with `node release.js "note"` and shown on the install page (`index.html`).
 
 ---
+
+## v25 - 2026-07-24
+
+**PlayStyle+ cap raised to 4, and the tool is now "Justaino FC Hub".**
+
+- **You can now apply up to 4 PlayStyle+** (was 3) per player, matching EA's change to the
+  game. The picker, the "PS+ cap reached" message, and the preview capacity meter all follow
+  the new limit; Basic PlayStyles stay capped at 8.
+- **Suggest now pre-ticks the top 4 recommended PlayStyles as PS+** (was top 3), taken in
+  priority order from each position/role list. No other Suggest behaviour changed.
+- **Renamed everywhere to "Justaino FC Hub"** (was "Justaino FC Web App Tool"): the panel
+  header, the install page, the Features and Justaino Score/meta pages, and the docs.
+- Note: the one-off **"GH 4th PlayStyle+"** section still targets Glory Hunters cards with
+  exactly 3 PS+ and is unchanged pending an in-game check of how it behaves under the new cap.
 
 ## v24 - 2026-07-16
 

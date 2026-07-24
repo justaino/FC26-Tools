@@ -1,4 +1,4 @@
-# Men Gallant FC · Justaino FC Web App Tool - User Guide
+# Men Gallant FC · Justaino FC Hub - User Guide
 
 Add PlayStyles and PlayStyle+ to your EA FC 26 club players **in bulk**, in seconds -
 without clicking through the game's menus one evolution at a time.
@@ -59,7 +59,7 @@ time an apply succeeds, that card type is remembered as eligible, so the filter 
 smarter the more you use it. You can also mark/un-mark any card by hand.
 
 **⚡ Bulk apply with a satisfying finish.**
-Tick as many PlayStyles as you like (up to the caps: 3 PS+, 8 Basic). Hit **Apply**
+Tick as many PlayStyles as you like (up to the caps: 4 PS+, 8 Basic). Hit **Apply**
 and watch each one **spin, then stamp a green tick** as it lands. At the end you get a
 clean **"Added N to <player>"** summary showing every PlayStyle that went on. If any
 couldn't be applied, it says so - nothing silently fails.
@@ -95,7 +95,7 @@ own PlayStyle icons throughout.
 
 - **Nothing to reload after an update.** Clicking the bookmark always loads the latest
   version and reuses your already-loaded club, so it's instant.
-- **The caps are real.** A player can hold at most **3 PlayStyle+** and **8 Basic**
+- **The caps are real.** A player can hold at most **4 PlayStyle+** and **8 Basic**
   PlayStyles - the tool won't let you exceed them.
 - **Goalkeepers** get their own GK-only PlayStyles; those are hidden for outfielders
   automatically.

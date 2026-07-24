@@ -1,4 +1,4 @@
-# RUNBOOK - Men Gallant FC · Justaino FC Web App Tool
+# RUNBOOK - Men Gallant FC · Justaino FC Hub
 
 A practical, plain-English guide to running and maintaining the bookmarklet.
 This is the "how do I actually use/fix it" doc. For scope and phase history see
@@ -12,7 +12,7 @@ A single **bookmarklet** for the EA FC 26 Web App. It adds a floating panel that
 lets you pick a club player, tick PlayStyles / PlayStyle+, and apply them all at
 once. It drives the app's own logged-in services - no passwords, no servers.
 
-The panel header reads **"Men Gallant FC - Justaino FC Web App Tool"**.
+The panel header reads **"Men Gallant FC - Justaino FC Hub"**.
 
 It's **responsive**: on a computer it opens as a wide **two-pane** panel; on a phone
 it opens as a full-width **step-by-step** sheet (see §3). Same features either way.
@@ -92,7 +92,7 @@ of the screen, three zones side by side):**
   list - so there's always a next-best pick. See §3b.
 - **PlayStyle+ / Basic tabs + icon grid** - tick the ones you want. Owned ones are
   disabled, GK-only ones are hidden for outfielders, and each type stops at its cap
-  (3 PS+, 8 basic). A live counter shows how many you've picked.
+  (4 PS+, 8 basic). A live counter shows how many you've picked.
 - **delay chip + Apply / Stop** - the **DELAY (ms)** chip (default 500; bigger = gentler
   on the account) sits **side by side** with the **Apply** button in one row; **Stop**
   swaps into Apply's spot while a run is going. Each PlayStyle tile **spins then ticks**

@@ -124,7 +124,7 @@
   //   - traitId = rewardId - 301. A "traitId" is how the app refers to a
   //     PlayStyle on a player; we'll use this later to check "does this player
   //     already have evo X" and to draw the right icon.
-  //   - Caps per player: at most 3 PlayStyle+ and 8 basic PlayStyles.
+  //   - Caps per player: at most 4 PlayStyle+ and 8 basic PlayStyles.
   // ----------------------------------------------------------------------------
 
   // Version shown as a little badge in the panel header. It stays "dev" here in the
@@ -134,7 +134,7 @@
   var FC26_VERSION = "dev";
 
   var TRAIT_OFFSET = 301;   // traitId = rewardId - 301
-  var CAP_PLUS = 3;         // a player can hold at most 3 PlayStyle+  (PS+)
+  var CAP_PLUS = 4;         // a player can hold at most 4 PlayStyle+  (PS+)  [EA raised this from 3 to 4]
   var CAP_BASIC = 8;        // a player can hold at most 8 basic PlayStyles (PS)
 
   // PS = the 36 basic PlayStyles.
@@ -435,12 +435,70 @@
   var POS_SIDE = { 2: "R", 3: "R", 7: "L", 8: "L", 12: "R", 16: "L", 20: "R", 22: "L", 23: "R", 27: "L" };
   function posSide(id) { return POS_SIDE[id] || "C"; }
 
-  // Recommended playstyles per position/role, in priority order. The top 3 become
+  // Recommended playstyles per position/role, in priority order. The top 4 become
   // PS+, the rest basic PlayStyles.
-  var ROLES = {"ST":{"Advanced Forward":["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Incisive Pass","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer"],"Target Forward":["Finesse Shot","Enforcer","Precision Header","Low Driven Shot","Gamechanger","Incisive Pass","Rapid","First Touch","Tiki Taka","Press Proven","Pinged Pass"],"Poacher":["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Incisive Pass","First Touch","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer"],"False 9":["Finesse Shot","Incisive Pass","Low Driven Shot","Gamechanger","Rapid","Inventive","Tiki Taka","Technical","Pinged Pass","Quick Step","First Touch"]},"RW / LW":{"Inside Forward":["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Quick Step","Inventive","Technical","Incisive Pass","Pinged Pass","Tiki Taka","First Touch"],"Winger":["Rapid","Finesse Shot","Pinged Pass","Quick Step","Gamechanger","Inventive","Technical","Low Driven Shot","Incisive Pass","Tiki Taka","First Touch"],"Wide Playmaker":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Rapid","Low Driven Shot","Press Proven","First Touch"]},"CAM":{"Shadow Striker":["Finesse Shot","Incisive Pass","Rapid","Gamechanger","Low Driven Shot","Inventive","Technical","Quick Step","Tiki Taka","First Touch","Pinged Pass"],"Playmaker":["Finesse Shot","Incisive Pass","Low Driven Shot","Tiki Taka","Inventive","Gamechanger","Pinged Pass","Technical","First Touch","Press Proven","Quick Step"],"Classic 10":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Low Driven Shot","First Touch","Press Proven","Quick Step"],"Half Winger":["Incisive Pass","Rapid","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Quick Step","First Touch","Press Proven","Low Driven Shot"]},"CM":{"Box to Box":["Incisive Pass","Pinged Pass","Intercept","Finesse Shot","Tiki Taka","Bruiser","Anticipate","Quick Step","Technical","Relentless","Press Proven"],"Playmaker":["Incisive Pass","Pinged Pass","Finesse Shot","Tiki Taka","Inventive","Technical","Intercept","Low Driven Shot","Anticipate","First Touch","Quick Step"],"Deep Lying Playmaker":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Inventive","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Holding":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Half Winger":["Pinged Pass","Intercept","Quick Step","Tiki Taka","Incisive Pass","Finesse Shot","Anticipate","Technical","Jockey","Bruiser","Rapid"]},"RM / LM":{"Inside Forward":["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Quick Step","Inventive","Technical","Incisive Pass","Pinged Pass","Tiki Taka","First Touch"],"Winger":["Rapid","Finesse Shot","Pinged Pass","Quick Step","Gamechanger","Inventive","Technical","Low Driven Shot","Incisive Pass","Tiki Taka","First Touch"],"Wide Playmaker":["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Rapid","Low Driven Shot","Press Proven","First Touch"],"Wide Midfielder":["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Whipped Pass","Jockey","Press Proven"]},"CDM":{"Holding":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Deep Lying Playmaker":["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Box Crasher":["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Tiki Taka","Quick Step","Bruiser","Anticipate","Technical","Press Proven","Relentless"],"Centre Half":["Intercept","Bruiser","Jockey","Anticipate","Quick Step","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass"],"Wide Half":["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"]},"RB / LB":{"Fullback":["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"],"Wingback":["Intercept","Pinged Pass","Quick Step","Anticipate","Bruiser","Tiki Taka","Jockey","Incisive Pass","Rapid","Relentless","Press Proven"],"Falseback":["Intercept","Pinged Pass","Anticipate","Jockey","Tiki Taka","Incisive Pass","Bruiser","Quick Step","First Touch","Press Proven","Long Ball Pass"],"Inverted Wingback":["Incisive Pass","Tiki Taka","Quick Step","Intercept","Anticipate","Rapid","Pinged Pass","Jockey","Press Proven","Relentless","Bruiser"],"Attacking Wingback":["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Jockey","First Touch","Bruiser"]},"CB":{"Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],"Stopper":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","Aerial Fortress"],"Wide Back":["Intercept","Anticipate","Quick Step","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],"Ball Playing Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress"]},"GK":{"Goalkeeper":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],"Ball Playing":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],"Sweeper Keeper":["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"]}};
+  // Reads as: ROLES[position][role] = priority-ordered list (best pick first).
+  // suggest() ticks the top ones as PS+ (up to the PS+ cap), the rest as basic.
+  var ROLES = {
+    "ST": {
+      "Advanced Forward":     ["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Incisive Pass","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer"],
+      "Target Forward":       ["Finesse Shot","Enforcer","Precision Header","Low Driven Shot","Gamechanger","Incisive Pass","Rapid","First Touch","Tiki Taka","Press Proven","Pinged Pass"],
+      "Poacher":              ["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Incisive Pass","First Touch","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer"],
+      "False 9":              ["Finesse Shot","Incisive Pass","Low Driven Shot","Gamechanger","Rapid","Inventive","Tiki Taka","Technical","Pinged Pass","Quick Step","First Touch"]
+    },
+    "RW / LW": {
+      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Quick Step","Inventive","Technical","Incisive Pass","Pinged Pass","Tiki Taka","First Touch"],
+      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Gamechanger","Inventive","Technical","Low Driven Shot","Incisive Pass","Tiki Taka","First Touch"],
+      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Rapid","Low Driven Shot","Press Proven","First Touch"]
+    },
+    "CAM": {
+      "Shadow Striker":       ["Finesse Shot","Incisive Pass","Rapid","Gamechanger","Low Driven Shot","Inventive","Technical","Quick Step","Tiki Taka","First Touch","Pinged Pass"],
+      "Playmaker":            ["Finesse Shot","Incisive Pass","Low Driven Shot","Tiki Taka","Inventive","Gamechanger","Pinged Pass","Technical","First Touch","Press Proven","Quick Step"],
+      "Classic 10":           ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Low Driven Shot","First Touch","Press Proven","Quick Step"],
+      "Half Winger":          ["Incisive Pass","Rapid","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Quick Step","First Touch","Press Proven","Low Driven Shot"]
+    },
+    "CM": {
+      "Box to Box":           ["Incisive Pass","Pinged Pass","Intercept","Finesse Shot","Tiki Taka","Bruiser","Anticipate","Quick Step","Technical","Relentless","Press Proven"],
+      "Playmaker":            ["Incisive Pass","Pinged Pass","Finesse Shot","Tiki Taka","Inventive","Technical","Intercept","Low Driven Shot","Anticipate","First Touch","Quick Step"],
+      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Inventive","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],
+      "Holding":              ["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],
+      "Half Winger":          ["Pinged Pass","Intercept","Quick Step","Tiki Taka","Incisive Pass","Finesse Shot","Anticipate","Technical","Jockey","Bruiser","Rapid"]
+    },
+    "RM / LM": {
+      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Quick Step","Inventive","Technical","Incisive Pass","Pinged Pass","Tiki Taka","First Touch"],
+      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Gamechanger","Inventive","Technical","Low Driven Shot","Incisive Pass","Tiki Taka","First Touch"],
+      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Rapid","Low Driven Shot","Press Proven","First Touch"],
+      "Wide Midfielder":      ["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Whipped Pass","Jockey","Press Proven"]
+    },
+    "CDM": {
+      "Holding":              ["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],
+      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],
+      "Box Crasher":          ["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Tiki Taka","Quick Step","Bruiser","Anticipate","Technical","Press Proven","Relentless"],
+      "Centre Half":          ["Intercept","Bruiser","Jockey","Anticipate","Quick Step","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass"],
+      "Wide Half":            ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"]
+    },
+    "RB / LB": {
+      "Fullback":             ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"],
+      "Wingback":             ["Intercept","Pinged Pass","Quick Step","Anticipate","Bruiser","Tiki Taka","Jockey","Incisive Pass","Rapid","Relentless","Press Proven"],
+      "Falseback":            ["Intercept","Pinged Pass","Anticipate","Jockey","Tiki Taka","Incisive Pass","Bruiser","Quick Step","First Touch","Press Proven","Long Ball Pass"],
+      "Inverted Wingback":    ["Incisive Pass","Tiki Taka","Quick Step","Intercept","Anticipate","Rapid","Pinged Pass","Jockey","Press Proven","Relentless","Bruiser"],
+      "Attacking Wingback":   ["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Jockey","First Touch","Bruiser"]
+    },
+    "CB": {
+      "Defender":             ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],
+      "Stopper":              ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","Aerial Fortress"],
+      "Wide Back":            ["Intercept","Anticipate","Quick Step","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],
+      "Ball Playing Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress"]
+    },
+    "GK": {
+      "Goalkeeper":           ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],
+      "Ball Playing":         ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],
+      "Sweeper Keeper":       ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"]
+    }
+  };
 
   // POSITION-GROUP FALLBACK TAILS.
-  // The role lists above are only 11 long (= the 3 PS+ + 8 basic cap). If a player
+  // The role lists above are only 11 long (near the 4 PS+ + 8 basic cap). If a player
   // already owns several of a role's top picks, that list can run out of "next best"
   // options before every slot is filled. So each position GROUP also has a general
   // priority order of (nearly) all the playstyles that make sense there. suggest()
@@ -1539,7 +1597,7 @@
   header.style.cssText = "display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--header-bg);border-bottom:1px solid var(--border);touch-action:none";
   var title = document.createElement("div");
   title.className = "fc26-title";
-  title.textContent = "Men Gallant FC - Justaino FC Web App Tool";
+  title.textContent = "Men Gallant FC - Justaino FC Hub";
   title.style.cssText = "flex:1;font-weight:700;font-size:12px;line-height:1.2;color:var(--title);text-transform:uppercase;letter-spacing:.06em";
   // Small version badge next to the title, e.g. "v4" (or "dev" for an untracked build).
   // Hover shows a reminder to check the install page for the newest version.
@@ -1841,7 +1899,7 @@
       suggestBtn.style.cursor = many ? "not-allowed" : "pointer";
       suggestBtn.title = many
         ? "Suggest works on one player at a time - uncheck extras first."
-        : "Pre-tick recommended playstyles for this position/role (top 3 as PS+)";
+        : "Pre-tick recommended playstyles for this position/role (top 4 as PS+)";
     }
     [typeof posSelect !== "undefined" ? posSelect : null, typeof roleSelect !== "undefined" ? roleSelect : null].forEach(function (sel) {
       if (!sel) return;
@@ -1898,7 +1956,7 @@
 
   // renderPreview(): redraw the selected-player card. Same info as before -
   // name/OVR/rarity, caps used, and current PlayStyles - but laid out visually:
-  //   - two "capacity pip" trackers (3 pips for PS+, 8 for Basic) that fill up
+  //   - two "capacity pip" trackers (4 pips for PS+, 8 for Basic) that fill up
   //     as slots are used (PS+ pips gold, Basic pips emerald), and
   //   - the current PlayStyles as icon chips, split into a PS+ row and a Basic row.
   // The chip icons reuse the app's PlayStyle icon font, the same one the evo grid
@@ -1926,11 +1984,11 @@
 
     // FEATURE 4a - dynamic cap DISPLAY. The item exposes no "max PlayStyles" (discovered
     // live - there's no getMaxPlusPlayStyles), so we can't read a real cap. Normal cards
-    // hold up to 3 PS+ / 8 basic, but a player granted the limited "GH 4th PlayStyle+" evo
-    // ends up with 4 PS+. So the DISPLAYED cap grows to whatever the player actually holds:
-    // a normal card still shows 3/3 + 8/8, a GH-4th card shows 4/4 instead of an overflowing
-    // 4/3. (Our SELECTION caps stay 3/8 - see toggleEvo/renderEvos - because the 4th comes
-    // from a different, limited evo set we don't apply from our own catalog.)
+    // now hold up to 4 PS+ / 8 basic (EA raised PS+ from 3 to 4). A player granted the
+    // limited "GH 4th PlayStyle+" evo could still end up past that. So the DISPLAYED cap
+    // grows to whatever the player actually holds: a normal card shows 4/4 + 8/8, and a
+    // card carrying an extra PS+ shows 5/5 instead of an overflowing 5/4. (Our SELECTION
+    // caps read the same CAP_PLUS/CAP_BASIC - see toggleEvo/renderEvos.)
     var plusCap = Math.max(CAP_PLUS, pUsed);
     var basicCap = Math.max(CAP_BASIC, bUsed);
 
@@ -2144,7 +2202,7 @@
   roleSelect.style.cssText = "flex:1.4;min-width:0;padding:5px;border-radius:6px;border:1px solid var(--field-border);background:var(--field);color:var(--ink)";
   var suggestBtn = document.createElement("button");
   suggestBtn.textContent = "✨ Suggest";
-  suggestBtn.title = "Pre-tick recommended playstyles for this position/role (top 3 as PS+)";
+  suggestBtn.title = "Pre-tick recommended playstyles for this position/role (top 4 as PS+)";
   suggestBtn.style.cssText = "background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:5px 8px;cursor:pointer;white-space:nowrap;font-size:11px";
   suggestRow.appendChild(posSelect); suggestRow.appendChild(roleSelect); suggestRow.appendChild(suggestBtn);
 
