@@ -718,9 +718,11 @@
   // OVR_MIX: after the stat/PlayStyle blend, we pull the final rating toward the card's in-game OVR
   // by this fraction. OVR is an imperfect proxy for how a card plays (a 97 can have 50s face stats),
   // so it's kept deliberately light - a gentle tiebreak that nudges marquee high-OVR cards up without
-  // overriding the PlayStyle/stat order. At 0.15 the final rating is 85% stat/PlayStyle fit + 15% raw
-  // OVR (was 0.35). Set it to 0 to ignore OVR entirely.
-  var OVR_MIX  = 0.15;
+  // overriding the PlayStyle/stat order. At 0.01 the final rating is 99% stat/PlayStyle fit + 1% raw
+  // OVR (was 0.15, before that 0.35) - i.e. OVR is now PURELY a tiebreak: it only separates two cards
+  // whose stat/PlayStyle fit is otherwise near-identical, and can never lift a marquee card above a
+  // better-fitting one. Set it to 0 to ignore OVR entirely.
+  var OVR_MIX  = 0.01;
 
   // The order the position dropdown offers, and the value the app has no group for.
   var META_GROUPS = ["ST", "RW / LW", "CAM", "RM / LM", "CM", "CDM", "RB / LB", "CB", "GK"];

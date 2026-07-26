@@ -213,9 +213,10 @@ player's real stats and PlayStyles (no external data, no player database).
   ceiling (`psMaxForWeights`) is the best `PS_CEIL_PLUS` (5) as PS+ plus ALL other role PlayStyles as
   basics, so a card with five relevant PS+ genuinely out-scores one with three (neither flatlines at 100).
 - **Rating** = `(1 - OVR_MIX) × (STAT_MIX × statFit + PS_MIX × playStyleFit) + OVR_MIX × OVR`.
-  Currently `STAT_MIX / PS_MIX = 0.50 / 0.50` and `OVR_MIX = 0.35` (so the final number is 65% stat/
-  PlayStyle fit + 35% raw OVR). The user wanted marquee high-OVR cards to rank up, so OVR now carries
-  real weight rather than being a minuscule tiebreak. Scores carry **one decimal** so near-ties separate.
+  Currently `STAT_MIX / PS_MIX = 0.50 / 0.50` and `OVR_MIX = 0.01` (so the final number is 99% stat/
+  PlayStyle fit + 1% raw OVR). OVR is deliberately a **pure tiebreak** as of v28: it only separates two
+  cards whose stat/PlayStyle fit is otherwise near-identical, and can never lift a marquee high-OVR card
+  above a better-fitting one (it was 0.35, then 0.15). Scores carry **one decimal** so near-ties separate.
 - **Stats are read live via `readStats(it)`, which prefers `it.getAttributes()` over the plain
   `it.attributes` array.** This matters for EVOLVED cards: the game freezes `it.attributes` at the base
   (pre-evo) values and exposes the true evolved six face stats only through `getAttributes()`. Reading
@@ -911,8 +912,8 @@ Moving it up bumps everything below it down one place - that's normal and fine.
    (only the ratios matter).
 2. **`STAT_MIX` / `PS_MIX`** - the split between stat fit and PlayStyle fit (must add to 1.0;
    currently 0.50 / 0.50).
-3. **`OVR_MIX`** - how much the final score leans on the card's in-game OVR (currently **0.15**;
-   a light tiebreak). Set to 0 to ignore OVR entirely. *(Note: the squad builder's draft uses a
+3. **`OVR_MIX`** - how much the final score leans on the card's in-game OVR (currently **0.01**;
+   a pure tiebreak - it only separates cards that are otherwise level). Set to 0 to ignore OVR entirely. *(Note: the squad builder's draft uses a
    SEPARATE knob, `DRAFT_OVR_MIX = 0.6` - that's §3k, not the meta rating.)*
 4. **`PSPLUS_MULT`** - how many basics a PlayStyle+ is worth (currently 3.5).
 5. **`PS_CEIL_PLUS`** - how many relevant PS+ the "full marks" ceiling assumes (currently 5 -

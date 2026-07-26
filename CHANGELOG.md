@@ -5,6 +5,24 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v28 - 2026-07-26
+
+**The Justaino Score barely looks at OVR any more - it's now a pure tiebreak.**
+
+- **OVR now counts for 1% of the score, down from 15%.** The rating is 99% about how a card actually
+  fits the position (stat fit + owning the right PlayStyles for the role) and 1% about the number on
+  the front of the card. In practice OVR can now only separate two players whose fit is otherwise
+  level - it can never lift a marquee high-OVR card above one that genuinely suits the role better.
+- **What you'll notice:** high-OVR cards with mediocre face stats slide down the Rankings, and
+  well-built cards with the right PlayStyles climb. Best XI and the pitch follow the same order.
+  Hover a ranking row and the tooltip now reads "blended 1% with OVR".
+- The Squad Builder's own draft is unaffected - it uses a separate, deliberately OVR-heavy blend so
+  Gauntlet squads still lean on raw ratings.
+- The public "how the Justaino Score works" page (meta-rating.html) was regenerated to match, so the
+  formula, the OVR tiebreak figure and the worked example all show the new numbers.
+
+---
+
 ## v27 - 2026-07-24
 
 **New Club Dashboard page: player stats and fun facts about your whole club, at a glance.**
