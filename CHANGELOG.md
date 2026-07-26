@@ -5,6 +5,36 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v29 - 2026-07-26
+
+**New Score Customiser: rank your club by your own weighting instead of mine.**
+
+- **A 🔧 Score Customiser button** now sits at the top right of the Justaino Score page (it reads
+  "Customise" on a phone). It opens a page where you set your own scoring numbers. Nothing was added
+  to the Lineup column - these settings belong with the score they change.
+- **Two scores, never both at once.** One switch at the top chooses between the **Justaino Score**
+  (mine, still the default) and **My Score** (yours). Whichever is active is used by everything:
+  Rankings, Best XI, the Squad Builder draft and the score on a player card. Flipping the switch
+  doesn't delete your tuning, so you can compare yours against mine freely.
+- **Four presets to start from:** Justaino baseline, Stats purist, PlayStyle maxxer, and OVR
+  respecter (which ranks closer to the card's OVR, the way the hub did before v28).
+- **Balance slider** - how much of the score comes from raw stat fit versus owning the right
+  PlayStyles for the role. The two always add up to 100.
+- **Three dials** - how hard the score leans on OVR, how many basic PlayStyles a PlayStyle+ is
+  worth, and how many relevant PlayStyle+ "full marks" assumes. Each one tells you my baseline
+  value, so you can see how far you've moved from it.
+- **Everything applies and saves as you drag it** - there's no Save button. Closing the page drops
+  you back on the rankings, already re-sorted. **Reset to Justaino** wipes your values and switches
+  back, behind a confirmation.
+- **You always know which score you're looking at:** the 🔧 button gains a glowing ring and the page
+  shows a "Custom" chip whenever your own weighting is active.
+- If the browser's storage is full (the EA web app fills it with its own console history), the page
+  now tells you plainly that your settings can't be saved, and how to free space up.
+- **Fixed:** rotating a phone with the Club Dashboard open used to dump you back on the main panel
+  while the page still thought it was open.
+
+---
+
 ## v28 - 2026-07-26
 
 **The Justaino Score barely looks at OVR any more - it's now a pure tiebreak.**

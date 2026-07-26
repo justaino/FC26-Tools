@@ -636,6 +636,62 @@ version. Tapping a record to open that player is also a planned polish pass, not
 
 ---
 
+## 3q. New in v29 - the Score Customiser (rank by YOUR weighting)
+
+Everything in §3d is **my** opinion of the meta, shipped as the default. The Score Customiser lets
+you override those numbers and rank your club by your own opinion instead, without losing mine.
+
+**The rule: two scores, never both at once.** One switch decides which score the WHOLE hub speaks -
+Rankings, Best XI, the Squad Builder draft and the score pill on a player card. There is deliberately
+no state where half the tool disagrees with the other half.
+
+**How to use it.** Open **Justaino Score**, then the **🔧 Score Customiser** pill at the top right
+(it shortens to "Customise" on a phone). The pill gains an accent ring + glow whenever a custom
+score is live, so you can never be looking at custom rankings unaware.
+
+- **Active score** - the switch. `Justaino Score` or `My Score`. Flipping it does NOT delete your
+  tuning, so you can A/B your numbers against mine freely. While Justaino is active the tuning
+  cards below are dimmed and their sliders disabled.
+- **Start from** - four presets, each just a set of the sliders below: *Justaino baseline* (clears
+  everything), *Stats purist*, *PlayStyle maxxer*, *OVR respecter* (puts `ovrMix` back to 0.15, i.e.
+  how the hub ranked before v28). A preset chip lights up only while the settings exactly match it.
+- **Balance** - `statMix` vs PlayStyles. The single biggest lever on rankings. The two always total
+  100 (`psMix` is never stored, it's always the remainder), so there's no invalid state.
+- **Dials** - `ovrMix` (0-25%), `psPlusMult` (1-6x), `psCeilPlus` (3-8). Each caption states my
+  baseline value so you can see how far you've wandered.
+- **Reset to Justaino** - wipes every custom value AND switches back. Confirmed first.
+
+Everything **applies and saves the moment you move it** - there is no Save button, because the
+point is watching the ranking move. Closing the page returns you to the Justaino Score page and
+re-renders it, so you see the new order immediately.
+
+### How it works in the code
+
+- `SCORE_DEFAULTS` snapshots the baseline constants (`STAT_MIX`, `OVR_MIX`, `STAT_WEIGHTS` ...).
+  **Those loose vars are still the single source of the baseline and `meta-page.js` parses them out
+  of the source BY NAME to build `meta-rating.html` - do not rename or restructure them.**
+- `scoreState.cfg` holds **only the differences** from the baseline, saved to localStorage
+  `FC26_scoreCfg` as `{v:1, on:<bool>, cfg:{...}}`. Storing deltas (not a full copy) means an
+  untouched knob follows the next seasonal retune (§7b) instead of freezing at an old number.
+- `CFG` is the two merged and **clamped** (`SCORE_LIMITS`), rebuilt by `rebuildCfg()` on every
+  change. **`scorePlayer` and friends read `CFG` and nothing else.** Nothing caches a score, so a
+  change plus a repaint is all it takes for the whole hub to follow.
+- `isCustomScore()` = switch on AND at least one difference. A switch that's on but untouched is
+  still identical to mine, so it correctly reports `false`.
+- Saving can genuinely fail: the EA web app fills localStorage with its own multi-megabyte
+  `console-history` key and blows the ~5MB quota. `saveScoreState()` returns false and warns in the
+  Console, and the page shows a red banner telling you to run
+  `localStorage.removeItem('console-history')`.
+
+**Console API:** `window.FC26.score.cfg() / .on(bool) / .set(key, value) / .reset() / .isCustom() /
+.label() / .saved()`, plus `window.FC26.openScorePage()`.
+
+*Not yet built:* the live "who this moves" list under the dials (step 3), carrying the "My Score"
+label across the pill / page titles / squad names (step 4), and the advanced per-position stat
+weights + role priority curve (step 5). See `CUSTOM-SCORE-SPEC.md`.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

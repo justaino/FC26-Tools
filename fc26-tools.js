@@ -724,6 +724,185 @@
   // better-fitting one. Set it to 0 to ignore OVR entirely.
   var OVR_MIX  = 0.01;
 
+  // DRAFT_OVR_MIX: the SQUAD BUILDER's own blend (NOT the Justaino Score). The draft wants the
+  // strongest cards to start, so it leans on OVR while letting Justaino/role-fit shape near-ties.
+  // 0 = pure Justaino, 1 = pure OVR. Lives up here with the other knobs so SCORE_DEFAULTS (below)
+  // can read it; it's USED by draftScoreFromScore() down in the Squad Builder section.
+  var DRAFT_OVR_MIX = 0.6;
+
+  // ----------------------------------------------------------------------------
+  // FEATURE 5 (step 1 of 5) - CUSTOM SCORE: the config store
+  // See CUSTOM-SCORE-SPEC.md. Everything above is the BASELINE - "the Justaino Score",
+  // my opinion, shipped as the default. This block lets those numbers be OVERRIDDEN by
+  // the user, so they can rank their club by their own opinion instead.
+  //
+  // The rule: TWO SCORES, NEVER BOTH AT ONCE. One switch (scoreState.on) decides which
+  // one the whole hub speaks - rankings, Best XI, the Squad Builder draft, the score pill
+  // and any squad created in game. There is no state where half the tool disagrees.
+  //
+  // HOW IT WORKS, in plain English:
+  //   * SCORE_DEFAULTS  = a snapshot of the baseline numbers above. Never changes at runtime.
+  //   * scoreState.cfg  = ONLY the numbers the user actually changed (the "differences").
+  //   * CFG             = the two merged together. THE SCORER READS CFG, NOTHING ELSE.
+  // Storing only the differences means an untouched knob follows the next seasonal retune
+  // of the baseline instead of freezing at an old number.
+  //
+  // IMPORTANT: the loose vars above (STAT_MIX, PS_MIX, PSPLUS_MULT, PS_CEIL_PLUS, OVR_MIX,
+  // STAT_WEIGHTS, TRAIT_STAT_WEIGHTS) are still the single source of the BASELINE, and
+  // meta-page.js parses them OUT OF THIS FILE BY NAME to build meta-rating.html. Do not
+  // rename or restructure them. Nothing except SCORE_DEFAULTS should READ them any more.
+  // ----------------------------------------------------------------------------
+
+  var SCORE_KEY = "FC26_scoreCfg";   // localStorage key: the switch + the user's differences
+  var SCORE_SCHEMA = 1;              // bump if the saved shape ever changes (older saves are then ignored)
+
+  // SCORE_DEFAULTS: the baseline, i.e. the Justaino Score exactly as shipped.
+  // rankCurve = the per-rank weight schedule roleWeightsFromList uses: a role's top pair of
+  // PlayStyles score 4, the next pair 3, the next pair 2, everything else 1. Flatten it to
+  // spread the credit; steepen it to make only the top couple of PlayStyles really count.
+  var SCORE_DEFAULTS = {
+    statMix:     STAT_MIX,            // share of the score from stat fit (psMix is always 1 - this)
+    ovrMix:      OVR_MIX,             // how hard the result is pulled toward the card's in-game OVR
+    psPlusMult:  PSPLUS_MULT,         // a PlayStyle+ is worth this many basics
+    psCeilPlus:  PS_CEIL_PLUS,        // how many owned-as-PS+ the "full marks" ceiling assumes
+    draftOvrMix: DRAFT_OVR_MIX,       // Squad Builder draft blend (separate from the score itself)
+    rankCurve:   [4, 3, 2, 1],        // role priority curve: top pair, next pair, next pair, tail
+    statWeights: STAT_WEIGHTS,        // per position group: how much each of the 6 stats counts
+    traitWeights: TRAIT_STAT_WEIGHTS  // per position group: skill moves + weak foot pull
+  };
+
+  // LIMITS: [min, max] for every editable number, so a hand-edited localStorage (or a future
+  // slider) can never feed the scorer something that breaks it. Applied on every read.
+  var SCORE_LIMITS = {
+    statMix: [0.10, 0.90], ovrMix: [0, 0.25], psPlusMult: [1, 6],
+    psCeilPlus: [3, 8], draftOvrMix: [0, 1], rank: [0, 10], statWeight: [0, 15]
+  };
+  // clamp(v, lo, hi, fallback): a usable number inside the limits, or the fallback if it isn't one.
+  function clampNum(v, lo, hi, fallback) {
+    var n = Number(v);
+    if (!isFinite(n)) return fallback;
+    return Math.min(hi, Math.max(lo, n));
+  }
+
+  // scoreState: what's saved. `on` = is the custom score switched on; `cfg` = the differences.
+  var scoreState = { on: false, cfg: {} };
+
+  // loadScoreState(): read the save. Anything missing, malformed or from an older schema falls
+  // back to "off, no differences" - i.e. the plain Justaino Score. It can never throw.
+  function loadScoreState() {
+    try {
+      var raw = window.localStorage.getItem(SCORE_KEY);
+      if (!raw) return { on: false, cfg: {} };
+      var o = JSON.parse(raw);
+      if (!o || o.v !== SCORE_SCHEMA) return { on: false, cfg: {} };
+      return { on: !!o.on, cfg: (o.cfg && typeof o.cfg === "object") ? o.cfg : {} };
+    } catch (e) { return { on: false, cfg: {} }; }
+  }
+  // saveScoreState(): write the switch + differences. Returns TRUE if it actually saved.
+  // This can genuinely fail: the EA web app fills localStorage with its own "console-history"
+  // key (megabytes of it), and once the ~5MB quota is hit every write throws. Seen live. We
+  // don't want to lose the setting silently, so we warn in the Console and report the failure
+  // so the settings page (step 2) can tell you your tuning won't survive a reload.
+  var scoreSaveOk = true;   // false once a save has failed - read by the UI
+  function saveScoreState() {
+    try {
+      window.localStorage.setItem(SCORE_KEY, JSON.stringify({ v: SCORE_SCHEMA, on: scoreState.on, cfg: scoreState.cfg }));
+      scoreSaveOk = true;
+    } catch (e) {
+      scoreSaveOk = false;
+      console.warn("[FC26] Couldn't save your Score Customiser settings - browser storage is full, so they'll be lost on reload. " +
+        "Free some up with: localStorage.removeItem('console-history')", e);
+    }
+    return scoreSaveOk;
+  }
+
+  // mergeGroups(base, over): merge a per-position-group table of numbers (statWeights /
+  // traitWeights) with the user's overrides, one key at a time, so overriding ST's pace
+  // leaves every other position AND every other ST stat on the baseline.
+  function mergeGroups(base, over) {
+    var out = {};
+    Object.keys(base).forEach(function (g) {
+      var row = {}, b = base[g], o = (over && over[g]) || {};
+      Object.keys(b).forEach(function (k) {
+        row[k] = (o[k] != null) ? clampNum(o[k], SCORE_LIMITS.statWeight[0], SCORE_LIMITS.statWeight[1], b[k]) : b[k];
+      });
+      out[g] = row;
+    });
+    return out;
+  }
+
+  // CFG: the resolved, clamped config the scorer actually reads. Rebuilt by rebuildCfg()
+  // whenever the switch flips or a value changes - never edit CFG directly.
+  var CFG = null;
+  function rebuildCfg() {
+    var d = SCORE_DEFAULTS;
+    var o = scoreState.on ? (scoreState.cfg || {}) : {};   // switch off = baseline, differences ignored
+    var L = SCORE_LIMITS;
+    var statMix = clampNum(o.statMix, L.statMix[0], L.statMix[1], d.statMix);
+    CFG = {
+      statMix: statMix,
+      psMix: 1 - statMix,                                   // ALWAYS the remainder, so the two can't drift apart
+      ovrMix: clampNum(o.ovrMix, L.ovrMix[0], L.ovrMix[1], d.ovrMix),
+      psPlusMult: clampNum(o.psPlusMult, L.psPlusMult[0], L.psPlusMult[1], d.psPlusMult),
+      psCeilPlus: Math.round(clampNum(o.psCeilPlus, L.psCeilPlus[0], L.psCeilPlus[1], d.psCeilPlus)),
+      draftOvrMix: clampNum(o.draftOvrMix, L.draftOvrMix[0], L.draftOvrMix[1], d.draftOvrMix),
+      rankCurve: (Array.isArray(o.rankCurve) && o.rankCurve.length === 4)
+        ? o.rankCurve.map(function (v, i) { return clampNum(v, L.rank[0], L.rank[1], d.rankCurve[i]); })
+        : d.rankCurve.slice(),
+      statWeights: mergeGroups(d.statWeights, o.statWeights),
+      traitWeights: mergeGroups(d.traitWeights, o.traitWeights)
+    };
+  }
+
+  // hasScoreDiffs(): has the user actually changed anything, or is their custom score still
+  // a straight copy of the baseline? (Switched on but untouched = still identical.)
+  function hasScoreDiffs() {
+    var c = scoreState.cfg;
+    return !!(c && Object.keys(c).length);
+  }
+  // isCustomScore(): is the hub currently speaking a score that ISN'T the Justaino Score?
+  // Used by every label, pill and squad name so custom results are never mistaken for mine.
+  function isCustomScore() { return !!scoreState.on && hasScoreDiffs(); }
+  // scoreLabel(): what to CALL the active score on screen.
+  function scoreLabel() { return isCustomScore() ? "My Score" : "Justaino Score"; }
+
+  // setScoreValue(key, value): change one knob (null/undefined removes the override, putting
+  // that knob back on the baseline). Saves + rebuilds. Returns the new resolved value.
+  function setScoreValue(key, value) {
+    if (value == null) { delete scoreState.cfg[key]; }
+    else { scoreState.cfg[key] = value; }
+    saveScoreState(); rebuildCfg();
+    return CFG[key];
+  }
+  // setScoreOn(on): flip the switch WITHOUT losing the saved differences, so you can A/B
+  // your own tuning against mine.
+  function setScoreOn(on) { scoreState.on = !!on; saveScoreState(); rebuildCfg(); return isCustomScore(); }
+  // resetScore(): throw away every custom value AND switch back to the Justaino Score.
+  function resetScore() { scoreState = { on: false, cfg: {} }; saveScoreState(); rebuildCfg(); }
+
+  // Load + resolve immediately, so CFG exists before anything scores a player.
+  scoreState = loadScoreState();
+  rebuildCfg();
+
+  // Console helpers (the page UI comes in step 2 - until then this IS the interface):
+  //   window.FC26.score.cfg()                  -> the resolved config the scorer is using
+  //   window.FC26.score.on(true|false)         -> switch the custom score on / off
+  //   window.FC26.score.set("statMix", 0.72)   -> change one knob (null puts it back to baseline)
+  //   window.FC26.score.reset()                -> wipe everything, back to the Justaino Score
+  //   window.FC26.score.isCustom() / .label()  -> is a custom score active, and what it's called
+  window.FC26.score = {
+    cfg: function () { return CFG; },
+    state: function () { return scoreState; },
+    defaults: SCORE_DEFAULTS,
+    limits: SCORE_LIMITS,
+    on: setScoreOn,
+    set: setScoreValue,
+    reset: resetScore,
+    isCustom: isCustomScore,
+    label: scoreLabel,
+    saved: function () { return scoreSaveOk; }   // false = storage is full, settings won't survive a reload
+  };
+
   // The order the position dropdown offers, and the value the app has no group for.
   var META_GROUPS = ["ST", "RW / LW", "CAM", "RM / LM", "CM", "CDM", "RB / LB", "CB", "GK"];
 
@@ -942,9 +1121,9 @@
   function psMaxForWeights(weights) {
     var vals = Object.keys(weights).map(function (k) { return weights[k]; }).sort(function (a, b) { return b - a; });
     var topPlus = 0, restBasic = 0, i;
-    for (i = 0; i < PS_CEIL_PLUS && i < vals.length; i++) topPlus += vals[i];    // best PS_CEIL_PLUS owned as PS+
-    for (i = PS_CEIL_PLUS; i < vals.length; i++) restBasic += vals[i];           // EVERY other meta PlayStyle as a basic (no cap)
-    return (topPlus * PSPLUS_MULT + restBasic) || 1;                 // never zero
+    for (i = 0; i < CFG.psCeilPlus && i < vals.length; i++) topPlus += vals[i];   // best psCeilPlus owned as PS+
+    for (i = CFG.psCeilPlus; i < vals.length; i++) restBasic += vals[i];          // EVERY other meta PlayStyle as a basic (no cap)
+    return (topPlus * CFG.psPlusMult + restBasic) || 1;              // never zero
   }
 
   // roleWeightsFromList(list): turn a role's ORDERED priority PlayStyle list (from ROLES) into a
@@ -952,11 +1131,11 @@
   // score against a specific role's priorities rather than one blunt per-group table. Schedule
   // mirrors the old hand-tuned scale (top pair = 4, next pair = 3, ... ) so numbers stay familiar.
   function roleWeightsFromList(list) {
-    var w = {};
+    var w = {}, curve = CFG.rankCurve;   // [top pair, next pair, next pair, tail] - see SCORE_DEFAULTS
     for (var i = 0; i < list.length; i++) {
-      // EVERY PlayStyle a role lists gets a non-zero weight (top pair = 4 ... tail = 1), so nothing
-      // a role considers relevant is ignored. Only PlayStyles absent from the role entirely = 0.
-      var wt = i < 2 ? 4 : i < 4 ? 3 : i < 6 ? 2 : 1;
+      // EVERY PlayStyle a role lists gets a non-zero weight (top pair = 4 ... tail = 1 by default),
+      // so nothing a role considers relevant is ignored. Only PlayStyles absent from the role = 0.
+      var wt = i < 2 ? curve[0] : i < 4 ? curve[1] : i < 6 ? curve[2] : curve[3];
       if (w[list[i]] == null) w[list[i]] = wt;
     }
     return w;
@@ -981,7 +1160,7 @@
   //   statsUsed = the named stats + values that fed the stat part (self-checks order)
   //   role      = the BEST-fitting role we scored the PlayStyles against (null for a fallback group)
   function scorePlayer(it, group) {
-    var sw = STAT_WEIGHTS[group];
+    var sw = CFG.statWeights[group];
     if (!sw) return { stat: 0, playstyle: 0, psScore: 0, statPart: 0, psPart: 0, total: 0, hits: [], statsUsed: {}, group: group, role: null };
 
     // --- stat part: weighted average of the stats this position cares about (0-99) ---
@@ -992,7 +1171,7 @@
     // A star (1-5) is scaled to the 0-99 stat range and weighted per group (TRAIT_STAT_WEIGHTS),
     // so it nudges the stat average rather than adding a separate term - keeps stat + PS = total.
     if (!isGKPlayer(it)) {
-      var tw = TRAIT_STAT_WEIGHTS[group];
+      var tw = CFG.traitWeights[group];
       if (tw) {
         // ONLY add these when the card actually exposes them (some club-search items don't).
         // A missing value is skipped entirely - never defaulted to a neutral 3 - so a card without
@@ -1023,7 +1202,7 @@
       owned.forEach(function (o) {
         var base = c.weights[o.name] || 0;
         if (!base) return;
-        var val = o.isIcon ? base * PSPLUS_MULT : base;   // a PlayStyle+ counts PSPLUS_MULT x a basic
+        var val = o.isIcon ? base * CFG.psPlusMult : base;   // a PlayStyle+ counts psPlusMult x a basic
         raw += val;
         h.push({ name: o.name, isIcon: o.isIcon, val: val });
       });
@@ -1032,11 +1211,11 @@
     });
 
     // --- blend the two 0-100 halves, then pull toward the card's OVR (quality floor, mix up top) ---
-    var statPart = STAT_MIX * statScore;
-    var psPart = PS_MIX * psScore;
+    var statPart = CFG.statMix * statScore;
+    var psPart = CFG.psMix * psScore;
     var metaBlend = Math.min(100, Math.max(0, statPart + psPart));   // pure stat+PlayStyle score
     var ovr = (typeof it.rating === "number") ? it.rating : metaBlend;
-    var total = Math.max(0, Math.min(100, (1 - OVR_MIX) * metaBlend + OVR_MIX * ovr));
+    var total = Math.max(0, Math.min(100, (1 - CFG.ovrMix) * metaBlend + CFG.ovrMix * ovr));
 
     return {
       stat: Math.round(statScore * 10) / 10,   // raw weighted stat average (0-99), incl. WF/SM
@@ -1082,7 +1261,8 @@
   // Console helpers so the tables can be poked/tuned without the UI:
   //   window.FC26.scorePlayer(it, "ST")   -> full breakdown for one item
   //   window.FC26.metaTop("CB", 10)       -> top 10 CBs in the loaded club
-  //   window.FC26.STAT_WEIGHTS / .PLAYSTYLE_WEIGHTS -> the live tables
+  //   window.FC26.STAT_WEIGHTS           -> the BASELINE table (the Justaino Score, never changes)
+  //   window.FC26.score.cfg().statWeights -> the table the scorer is ACTUALLY using right now
   window.FC26.scorePlayer = scorePlayer;
   window.FC26.metaTop = metaTop;
   window.FC26.bestJustaino = bestJustaino;
@@ -1386,11 +1566,12 @@
   // BUILDING we want the strongest cards to start, so the draft ranks by a blend
   // that leans on OVR while still letting Justaino/role-fit shape near-ties.
   // We do NOT touch scorePlayer() (Meta Rating stays exactly as tuned in v18).
-  var DRAFT_OVR_MIX = 0.6;   // 0 = pure Justaino, 1 = pure OVR. 0.6 = OVR-dominant.
+  // The knob itself (DRAFT_OVR_MIX) is declared up with the other scoring constants so the
+  // custom-score config can hold it; the live value is CFG.draftOvrMix.
   // Blend an already-computed scorePlayer() result into the draft ranking number.
   function draftScoreFromScore(sc) {
     var ovr = (typeof sc.ovr === "number") ? sc.ovr : sc.total;
-    return DRAFT_OVR_MIX * ovr + (1 - DRAFT_OVR_MIX) * sc.total;
+    return CFG.draftOvrMix * ovr + (1 - CFG.draftOvrMix) * sc.total;
   }
 
   // THE SNAKE DRAFT (per-squad formations).
@@ -2280,7 +2461,7 @@
     // they can play, shown right under the big OVR number.
     var jr = null; try { jr = bestJustaino(it); } catch (e) {}
     var jrHTML = jr
-      ? "<span class='pv-jr' title='Justaino rating (0-100) as " + esc(jr.group) + (jr.score.role ? " (" + esc(jr.score.role) + ")" : "") + ": meta " + jr.score.metaBlend + " (stats " + jr.score.statPart + " + PlayStyles " + jr.score.psPart + "), blended " + Math.round(OVR_MIX * 100) + "% with OVR " + jr.score.ovr + "'>JUSTAINO " + jr.score.total.toFixed(1) + " &middot; " + esc(jr.group) + "</span>"
+      ? "<span class='pv-jr' title='Justaino rating (0-100) as " + esc(jr.group) + (jr.score.role ? " (" + esc(jr.score.role) + ")" : "") + ": meta " + jr.score.metaBlend + " (stats " + jr.score.statPart + " + PlayStyles " + jr.score.psPart + "), blended " + Math.round(CFG.ovrMix * 100) + "% with OVR " + jr.score.ovr + "'>JUSTAINO " + jr.score.total.toFixed(1) + " &middot; " + esc(jr.group) + "</span>"
       : "";
 
     preview.innerHTML =
@@ -3826,6 +4007,60 @@
       "#fc26-panel .db-pl{font-size:12px;color:var(--muted)}" +
       "#fc26-panel .db-pr{font-size:13px;font-weight:700;text-align:right}" +
       "#fc26-panel .db-pr .g{color:var(--gold);font-variant-numeric:tabular-nums}" +
+      // ---- Feature 6: Score Customiser (custom score) --------------------------
+      // Scrolling page body under the shared gt-bd-top header, then one card per group
+      // of controls. Every colour comes from the theme tokens, so all three skins work.
+      "#fc26-panel .ss-body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px;padding-right:2px}" +
+      "#fc26-panel .ss-card{background:var(--card);border:1px solid var(--card-border);border-radius:11px;padding:12px 13px;display:flex;flex-direction:column;gap:10px}" +
+      // .off = the tuning cards while the Justaino Score is active (look inert, can't be used).
+      "#fc26-panel .ss-card.off{opacity:.42}" +
+      "#fc26-panel .ss-lab{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
+      "#fc26-panel .ss-note{font-size:10.5px;color:var(--muted);line-height:1.45}" +
+      "#fc26-panel .ss-note b{color:var(--ink)}" +
+      // The active-score switch: two halves, the live one filled with the accent.
+      "#fc26-panel .ss-seg{display:flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:3px}" +
+      "#fc26-panel .ss-seg button{flex:1;border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:800;font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:9px 6px;border-radius:6px}" +
+      "#fc26-panel .ss-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" +
+      "#fc26-panel .ss-presets{display:flex;flex-wrap:wrap;gap:6px}" +
+      "#fc26-panel .ss-preset{font-family:inherit;font-size:10.5px;font-weight:700;padding:6px 10px;border-radius:999px;background:var(--tile);border:1px solid var(--tile-border);color:var(--muted);cursor:pointer;white-space:nowrap}" +
+      "#fc26-panel .ss-preset[aria-pressed=true]{border-color:var(--accent);color:var(--accent);background:var(--sel)}" +
+      "#fc26-panel .ss-preset:disabled{cursor:default}" +
+      // Balance: the two big percentages, then the split bar, then the slider under it.
+      "#fc26-panel .ss-balnums{display:flex;justify-content:space-between;align-items:baseline;gap:10px}" +
+      "#fc26-panel .ss-balnums b{font-size:23px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .ss-balnums .k{display:block;margin-top:4px;font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
+      "#fc26-panel .ss-balnums .r{text-align:right}" +
+      "#fc26-panel .ss-bar{position:relative;height:11px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid var(--field-border);overflow:hidden}" +
+      "#fc26-panel .ss-bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);opacity:.85;transition:width .18s ease}" +
+      // Sliders: native range inputs, restyled to the panel's look in both engines.
+      "#fc26-panel .ss-range{-webkit-appearance:none;appearance:none;width:100%;height:20px;background:transparent;cursor:pointer;display:block;margin:0;padding:0}" +
+      "#fc26-panel .ss-range::-webkit-slider-runnable-track{height:5px;border-radius:999px;background:rgba(255,255,255,.11)}" +
+      "#fc26-panel .ss-range::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;margin-top:-6px;border-radius:50%;background:#fff;border:3px solid var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.5)}" +
+      "#fc26-panel .ss-range::-moz-range-track{height:5px;border-radius:999px;background:rgba(255,255,255,.11)}" +
+      "#fc26-panel .ss-range::-moz-range-thumb{width:17px;height:17px;border-radius:50%;background:#fff;border:3px solid var(--accent)}" +
+      "#fc26-panel .ss-range:disabled{cursor:default}" +
+      "#fc26-panel .ss-range:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}" +
+      // One dial = name, live value, slider, and a line of plain English with the baseline.
+      "#fc26-panel .ss-dial{display:flex;flex-direction:column;gap:2px}" +
+      "#fc26-panel .ss-dh{display:flex;align-items:baseline;gap:8px}" +
+      "#fc26-panel .ss-dh .n{flex:1;font-size:11.5px;font-weight:700}" +
+      "#fc26-panel .ss-dh .v{font-size:13px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .ss-dh .v.base{color:var(--muted)}" +
+      "#fc26-panel .ss-dcap{font-size:10px;color:var(--muted);line-height:1.4}" +
+      // The "Custom" chip in the page header, shown only when a custom score is live.
+      "#fc26-panel .ss-chip{flex:none;font-size:8.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:4px 7px;border-radius:5px;background:var(--sel);color:var(--accent);border:1px solid var(--accent)}" +
+      // The way IN: a labelled pill in the Justaino Score page header (icon + wording, so it
+      // reads as a destination rather than a mystery glyph). Rings in the accent when a custom
+      // score is live. The label shortens to "Settings" on a phone so the title keeps its room.
+      "#fc26-panel .ss-hdrbtn{flex:none;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:9px;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-family:inherit;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}" +
+      "#fc26-panel .ss-hdrbtn .ic{font-size:14px;line-height:1}" +
+      "#fc26-panel .ss-hdrbtn:hover{border-color:var(--accent);color:var(--accent)}" +
+      "#fc26-panel .ss-hdrbtn.on{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 10px -2px var(--accent)}" +
+      "#fc26-panel .ss-hdrbtn .tx-short{display:none}" +
+      "#fc26-panel.fc26-mobile .ss-hdrbtn{padding:0 9px;font-size:10px}" +
+      "#fc26-panel.fc26-mobile .ss-hdrbtn .tx-full{display:none}" +
+      "#fc26-panel.fc26-mobile .ss-hdrbtn .tx-short{display:inline}" +
+      "@media (prefers-reduced-motion:reduce){#fc26-panel .ss-bar>i{transition:none}}" +
       "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
   }
@@ -4029,7 +4264,7 @@
     // rule it OUT-SPECIFICS the 1-class pill rule (.fc26-min) - so a panel minimized with the
     // builder open would keep its full height and only "half close". Minimized never needs the
     // builder height, so we simply don't add gt-open when minimized.
-    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + ((state.builderOpen || state.metaPageOpen || state.dashOpen) && !state.minimized ? " gt-open" : "");
+    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + ((state.builderOpen || state.metaPageOpen || state.dashOpen || state.scorePageOpen) && !state.minimized ? " gt-open" : "");
     applyPanelSize();     // set/clear our explicit size BEFORE clamping position (so the rect is right)
     var slot = posSlot();
     var pos = slot ? positions[slot] : null;
@@ -4221,6 +4456,17 @@
     var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeMetaPage);
     var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>Justaino Score</b>";
     top.appendChild(back); top.appendChild(ttl);
+    // The Score Customiser lives HERE rather than as another tile in the Lineup column: it changes
+    // this page's numbers, so this is where you'd reach for it. It picks up an accent ring
+    // while a custom score is active, so you can't be looking at custom rankings unaware.
+    var ssBtn = document.createElement("button"); ssBtn.type = "button";
+    ssBtn.className = "ss-hdrbtn" + (isCustomScore() ? " on" : "");
+    // Icon + label. To change the icon, edit the one emoji below - nothing else depends on it.
+    ssBtn.innerHTML = "<span class='ic'>🔧</span><span class='tx-full'>Score Customiser</span><span class='tx-short'>Customise</span>";
+    ssBtn.title = isCustomScore() ? "Score Customiser (your own weighting is active)" : "Score Customiser";
+    ssBtn.setAttribute("aria-label", ssBtn.title);
+    ssBtn.addEventListener("click", function () { openScorePage("meta"); });
+    top.appendChild(ssBtn);
     metaPageHost.appendChild(top);
 
     // Sub-view tab strip (reuses the Squad Builder's pill styling).
@@ -4476,7 +4722,7 @@
         "<span class='meta-nm'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='meta-gk'>GK</span>" : "") + "</span>" +
         "<span class='meta-ps'>" + psHTML + "</span>" +
         "<span class='meta-score'><b>" + sc.total.toFixed(1) + "</b><span class='meta-split'>" + sc.statPart + " + " + sc.psPart + "</span></span>";
-      row.title = playerName(it) + " as " + group + (sc.role ? " (" + sc.role + ")" : "") + " (out of 100): meta " + sc.metaBlend + " (stats " + sc.statPart + " + PlayStyles " + sc.psPart + "), blended " + Math.round(OVR_MIX * 100) + "% with OVR " + sc.ovr + " = " + sc.total + "  [raw stat avg " + sc.stat + ", PlayStyle score " + sc.psScore + "]";
+      row.title = playerName(it) + " as " + group + (sc.role ? " (" + sc.role + ")" : "") + " (out of 100): meta " + sc.metaBlend + " (stats " + sc.statPart + " + PlayStyles " + sc.psPart + "), blended " + Math.round(CFG.ovrMix * 100) + "% with OVR " + sc.ovr + " = " + sc.total + "  [raw stat avg " + sc.stat + ", PlayStyle score " + sc.psScore + "]";
       row.addEventListener("click", function () { showMetaDetail(it); });
       metaList.appendChild(row);
     });
@@ -4485,7 +4731,7 @@
         ? ("Found " + rows.length + " matching \"" + metaSearch.value.trim() + "\" as " + group + " - rank = their place in your full " + group + " list of " + full.length + ".")
         : ("No " + group + " matching \"" + metaSearch.value.trim() + "\" in your club. Players who can't play " + group + " don't appear here.");
     } else {
-      metaNote.textContent = "Ranked " + rows.length + " of " + full.length + " as " + group + ". Score leans on meta PlayStyles (a PlayStyle+ counts " + PSPLUS_MULT + "x a basic), then stats. Tap a row for full detail.";
+      metaNote.textContent = "Ranked " + rows.length + " of " + full.length + " as " + group + ". Score leans on meta PlayStyles (a PlayStyle+ counts " + CFG.psPlusMult + "x a basic), then stats. Tap a row for full detail.";
     }
   }
 
@@ -5313,6 +5559,269 @@
   window.FC26.positionDepth = computePositionDepth;
   window.FC26.playStyleInsights = computePlayStyleInsights;
 
+  // ============================================================================
+  // FEATURE 6 - SCORE CUSTOMISER (step 2 of 5: the page)
+  // The interface for the custom-score config built in step 1 (see the SCORE_DEFAULTS
+  // block near the top, and CUSTOM-SCORE-SPEC.md). One switch decides whether the hub
+  // speaks the Justaino Score or your own; the cards below tune your own.
+  //
+  // Everything applies AND saves the moment you move it - there is no separate Save
+  // button, because the whole point is watching the ranking move as you drag. "Reset to
+  // Justaino" is the undo.
+  // ============================================================================
+
+  // SCORE_PRESETS: named starting opinions. Each is just a set of the same knobs, so
+  // picking one is identical to dragging the sliders there yourself. `vals: null` means
+  // "clear every override", i.e. straight back to my baseline numbers.
+  var SCORE_PRESETS = [
+    { id: "base",  name: "Justaino baseline", vals: null,
+      note: "My numbers exactly: an even split between stat fit and PlayStyles." },
+    { id: "stats", name: "Stats purist", vals: { statMix: 0.75, psPlusMult: 2.5, psCeilPlus: 4 },
+      note: "Ranks mostly on raw stat fit for the position. PlayStyles still count, but far less." },
+    { id: "ps",    name: "PlayStyle maxxer", vals: { statMix: 0.28, psPlusMult: 4.5, psCeilPlus: 6 },
+      note: "Rewards owning the right PlayStyles for the role above raw stat numbers." },
+    { id: "ovr",   name: "OVR respecter", vals: { statMix: 0.5, ovrMix: 0.15, psPlusMult: 3.5, psCeilPlus: 5 },
+      note: "Pulls the score back toward the card's in-game OVR, the way the hub ranked before v28." }
+  ];
+
+  // activePresetId(): which preset (if any) the current settings exactly match, so the
+  // chip can light up. Returns null once you've dragged away from all of them.
+  function activePresetId() {
+    for (var i = 0; i < SCORE_PRESETS.length; i++) {
+      var p = SCORE_PRESETS[i];
+      if (!p.vals) { if (!hasScoreDiffs()) return p.id; continue; }
+      var keys = Object.keys(p.vals), match = true;
+      for (var k = 0; k < keys.length; k++) {
+        // compare against the RESOLVED config, and allow for floating-point wobble
+        if (Math.abs(CFG[keys[k]] - p.vals[keys[k]]) > 0.0001) { match = false; break; }
+      }
+      // a preset only "matches" if nothing OUTSIDE its own keys has been changed too
+      if (match && Object.keys(scoreState.cfg).every(function (kk) { return keys.indexOf(kk) !== -1; })) return p.id;
+    }
+    return null;
+  }
+  // applyPreset(p): load a preset's numbers (or clear everything for the baseline one).
+  function applyPreset(p) {
+    if (!p.vals) { scoreState.cfg = {}; saveScoreState(); rebuildCfg(); return; }
+    scoreState.cfg = {};                         // presets replace, they don't stack
+    Object.keys(p.vals).forEach(function (k) { scoreState.cfg[k] = p.vals[k]; });
+    saveScoreState(); rebuildCfg();
+  }
+
+  // There's deliberately NO launcher tile in the Lineup column - the column was getting
+  // crowded, and these settings belong WITH the score they change. The way in is the small
+  // 🔧 Score Customiser button in the Justaino Score page header (see renderMetaPage), which is why
+  // closing this page returns you there rather than to the main panel.
+
+  // The full-screen page host (hidden until opened; same .gt-builder shell as the others).
+  var ssHost = document.createElement("div");
+  ssHost.className = "gt-builder";
+  ssHost.style.display = "none";
+  body.appendChild(ssHost);
+
+  state.scorePageOpen = false;
+  // Where "back" should go. "meta" = we came from the Justaino Score page's header button
+  // (the normal way in), "layout" = opened straight from the Console helper.
+  state.scoreFrom = "layout";
+
+  function openScorePage(from) {
+    state.scorePageOpen = true;
+    state.scoreFrom = (from === "meta") ? "meta" : "layout";
+    if (state.scoreFrom === "meta") metaPageHost.style.display = "none";
+    else layoutHost.style.display = "none";
+    ssHost.style.display = "flex";
+    applyPanelChrome();
+    renderScorePage();
+  }
+  // Closing redraws whatever we came back to, so any change to the scoring shows up
+  // immediately (nothing caches a score - it just needs a repaint). Coming back to the
+  // Justaino Score page therefore re-ranks it in front of you.
+  function closeScorePage() {
+    state.scorePageOpen = false;
+    ssHost.style.display = "none";
+    if (state.scoreFrom === "meta" && state.metaPageOpen) {
+      metaPageHost.style.display = "flex";
+      try { renderMetaPage(); } catch (e) {}
+    } else {
+      layoutHost.style.display = "flex";
+      try { renderPreview(); } catch (e) {}
+      try { renderMetaRating(); } catch (e) {}
+    }
+    applyPanelChrome();
+  }
+
+  // ssDial(o): build one labelled slider. o = {
+  //   name, value, min, max, step, fmt(v), cap, onInput(v), disabled
+  // } - fmt turns the raw number into what's shown (e.g. 0.04 -> "4%").
+  function ssDial(o) {
+    var wrap = document.createElement("div"); wrap.className = "ss-dial";
+    var head = document.createElement("div"); head.className = "ss-dh";
+    var nm = document.createElement("span"); nm.className = "n"; nm.textContent = o.name;
+    var val = document.createElement("span"); val.className = "v" + (o.disabled ? " base" : ""); val.textContent = o.fmt(o.value);
+    head.appendChild(nm); head.appendChild(val);
+    var rng = document.createElement("input");
+    rng.type = "range"; rng.className = "ss-range";
+    rng.min = o.min; rng.max = o.max; rng.step = o.step; rng.value = o.value;
+    rng.disabled = !!o.disabled;
+    rng.setAttribute("aria-label", o.name);
+    var cap = document.createElement("div"); cap.className = "ss-dcap"; cap.textContent = o.cap;
+    // "input" fires continuously while dragging, so the number tracks your thumb.
+    rng.addEventListener("input", function () {
+      val.textContent = o.fmt(Number(rng.value));
+      o.onInput(Number(rng.value));
+    });
+    wrap.appendChild(head); wrap.appendChild(rng); wrap.appendChild(cap);
+    return wrap;
+  }
+
+  // renderScorePage(): (re)build the whole page. Called on open and after anything that
+  // changes the SHAPE of the page (the switch, a preset). Dragging a slider deliberately
+  // does NOT redraw - that would rip the thumb out from under your finger.
+  function renderScorePage() {
+    if (!state.scorePageOpen) return;
+    ssHost.innerHTML = "";
+    var custom = isCustomScore();
+    var on = !!scoreState.on;
+    var d = SCORE_DEFAULTS;
+
+    // ---- Header: back + title + the "Custom" chip when a custom score is live ----
+    var top = document.createElement("div"); top.className = "gt-bd-top";
+    var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back";
+    back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeScorePage);
+    var ttl = document.createElement("div"); ttl.className = "gt-bd-title";
+    ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>Score Customiser</b>";
+    top.appendChild(back); top.appendChild(ttl);
+    if (custom) { var chip = document.createElement("span"); chip.className = "ss-chip"; chip.textContent = "Custom"; top.appendChild(chip); }
+    ssHost.appendChild(top);
+
+    var bodyEl = document.createElement("div"); bodyEl.className = "ss-body";
+
+    // ---- Card 1: the active-score switch (the only control that changes the hub) ----
+    var swCard = document.createElement("div"); swCard.className = "ss-card";
+    var swLab = document.createElement("div"); swLab.className = "ss-lab"; swLab.textContent = "Active score";
+    var seg = document.createElement("div"); seg.className = "ss-seg";
+    [["Justaino Score", false], ["My Score", true]].forEach(function (t) {
+      var b = document.createElement("button"); b.type = "button"; b.textContent = t[0];
+      b.setAttribute("aria-pressed", String(on === t[1]));
+      b.addEventListener("click", function () { setScoreOn(t[1]); renderScorePage(); });
+      seg.appendChild(b);
+    });
+    var swNote = document.createElement("div"); swNote.className = "ss-note";
+    swNote.innerHTML = !on
+      ? "The hub is ranking by the <b>Justaino Score</b>, my own opinion of the meta. Switch to My Score to use your own weighting."
+      : (custom
+        ? "Everything in the hub - rankings, Best XI, the Squad Builder and the score on a player card - is using <b>My Score</b>. My settings are untouched underneath, so you can switch back any time."
+        : "<b>My Score</b> currently matches the Justaino Score exactly. Move anything below and it becomes yours.");
+    swCard.appendChild(swLab); swCard.appendChild(seg); swCard.appendChild(swNote);
+    bodyEl.appendChild(swCard);
+
+    // Everything below only does anything when My Score is the active one.
+    var offCls = on ? "" : " off";
+
+    // ---- Card 2: presets ----
+    var preCard = document.createElement("div"); preCard.className = "ss-card" + offCls;
+    var preLab = document.createElement("div"); preLab.className = "ss-lab"; preLab.textContent = "Start from";
+    var preWrap = document.createElement("div"); preWrap.className = "ss-presets";
+    var activeId = activePresetId(), activeNote = "";
+    SCORE_PRESETS.forEach(function (p) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "ss-preset"; b.textContent = p.name;
+      b.setAttribute("aria-pressed", String(on && activeId === p.id));
+      b.disabled = !on;
+      if (on && activeId === p.id) activeNote = p.note;
+      b.addEventListener("click", function () { applyPreset(p); renderScorePage(); });
+      preWrap.appendChild(b);
+    });
+    var preNote = document.createElement("div"); preNote.className = "ss-note";
+    preNote.textContent = activeNote || "A preset is just a set of the sliders below. Pick one as a starting point, then adjust.";
+    preCard.appendChild(preLab); preCard.appendChild(preWrap); preCard.appendChild(preNote);
+    bodyEl.appendChild(preCard);
+
+    // ---- Card 3: the balance (the control that moves rankings most) ----
+    var balCard = document.createElement("div"); balCard.className = "ss-card" + offCls;
+    var balLab = document.createElement("div"); balLab.className = "ss-lab"; balLab.textContent = "Balance";
+    var nums = document.createElement("div"); nums.className = "ss-balnums";
+    var statPct = Math.round(CFG.statMix * 100);
+    nums.innerHTML = "<div><b id='ss-statpct'>" + statPct + "%</b><span class='k'>Stats</span></div>" +
+      "<div class='r'><b id='ss-pspct'>" + (100 - statPct) + "%</b><span class='k'>PlayStyles</span></div>";
+    var bar = document.createElement("div"); bar.className = "ss-bar";
+    var fill = document.createElement("i"); fill.style.width = statPct + "%"; bar.appendChild(fill);
+    var balRange = document.createElement("input");
+    balRange.type = "range"; balRange.className = "ss-range";
+    balRange.min = Math.round(SCORE_LIMITS.statMix[0] * 100); balRange.max = Math.round(SCORE_LIMITS.statMix[1] * 100);
+    balRange.step = 1; balRange.value = statPct; balRange.disabled = !on;
+    balRange.setAttribute("aria-label", "Balance between stats and PlayStyles");
+    balRange.addEventListener("input", function () {
+      var v = Number(balRange.value);
+      nums.querySelector("#ss-statpct").textContent = v + "%";
+      nums.querySelector("#ss-pspct").textContent = (100 - v) + "%";
+      fill.style.width = v + "%";
+      setScoreValue("statMix", v / 100);
+    });
+    var balNote = document.createElement("div"); balNote.className = "ss-note";
+    balNote.innerHTML = "How much of the score comes from raw stat fit for the position, versus owning the right PlayStyles for the role. Justaino sits at <b>" + Math.round(d.statMix * 100) + " / " + Math.round((1 - d.statMix) * 100) + "</b>.";
+    balCard.appendChild(balLab); balCard.appendChild(nums); balCard.appendChild(bar); balCard.appendChild(balRange); balCard.appendChild(balNote);
+    bodyEl.appendChild(balCard);
+
+    // ---- Card 4: the three dials ----
+    var dCard = document.createElement("div"); dCard.className = "ss-card" + offCls;
+    var dLab = document.createElement("div"); dLab.className = "ss-lab"; dLab.textContent = "Dials";
+    dCard.appendChild(dLab);
+
+    dCard.appendChild(ssDial({
+      name: "OVR tiebreak", value: Math.round(CFG.ovrMix * 100), disabled: !on,
+      min: Math.round(SCORE_LIMITS.ovrMix[0] * 100), max: Math.round(SCORE_LIMITS.ovrMix[1] * 100), step: 1,
+      fmt: function (v) { return v + "%"; },
+      cap: "How hard the result is pulled toward the card's in-game OVR. Justaino keeps this at " + Math.round(d.ovrMix * 100) + "%, a pure tiebreak.",
+      onInput: function (v) { setScoreValue("ovrMix", v / 100); }
+    }));
+
+    dCard.appendChild(ssDial({
+      name: "A PlayStyle+ is worth", value: CFG.psPlusMult, disabled: !on,
+      min: SCORE_LIMITS.psPlusMult[0], max: SCORE_LIMITS.psPlusMult[1], step: 0.5,
+      fmt: function (v) { return v.toFixed(1) + "×"; },
+      cap: "In basic PlayStyles. Higher means owning the right PlayStyle+ counts for far more than owning several ordinary ones. Justaino: " + d.psPlusMult.toFixed(1) + "×.",
+      onInput: function (v) { setScoreValue("psPlusMult", v); }
+    }));
+
+    dCard.appendChild(ssDial({
+      name: "Full marks needs", value: CFG.psCeilPlus, disabled: !on,
+      min: SCORE_LIMITS.psCeilPlus[0], max: SCORE_LIMITS.psCeilPlus[1], step: 1,
+      fmt: function (v) { return v + " PS+"; },
+      cap: "The ceiling a card is measured against. Raise it and stacking a sixth relevant PlayStyle+ keeps paying; lower it and a well-built card maxes out sooner. Justaino: " + d.psCeilPlus + ".",
+      onInput: function (v) { setScoreValue("psCeilPlus", v); }
+    }));
+    bodyEl.appendChild(dCard);
+
+    // ---- Storage warning: only when a save has actually failed (see saveScoreState) ----
+    if (!scoreSaveOk) {
+      var warn = document.createElement("div"); warn.className = "gt-warn2";
+      warn.innerHTML = "<b>Your settings can't be saved.</b> This browser's storage for the FC web app is full, so anything you change here will be lost when you reload. Open the Console and run <b>localStorage.removeItem('console-history')</b> to free some up.";
+      bodyEl.appendChild(warn);
+    }
+
+    // ---- Actions ----
+    var acts = document.createElement("div"); acts.className = "gt-actions";
+    var row = document.createElement("div"); row.className = "gt-arow";
+    var doneBtn = document.createElement("button"); doneBtn.type = "button"; doneBtn.className = "gt-cbtn"; doneBtn.textContent = "Done";
+    doneBtn.addEventListener("click", closeScorePage);
+    var resetBtn = document.createElement("button"); resetBtn.type = "button"; resetBtn.className = "gt-rbtn"; resetBtn.textContent = "Reset to Justaino";
+    resetBtn.disabled = !hasScoreDiffs() && !on;
+    resetBtn.addEventListener("click", function () {
+      if (hasScoreDiffs() && !window.confirm("Throw away every custom value and switch back to the Justaino Score?\n\nThis can't be undone.")) return;
+      resetScore(); renderScorePage();
+    });
+    row.appendChild(doneBtn); row.appendChild(resetBtn);
+    var actNote = document.createElement("div"); actNote.className = "ss-note";
+    actNote.textContent = "Changes apply and save as you move them - there's nothing to submit. Saved in this browser only.";
+    acts.appendChild(row); acts.appendChild(actNote);
+    bodyEl.appendChild(acts);
+
+    ssHost.appendChild(bodyEl);
+  }
+
+  // Console helper: open the page without clicking.
+  window.FC26.openScorePage = openScorePage;
+
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
   squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(dashLaunch);
@@ -5634,6 +6143,12 @@
     // and rebuild it for the new mode. layoutHost was just rebuilt above, so hide it again.
     if (state.builderOpen) { layoutHost.style.display = "none"; builderHost.style.display = "flex"; renderBuilder(); }
     if (state.metaPageOpen) { layoutHost.style.display = "none"; metaPageHost.style.display = "flex"; renderMetaPage(); }
+    // Same for the other two full-screen pages (the Dashboard was missing here, so rotating
+    // a phone with it open used to dump you back on the main layout with the page still "open").
+    if (state.dashOpen) { layoutHost.style.display = "none"; dashHost.style.display = "flex"; renderDashPage(); }
+    // The Score Customiser is checked LAST and hides the meta page, because it's normally opened
+    // FROM it - both flags are true at once, and the settings page is the one in front.
+    if (state.scorePageOpen) { layoutHost.style.display = "none"; metaPageHost.style.display = "none"; ssHost.style.display = "flex"; renderScorePage(); }
     // applyPanelChrome (above) clamped using the height BEFORE this content was added, so
     // re-clamp now that the real height is known - otherwise the tall panel can start
     // partly off-screen and its scrollbar be unreachable.

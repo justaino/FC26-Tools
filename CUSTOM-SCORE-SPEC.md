@@ -1,4 +1,4 @@
-# Score Settings - custom scoring spec (awaiting approval)
+# Score Customiser - custom scoring spec (approved)
 
 Design pitch: https://claude.ai/code/artifact/309618c5-54e1-4760-b93c-0c129b9e6e05
 
