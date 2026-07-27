@@ -686,9 +686,48 @@ re-renders it, so you see the new order immediately.
 **Console API:** `window.FC26.score.cfg() / .on(bool) / .set(key, value) / .reset() / .isCustom() /
 .label() / .saved()`, plus `window.FC26.openScorePage()`.
 
-*Not yet built:* the live "who this moves" list under the dials (step 3), carrying the "My Score"
-label across the pill / page titles / squad names (step 4), and the advanced per-position stat
-weights + role priority curve (step 5). See `CUSTOM-SCORE-SPEC.md`.
+### "Who this moves" (the live re-ranking, v30)
+
+The card under the dials shows your top 6 at a chosen position under the current settings, with how
+many places each has moved **against the Justaino order**. Drag any slider and it re-sorts live.
+
+- `withBaselineScoring(fn)` runs `fn` with the scorer briefly forced onto the baseline, then puts
+  the live `CFG` object straight back. There is only ever ONE scorer, so the "before" order can
+  never drift from what the rest of the hub does.
+- The baseline order can't change while you drag, so it's cached per position in `impactBaseline`.
+  **That cache is cleared on a club reload** (it was measured against the old club).
+- Refreshes are throttled to one per animation frame - a range input fires `input` far faster than
+  a whole club needs re-ranking.
+- The card is deliberately NOT dimmed with the other tuning cards: while the Justaino Score is
+  active it shows your genuine current top 6 with no movement, i.e. the "before" picture.
+
+### How the label carries across the hub (v30)
+
+Everything that names the score calls `scoreLabel()`, so it says "Justaino Score" or "My Score"
+depending on what's active: the score pill (desktop spotlight AND mobile Deck bar), the Lineup
+tile, the Justaino Score page title, the Rankings note (which also states the live mix), the
+Rankings player-detail view, and the Club Dashboard's top-score record.
+
+**Squads.** `jscoreNamePrefix()` follows the active score, so a squad drafted on your weighting
+saves as **"My Score Squad N"**. `isJscoreSquadName()` matches BOTH families, so squads made before
+you started customising still clean up, and `nextJscoreSquadNumber()` counts both so you never get
+two Squad 2s. Gauntlet squads are untouched by either.
+
+**Cache trap (fixed in v30):** the Best XI view keeps its drafted boards in `metaBoards` and only
+redrafts when that's empty, so changing the scoring and returning would have shown the OLD XIs
+under the new label. Every score mutator now calls `invalidateScoreCaches()`, which clears
+`metaBoards` and re-stamps the Lineup tile's title. The Gauntlet Squad Builder needs no such
+handling - `openBuilder()` calls `doBuild()` unconditionally, so it redrafts every time it opens.
+
+**Score by position (v30).** `scoreByPositionHTML(it)` renders a card's score at EVERY position it
+can play, best first, top one accented. It's shared by the Rankings detail view, the desktop
+spotlight card and the mobile Deck summary, so the three can't disagree. Worth having on the
+player card because the pill only ever shows a player's BEST position - a card can be a middling
+CM and an excellent CDM and you'd never see it.
+
+*Not yet built:* the advanced per-position stat weights + role priority curve (step 5 of
+`CUSTOM-SCORE-SPEC.md`). `CFG` already carries `statWeights`, `traitWeights` and `rankCurve`, so
+that step is UI only - nothing above changes.
 
 ---
 

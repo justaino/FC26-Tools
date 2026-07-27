@@ -5,6 +5,32 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v30 - 2026-07-27
+
+**See who your tuning actually moves, and the rest of the hub now says which score it's using.**
+
+- **New "Who this moves" card** in the Score Customiser, under the dials. It shows your top 6 at a
+  position and re-sorts **live as you drag**, with green ▲ / red ▼ arrows for how many places each
+  player has moved against the Justaino order. Pick any position from the dropdown. This turns
+  tuning from guesswork into a decision you can see.
+- **Every screen now names the score it's using.** With your own weighting active, the score pill on
+  a player card reads "MY SCORE 91.2 · ST", the Lineup tile and the page title say **My Score**, and
+  the rankings note tells you the live mix ("by My Score - stats 75%, PlayStyles 25%...").
+- **Squads you create say which score built them.** A squad drafted on your weighting saves in game
+  as **"My Score Squad N"** instead of borrowing mine. Remove still catches both kinds, so older
+  "Justaino Score Squad" ones still clean up, and the numbering counts both so you never get two
+  Squad 2s. Your own squads and Gauntlet squads are never touched.
+- **New: your score at every position, on the player card.** The breakdown that was only on the
+  rankings detail view now also shows on the Lineup player card (and in the mobile stats drawer).
+  Handy because the pill only ever shows a player's *best* position - a card can be a middling CM
+  and an excellent CDM, and you'd never have seen it.
+- **Fixed:** the Rankings player detail still said "Justaino" while everything else said "My Score".
+  All three views now read from one shared block, so they can't drift apart again.
+- **Fixed:** changing your scoring and going back to Best XI showed the *old* XIs under the new
+  name, because that page reuses its last draft. It now redraws properly.
+
+---
+
 ## v29 - 2026-07-26
 
 **New Score Customiser: rank your club by your own weighting instead of mine.**

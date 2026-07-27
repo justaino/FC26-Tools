@@ -866,19 +866,29 @@
   // scoreLabel(): what to CALL the active score on screen.
   function scoreLabel() { return isCustomScore() ? "My Score" : "Justaino Score"; }
 
+  // invalidateScoreCaches(): almost nothing caches a score (that's why tuning works at all), but
+  // the Best XI view keeps its last drafted boards in `metaBoards` and only redrafts when that's
+  // empty. Without this, changing the scoring and returning to Best XI would show the OLD XIs
+  // under the new label. Called by every mutator below.
+  function invalidateScoreCaches() {
+    try { metaBoards = null; } catch (e) {}
+    // The lineup tile is built once and reused, so its title has to be re-stamped by hand.
+    try { setMetaLaunchLabel(); } catch (e2) {}
+  }
+
   // setScoreValue(key, value): change one knob (null/undefined removes the override, putting
   // that knob back on the baseline). Saves + rebuilds. Returns the new resolved value.
   function setScoreValue(key, value) {
     if (value == null) { delete scoreState.cfg[key]; }
     else { scoreState.cfg[key] = value; }
-    saveScoreState(); rebuildCfg();
+    saveScoreState(); rebuildCfg(); invalidateScoreCaches();
     return CFG[key];
   }
   // setScoreOn(on): flip the switch WITHOUT losing the saved differences, so you can A/B
   // your own tuning against mine.
-  function setScoreOn(on) { scoreState.on = !!on; saveScoreState(); rebuildCfg(); return isCustomScore(); }
+  function setScoreOn(on) { scoreState.on = !!on; saveScoreState(); rebuildCfg(); invalidateScoreCaches(); return isCustomScore(); }
   // resetScore(): throw away every custom value AND switch back to the Justaino Score.
-  function resetScore() { scoreState = { on: false, cfg: {} }; saveScoreState(); rebuildCfg(); }
+  function resetScore() { scoreState = { on: false, cfg: {} }; saveScoreState(); rebuildCfg(); invalidateScoreCaches(); }
 
   // Load + resolve immediately, so CFG exists before anything scores a player.
   scoreState = loadScoreState();
@@ -1103,6 +1113,25 @@
     return "<div class='pv-faces'>" +
       "<div class='pv-fl'>" + (gk ? "GK stats" : "Face stats") + "</div>" +
       "<div class='pv-fgrid'>" + cells + "</div></div>";
+  }
+
+  // scoreByPositionHTML(it): the card's score at EVERY position it can play, best first, with the
+  // strongest one accented. Answers "where is this player actually good?" at a glance - a card can
+  // be a middling CM and an excellent CDM, and only the best number reaches the pill.
+  // Shared by the Rankings detail view, the desktop spotlight card and the mobile Deck summary,
+  // so all three can never disagree. Returns "" if the card has no known positions.
+  function scoreByPositionHTML(it) {
+    try {
+      var groups = playerPositionGroups(it);
+      if (!groups.length) return "";
+      var scored = groups
+        .map(function (g) { return { g: g, t: scorePlayer(it, g).total }; })
+        .sort(function (a, b) { return b.t - a.t; });
+      return "<div class='pv-group'><div class='pv-gl'>" + esc(scoreLabel()) + " by position</div><div class='mp-posrow'>" +
+        scored.map(function (s, i) {
+          return "<span class='mp-poschip" + (i === 0 ? " top" : "") + "'>" + esc(s.g) + " <b>" + s.t.toFixed(1) + "</b></span>";
+        }).join("") + "</div></div>";
+    } catch (e) { return ""; }
   }
 
   // psMaxForGroup(group): a realistic "ceiling" of raw PlayStyle bonus points for a
@@ -1880,9 +1909,14 @@
   // "Remove" only ever deletes Justaino Score squads (never Gauntlet ones) and vice versa. The
   // low-level calls (createGameSquad / listSavedSquads / removeGameSquad / countSavedSquads) are
   // shared - only the naming and tracking differ.
-  var JSCORE_NAME_PREFIX = "Justaino Score Squad ";   // full name = prefix + a number, e.g. "Justaino Score Squad 1"
-  // Match on the broader "Justaino Score " so removal catches every squad we ever named this way.
-  function isJscoreSquadName(name) { return typeof name === "string" && name.indexOf("Justaino Score ") === 0; }
+  // The prefix follows the ACTIVE score, so a squad drafted on your own weighting is named
+  // "My Score Squad 3" in game and doesn't pretend to be one of mine.
+  function jscoreNamePrefix() { return (isCustomScore() ? "My Score" : "Justaino Score") + " Squad "; }
+  // Removal matches BOTH name families, so squads made before you started customising (and any
+  // made while switched the other way) still clean up. Your own squads are never touched.
+  function isJscoreSquadName(name) {
+    return typeof name === "string" && (name.indexOf("Justaino Score ") === 0 || name.indexOf("My Score ") === 0);
+  }
   var JSCORE_IDS_KEY = "FC26_justainoScoreSquadIds";
   function loadJscoreSquadIds() {
     try { var raw = window.localStorage.getItem(JSCORE_IDS_KEY); if (raw) return JSON.parse(raw) || []; } catch (e) {}
@@ -1892,11 +1926,13 @@
     try { window.localStorage.setItem(JSCORE_IDS_KEY, JSON.stringify(list || [])); } catch (e) {}
   }
   // nextJscoreSquadNumber(savedList): 1 + the highest "Squad N" already saved, scanning the LIVE
-  // squad list so numbering survives reloads and never collides with an existing Justaino squad.
+  // squad list so numbering survives reloads and never collides with an existing squad. It counts
+  // BOTH name families, so "Justaino Score Squad 2" means the next custom one is "My Score Squad 3"
+  // rather than a confusing second Squad 2.
   function nextJscoreSquadNumber(savedList) {
     var max = 0;
     (savedList || []).forEach(function (s) {
-      var m = /Justaino Score Squad (\d+)/.exec(s.name || "");
+      var m = /(?:Justaino Score|My Score) Squad (\d+)/.exec(s.name || "");
       if (m) { var n = parseInt(m[1], 10); if (n > max) max = n; }
     });
     return max + 1;
@@ -2461,7 +2497,7 @@
     // they can play, shown right under the big OVR number.
     var jr = null; try { jr = bestJustaino(it); } catch (e) {}
     var jrHTML = jr
-      ? "<span class='pv-jr' title='Justaino rating (0-100) as " + esc(jr.group) + (jr.score.role ? " (" + esc(jr.score.role) + ")" : "") + ": meta " + jr.score.metaBlend + " (stats " + jr.score.statPart + " + PlayStyles " + jr.score.psPart + "), blended " + Math.round(CFG.ovrMix * 100) + "% with OVR " + jr.score.ovr + "'>JUSTAINO " + jr.score.total.toFixed(1) + " &middot; " + esc(jr.group) + "</span>"
+      ? "<span class='pv-jr' title='Justaino rating (0-100) as " + esc(jr.group) + (jr.score.role ? " (" + esc(jr.score.role) + ")" : "") + ": meta " + jr.score.metaBlend + " (stats " + jr.score.statPart + " + PlayStyles " + jr.score.psPart + "), blended " + Math.round(CFG.ovrMix * 100) + "% with OVR " + jr.score.ovr + "'>" + scoreLabel().toUpperCase() + " " + jr.score.total.toFixed(1) + " &middot; " + esc(jr.group) + "</span>"
       : "";
 
     preview.innerHTML =
@@ -2479,6 +2515,8 @@
         meterHTML("PlayStyle+", pUsed, plusCap, "plus") +
         meterHTML("Basic", bUsed, basicCap, "basic") +
       "</div>" +
+      // Score at every position this card can play (same block the Rankings detail shows).
+      scoreByPositionHTML(it) +
       // Face stats grid (Feature: fill the spotlight) - same 6 numbers the Justaino rating reads.
       faceStatsHTML(it) +
       noneMsg +
@@ -3126,6 +3164,9 @@
     renderPlayers();
     try { renderMetaRating(); } catch (e) {}   // refresh the Meta rating list if it's open
     // If the Meta page is open on the Best XI tab, rebuild it now that the full club is in.
+    // A fresh club invalidates the drafted boards AND the "who this moves" baseline order
+    // (that's cached per position and is only valid for the club it was measured on).
+    try { impactBaseline = { group: null, ids: null }; } catch (e0) {}
     try { if (state.metaPageOpen && metaView === "xi") { metaBoards = null; renderMetaPage(); } } catch (e) {}
     status.textContent = "Club loaded: " + getClubPlayers().length + " players.";
   }
@@ -4060,6 +4101,19 @@
       "#fc26-panel.fc26-mobile .ss-hdrbtn{padding:0 9px;font-size:10px}" +
       "#fc26-panel.fc26-mobile .ss-hdrbtn .tx-full{display:none}" +
       "#fc26-panel.fc26-mobile .ss-hdrbtn .tx-short{display:inline}" +
+      // "Who this moves": the live re-ranking under the dials (step 3).
+      "#fc26-panel .ss-imphead{display:flex;align-items:center;gap:8px}" +
+      "#fc26-panel .ss-imphead .ss-lab{flex:1}" +
+      "#fc26-panel .ss-imphead select{padding:5px 8px;font-size:11px}" +
+      "#fc26-panel .ss-implist{display:flex;flex-direction:column;gap:5px}" +
+      "#fc26-panel .ss-improw{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--card-border)}" +
+      "#fc26-panel .ss-imprank{flex:none;width:19px;height:19px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;background:rgba(255,255,255,.08);color:var(--muted);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .ss-improw.top .ss-imprank{background:var(--accent);color:var(--accent-ink)}" +
+      "#fc26-panel .ss-impnm{flex:1;min-width:0;font-size:11.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+      "#fc26-panel .ss-impsc{font-size:12px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .ss-impmv{flex:none;width:32px;text-align:right;font-size:10px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .ss-impmv.up{color:#6ee7b7}" +
+      "#fc26-panel .ss-impmv.dn{color:#ff9d9d}" +
       "@media (prefers-reduced-motion:reduce){#fc26-panel .ss-bar>i{transition:none}}" +
       "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
@@ -4353,9 +4407,16 @@
   var metaLaunchBtn = document.createElement("button");
   metaLaunchBtn.type = "button";
   metaLaunchBtn.className = "gt-launch";
-  metaLaunchBtn.innerHTML = "<span class='gt-launch-ic'>📊</span>" +
-    "<span class='gt-launch-tx'><b>Justaino Score</b><i>Rank your club by position and see your best XIs</i></span>" +
-    "<span class='gt-launch-go'>›</span>";
+  // The tile's title is the ACTIVE score's name, so the way in says which score you'd be reading.
+  // Re-run setMetaLaunchLabel() after anything that changes the active score.
+  function setMetaLaunchLabel() {
+    var custom = isCustomScore();
+    metaLaunchBtn.innerHTML = "<span class='gt-launch-ic'>📊</span>" +
+      "<span class='gt-launch-tx'><b>" + esc(scoreLabel()) + "</b><i>" +
+      (custom ? "Your own weighting - rankings and best XIs" : "Rank your club by position and see your best XIs") +
+      "</i></span><span class='gt-launch-go'>›</span>";
+  }
+  setMetaLaunchLabel();
   metaLaunchBtn.addEventListener("click", openMetaPage);
   metaLaunch.appendChild(metaLaunchBtn);
 
@@ -4454,7 +4515,7 @@
 
     var top = document.createElement("div"); top.className = "gt-bd-top";
     var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeMetaPage);
-    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>Justaino Score</b>";
+    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>" + esc(scoreLabel()) + "</b>";
     top.appendChild(back); top.appendChild(ttl);
     // The Score Customiser lives HERE rather than as another tile in the Lineup column: it changes
     // this page's numbers, so this is where you'd reach for it. It picks up an accent ring
@@ -4514,20 +4575,11 @@
 
     // Headline: OVR + best Justaino pill + name/rarity/positions.
     var jr = null; try { jr = bestJustaino(it); } catch (e) {}
-    var jrHTML = jr ? "<span class='pv-jr'>JUSTAINO " + jr.score.total.toFixed(1) + " &middot; " + esc(jr.group) + "</span>" : "";
+    var jrHTML = jr ? "<span class='pv-jr'>" + scoreLabel().toUpperCase() + " " + jr.score.total.toFixed(1) + " &middot; " + esc(jr.group) + "</span>" : "";
     var posLine = ""; try { var pg = playerPositionGroups(it); if (pg && pg.length) posLine = " &middot; " + esc(pg.join(", ")); } catch (e) {}
 
-    // Per-position meta breakdown: every group the card can play, scored, best first, top one accented.
-    var perPos = "";
-    try {
-      var groups = playerPositionGroups(it);
-      if (groups.length) {
-        var scored = groups.map(function (g) { return { g: g, t: scorePlayer(it, g).total }; }).sort(function (a, b) { return b.t - a.t; });
-        perPos = "<div class='pv-group'><div class='pv-gl'>JST Score by position</div><div class='mp-posrow'>" +
-          scored.map(function (s, i) { return "<span class='mp-poschip" + (i === 0 ? " top" : "") + "'>" + esc(s.g) + " <b>" + s.t.toFixed(1) + "</b></span>"; }).join("") +
-          "</div></div>";
-      }
-    } catch (e) {}
+    // Per-position breakdown (shared with the spotlight card + mobile Deck summary).
+    var perPos = scoreByPositionHTML(it);
 
     // Current PlayStyles, split PS+ / Basic (same chip markup as the spotlight card).
     var plus = [], basic = [];
@@ -4669,8 +4721,8 @@
         // Actions: Create + Remove + a status line (its OWN element, separate from the builder's).
         var jActions = document.createElement("div"); jActions.className = "gt-actions"; jActions.style.marginTop = "10px";
         var jArow = document.createElement("div"); jArow.className = "gt-arow";
-        var jCreate = document.createElement("button"); jCreate.type = "button"; jCreate.className = "gt-cbtn"; jCreate.textContent = "Create Justaino Score Squad";
-        var jRemove = document.createElement("button"); jRemove.type = "button"; jRemove.className = "gt-rbtn"; jRemove.textContent = "Remove Justaino Score squads";
+        var jCreate = document.createElement("button"); jCreate.type = "button"; jCreate.className = "gt-cbtn"; jCreate.textContent = "Create " + scoreLabel() + " Squad";
+        var jRemove = document.createElement("button"); jRemove.type = "button"; jRemove.className = "gt-rbtn"; jRemove.textContent = "Remove " + scoreLabel() + " squads";
         jArow.appendChild(jCreate); jArow.appendChild(jRemove);
         var jStatus = document.createElement("div"); jStatus.className = "gt-status";
         jActions.appendChild(jArow); jActions.appendChild(jStatus);
@@ -4731,7 +4783,11 @@
         ? ("Found " + rows.length + " matching \"" + metaSearch.value.trim() + "\" as " + group + " - rank = their place in your full " + group + " list of " + full.length + ".")
         : ("No " + group + " matching \"" + metaSearch.value.trim() + "\" in your club. Players who can't play " + group + " don't appear here.");
     } else {
-      metaNote.textContent = "Ranked " + rows.length + " of " + full.length + " as " + group + ". Score leans on meta PlayStyles (a PlayStyle+ counts " + CFG.psPlusMult + "x a basic), then stats. Tap a row for full detail.";
+      // The note names WHICH score did the ranking, and states the live mix, so a screenshot of a
+      // custom ranking can't be mistaken for the shipped Justaino one.
+      metaNote.textContent = "Ranked " + rows.length + " of " + full.length + " as " + group + " by " + scoreLabel() +
+        " (stats " + Math.round(CFG.statMix * 100) + "%, PlayStyles " + Math.round(CFG.psMix * 100) +
+        "%, a PlayStyle+ counts " + CFG.psPlusMult + "x a basic). Tap a row for full detail.";
     }
   }
 
@@ -5174,16 +5230,16 @@
     if (saved == null) { statusEl.innerHTML = gtToast("err", "Couldn't read your squad list. Open the Squads screen once, then try again."); return; }
     var have = saved.length;
     if (have >= GAUNTLET_MAX_SQUADS) { statusEl.innerHTML = gtToast("err", "You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads - remove some first."); return; }
-    var name = JSCORE_NAME_PREFIX + nextJscoreSquadNumber(saved);   // "Justaino Score Squad N" (next free number)
+    var name = jscoreNamePrefix() + nextJscoreSquadNumber(saved);   // "<active score> Squad N" (next free number)
     // Confirm, listing the whole bench so the create is never a surprise.
     var benchLines = jsq.subs.map(function (c) { return "  - " + (c.reqLabel || "SUB") + ": " + (c.player ? playerName(c.player) : "(none)"); });
-    var xiDesc = (metaXiIdx === 0) ? "your strongest 11 by Justaino Score" : ("your #" + (metaXiIdx + 1) + " best 11 by Justaino Score (depth chart)");
+    var xiDesc = (metaXiIdx === 0) ? ("your strongest 11 by " + scoreLabel()) : ("your #" + (metaXiIdx + 1) + " best 11 by " + scoreLabel() + " (depth chart)");
     var teamNote = (metaXiCount > 1) ? (", Team " + (metaXiIdx + 1)) : "";
     var msg = "Create \"" + name + "\" (" + fmtFormation(jsq.formation) + teamNote + ") in your FC web app?\n\n" +
       "Starting XI: " + xiDesc + " (OVR avg " + jsq.ovrAvg + ").\n\n" +
       "Bench (next best):\n" + benchLines.join("\n") + "\n\n" +
       "You have " + have + " of " + GAUNTLET_MAX_SQUADS + " squads; this uses 1 more.\n" +
-      "Your active squad is NOT touched. Undo any time with \"Remove Justaino Score squads\".\n\nContinue?";
+      "Your active squad is NOT touched. Undo any time with \"Remove " + scoreLabel() + " squads\".\n\nContinue?";
     if (!window.confirm(msg)) return;
     state.jsRunning = true; if (createBtn) createBtn.disabled = true; if (removeBtn) removeBtn.disabled = true;
     statusEl.innerHTML = gtProgress("Creating " + name + "…", 40);
@@ -5211,10 +5267,10 @@
     var list = await listSavedSquads();
     if (list == null) { statusEl.innerHTML = gtToast("err", "Couldn't read your squad list. Open the Squads screen once, then try again."); return; }
     var ours = list.filter(function (sq) { return sq.id !== 0 && isJscoreSquadName(sq.name); });
-    if (!ours.length) { saveJscoreSquadIds([]); statusEl.innerHTML = gtSline("No Justaino Score squads found to remove."); return; }
-    var msg = "Remove the " + ours.length + " Justaino Score squad" + (ours.length === 1 ? "" : "s") + " in your club?\n\n" +
+    if (!ours.length) { saveJscoreSquadIds([]); statusEl.innerHTML = gtSline("No " + scoreLabel() + " squads found to remove."); return; }
+    var msg = "Remove the " + ours.length + " score squad" + (ours.length === 1 ? "" : "s") + " in your club?\n\n" +
       ours.map(function (s) { return "  - " + s.name; }).join("\n") +
-      "\n\nThis removes squads named \"Justaino Score ...\" only; your own squads are safe.\n\nContinue?";
+      "\n\nThis removes squads named \"Justaino Score ...\" or \"My Score ...\" only; your own squads are safe.\n\nContinue?";
     if (!window.confirm(msg)) return;
     state.jsRunning = true; if (createBtn) createBtn.disabled = true; if (removeBtn) removeBtn.disabled = true;
     var okCount = 0, failCount = 0, guard = 0;
@@ -5341,7 +5397,7 @@
       var j = null; try { j = bestJustaino(it); } catch (e) {}
       if (j && (!jBest || j.score.total > jBest.v)) jBest = { it: it, v: j.score.total };
     });
-    if (jBest && jBest.it) recs.push({ icon: "🔥", label: "Top Justaino Score", name: playerName(jBest.it), value: jBest.v.toFixed(1), accent: true });
+    if (jBest && jBest.it) recs.push({ icon: "🔥", label: "Top " + scoreLabel(), name: playerName(jBest.it), value: jBest.v.toFixed(1), accent: true });
     return recs;
   }
 
@@ -5620,6 +5676,9 @@
   body.appendChild(ssHost);
 
   state.scorePageOpen = false;
+  // Which position the "who this moves" list previews. Starts on whatever the Rankings page is
+  // showing (so the two agree when you arrive from it), falling back to ST.
+  state.scoreImpactPos = (metaPos && META_GROUPS.indexOf(metaPos.value) !== -1) ? metaPos.value : "ST";
   // Where "back" should go. "meta" = we came from the Justaino Score page's header button
   // (the normal way in), "layout" = opened straight from the Console helper.
   state.scoreFrom = "layout";
@@ -5648,6 +5707,77 @@
       try { renderMetaRating(); } catch (e) {}
     }
     applyPanelChrome();
+  }
+
+  // ---- "Who this moves": live re-ranking against the Justaino order (step 3) -----------------
+  // The point of this card is that tuning stops being abstract: drag a slider and watch which of
+  // YOUR players climb or fall. It reads the club already in memory - no network calls.
+
+  // withBaselineScoring(fn): run fn with the scorer temporarily forced onto MY baseline numbers,
+  // then put the live config straight back. This is how we get the "before" order to compare
+  // against, without duplicating scorePlayer. rebuildCfg() with the switch off IS the baseline.
+  function withBaselineScoring(fn) {
+    var savedCfg = CFG, savedOn = scoreState.on;
+    scoreState.on = false; rebuildCfg();
+    try { return fn(); }
+    finally { scoreState.on = savedOn; CFG = savedCfg; }   // restore the exact object we had
+  }
+
+  // rankIdsForGroup(group): every club player who can play this position, as item ids, best first
+  // by whatever config is live when it's called.
+  function rankIdsForGroup(group) {
+    return getClubPlayers()
+      .filter(function (it) { return playerPositionGroups(it).indexOf(group) !== -1; })
+      .map(function (it) { return { it: it, t: scorePlayer(it, group).total }; })
+      .sort(function (a, b) { return b.t - a.t; })
+      .map(function (r) { return r.it.id; });
+  }
+
+  // The baseline order never changes while you drag, so compute it once per position and keep it.
+  var impactBaseline = { group: null, ids: null };
+  function baselineOrderFor(group) {
+    if (impactBaseline.group !== group || !impactBaseline.ids) {
+      impactBaseline = { group: group, ids: withBaselineScoring(function () { return rankIdsForGroup(group); }) };
+    }
+    return impactBaseline.ids;
+  }
+
+  // computeScoreImpact(group, n): the top n players at this position under the CURRENT config,
+  // each with how many places they've moved versus the Justaino order (+ = climbed).
+  function computeScoreImpact(group, n) {
+    var players = getClubPlayers().filter(function (it) { return playerPositionGroups(it).indexOf(group) !== -1; });
+    if (!players.length) return [];
+    var baseIds = baselineOrderFor(group), baseRank = {};
+    baseIds.forEach(function (id, i) { baseRank[id] = i; });
+    return players
+      .map(function (it) { return { it: it, score: scorePlayer(it, group) }; })
+      .sort(function (a, b) { return b.score.total - a.score.total; })
+      .slice(0, n || 6)
+      .map(function (r, i) {
+        var was = baseRank[r.it.id];
+        return { it: r.it, total: r.score.total, moved: (was == null) ? 0 : (was - i) };
+      });
+  }
+  window.FC26.scoreImpact = computeScoreImpact;
+
+  // renderImpactList(el, group): fill one container with the rows. Called on every slider move,
+  // so it only touches this element - never the whole page (which would rip the slider thumb
+  // out from under your finger mid-drag).
+  function renderImpactList(el, group) {
+    var rows = computeScoreImpact(group, 6);
+    if (!rows.length) {
+      el.innerHTML = "<div class='ss-note'>No players in your club can play " + esc(group) + ", or the club hasn't loaded yet.</div>";
+      return;
+    }
+    el.innerHTML = rows.map(function (r, i) {
+      var mv = r.moved > 0 ? "<span class='ss-impmv up'>▲" + r.moved + "</span>"
+        : r.moved < 0 ? "<span class='ss-impmv dn'>▼" + (-r.moved) + "</span>"
+        : "<span class='ss-impmv'>–</span>";
+      return "<div class='ss-improw" + (i === 0 ? " top" : "") + "'>" +
+        "<span class='ss-imprank'>" + (i + 1) + "</span>" +
+        "<span class='ss-impnm'>" + esc(playerName(r.it)) + "</span>" +
+        "<span class='ss-impsc'>" + r.total.toFixed(1) + "</span>" + mv + "</div>";
+    }).join("");
   }
 
   // ssDial(o): build one labelled slider. o = {
@@ -5695,6 +5825,17 @@
     ssHost.appendChild(top);
 
     var bodyEl = document.createElement("div"); bodyEl.className = "ss-body";
+
+    // The live "who this moves" list is built further down, but every slider needs to refresh it,
+    // so declare it (and its refresher) up here. refreshImpact is throttled to one repaint per
+    // animation frame - a slider fires "input" far faster than we need to re-rank a whole club.
+    var impList = document.createElement("div"); impList.className = "ss-implist";
+    var impQueued = false;
+    function refreshImpact() {
+      if (impQueued) return;
+      impQueued = true;
+      window.requestAnimationFrame(function () { impQueued = false; renderImpactList(impList, state.scoreImpactPos); });
+    }
 
     // ---- Card 1: the active-score switch (the only control that changes the hub) ----
     var swCard = document.createElement("div"); swCard.className = "ss-card";
@@ -5756,6 +5897,7 @@
       nums.querySelector("#ss-pspct").textContent = (100 - v) + "%";
       fill.style.width = v + "%";
       setScoreValue("statMix", v / 100);
+      refreshImpact();
     });
     var balNote = document.createElement("div"); balNote.className = "ss-note";
     balNote.innerHTML = "How much of the score comes from raw stat fit for the position, versus owning the right PlayStyles for the role. Justaino sits at <b>" + Math.round(d.statMix * 100) + " / " + Math.round((1 - d.statMix) * 100) + "</b>.";
@@ -5772,7 +5914,7 @@
       min: Math.round(SCORE_LIMITS.ovrMix[0] * 100), max: Math.round(SCORE_LIMITS.ovrMix[1] * 100), step: 1,
       fmt: function (v) { return v + "%"; },
       cap: "How hard the result is pulled toward the card's in-game OVR. Justaino keeps this at " + Math.round(d.ovrMix * 100) + "%, a pure tiebreak.",
-      onInput: function (v) { setScoreValue("ovrMix", v / 100); }
+      onInput: function (v) { setScoreValue("ovrMix", v / 100); refreshImpact(); }
     }));
 
     dCard.appendChild(ssDial({
@@ -5780,7 +5922,7 @@
       min: SCORE_LIMITS.psPlusMult[0], max: SCORE_LIMITS.psPlusMult[1], step: 0.5,
       fmt: function (v) { return v.toFixed(1) + "×"; },
       cap: "In basic PlayStyles. Higher means owning the right PlayStyle+ counts for far more than owning several ordinary ones. Justaino: " + d.psPlusMult.toFixed(1) + "×.",
-      onInput: function (v) { setScoreValue("psPlusMult", v); }
+      onInput: function (v) { setScoreValue("psPlusMult", v); refreshImpact(); }
     }));
 
     dCard.appendChild(ssDial({
@@ -5788,9 +5930,31 @@
       min: SCORE_LIMITS.psCeilPlus[0], max: SCORE_LIMITS.psCeilPlus[1], step: 1,
       fmt: function (v) { return v + " PS+"; },
       cap: "The ceiling a card is measured against. Raise it and stacking a sixth relevant PlayStyle+ keeps paying; lower it and a well-built card maxes out sooner. Justaino: " + d.psCeilPlus + ".",
-      onInput: function (v) { setScoreValue("psCeilPlus", v); }
+      onInput: function (v) { setScoreValue("psCeilPlus", v); refreshImpact(); }
     }));
     bodyEl.appendChild(dCard);
+
+    // ---- Card 5: "who this moves" - the live re-ranking of YOUR club ----
+    // Deliberately NOT dimmed with the others: while the Justaino Score is active it shows your
+    // real current top 6 with no movement, which is exactly the "before" picture you'd want.
+    var impCard = document.createElement("div"); impCard.className = "ss-card";
+    var impHead = document.createElement("div"); impHead.className = "ss-imphead";
+    var impLab = document.createElement("div"); impLab.className = "ss-lab"; impLab.textContent = "Who this moves";
+    var impSel = document.createElement("select"); impSel.className = "gt-select";
+    impSel.innerHTML = META_GROUPS.map(function (g) {
+      return "<option" + (g === state.scoreImpactPos ? " selected" : "") + ">" + esc(g) + "</option>";
+    }).join("");
+    impSel.setAttribute("aria-label", "Position to preview");
+    impSel.addEventListener("change", function () {
+      state.scoreImpactPos = impSel.value;
+      renderImpactList(impList, state.scoreImpactPos);
+    });
+    impHead.appendChild(impLab); impHead.appendChild(impSel);
+    var impNote = document.createElement("div"); impNote.className = "ss-note";
+    impNote.innerHTML = "Your top 6 at this position under the settings above. The arrow is how many places they've moved <b>against the Justaino Score order</b>.";
+    impCard.appendChild(impHead); impCard.appendChild(impList); impCard.appendChild(impNote);
+    bodyEl.appendChild(impCard);
+    renderImpactList(impList, state.scoreImpactPos);   // first paint
 
     // ---- Storage warning: only when a save has actually failed (see saveScoreState) ----
     if (!scoreSaveOk) {
@@ -5906,13 +6070,13 @@
     // Justaino pill under the OVR, so a phone shows the same score the desktop spotlight does.
     // Single-player only (a batch has no one "best" score). Same source as the desktop card: bestJustaino().
     var jr = (!many && it) ? (function () { try { return bestJustaino(it); } catch (e) { return null; } })() : null;
-    var jrPill = jr ? "<span class='ds-jr'>JUSTAINO " + jr.score.total.toFixed(1) + " · " + esc(jr.group) + "</span>" : "";
+    var jrPill = jr ? "<span class='ds-jr'>" + scoreLabel().toUpperCase() + " " + jr.score.total.toFixed(1) + " · " + esc(jr.group) + "</span>" : "";
     var bar = "<div class='ds-bar'>" +
       "<div class='ds-rwrap'><span class='ds-r'>" + rEl + "</span>" + jrPill + "</div>" +
       "<div class='ds-w'><div class='ds-n'>" + esc(nameEl) + gkBadge + "</div><div class='ds-c'>" + esc(capEl) + "</div></div>" +
       (showToggle ? "<button type='button' class='ds-toggle'>" + (open ? "▴ hide" : "▾ stats") + "</button>" : "") +
       "</div>";
-    var body = (open && it) ? ("<div class='ds-body'>" + capMetersHTML(it) + faceStatsHTML(it) + "</div>") : "";
+    var body = (open && it) ? ("<div class='ds-body'>" + capMetersHTML(it) + scoreByPositionHTML(it) + faceStatsHTML(it) + "</div>") : "";
     deckSummary.className = "fc26-decksum" + (open && it ? " open" : "");
     deckSummary.innerHTML = bar + body;
     var tg = deckSummary.querySelector(".ds-toggle");
