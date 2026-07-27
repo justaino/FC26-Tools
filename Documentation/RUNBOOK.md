@@ -456,7 +456,7 @@ actually accept.
 Two fixes so the builder starts your best cards (see the `CHANGELOG` for the plain-English version):
 - **OVR-aware draft.** The draft ranks by `draftScoreFromScore(sc)` = `DRAFT_OVR_MIX * OVR +
   (1 - DRAFT_OVR_MIX) * Justaino`. **`DRAFT_OVR_MIX` was 0.6 here in v20; it is 0.1 as of v32** -
-  see the note in §3q. (The live value is `CFG.draftOvrMix`, editable in the Score Customiser.) `scorePlayer` / the Meta rating tab are
+  see the note in §3q. (The live value is `CFG.draftOvrMix`, editable in Peks Lab.) `scorePlayer` / the Meta rating tab are
   untouched; the Justaino score is still what's displayed. Candidates carry a `disp` (Justaino) field
   through `chemPick`, stored as `cell.score` so the pitch "JS" and disc-colour tiers stay Justaino.
 - **Icons.** `isIcon(it)` = `it.leagueId === 2118` (discovered live - no `isIcon()` method, and
@@ -570,14 +570,14 @@ preview** and **Create / Remove** buttons.
 - **The bench** is the next-best cover after the XI: guaranteed one each of **ST, LM, RM, CM, CB,
   LB/RB** (wide mids/backs are side-correct), then the 7th sub is your best remaining player. Any
   spot the club can't cover is reported and filled with your next-best instead. **No backup GK** by
-  design. Players may repeat across teams (Team 1's bench can start for Team 2) - that's intended.
+  design. **Since v33 no player appears twice anywhere on the chart** - see §3r.
 - **Remove Justaino Score squads** deletes every squad whose name starts with `Justaino Score `.
   This is **separate** from the Gauntlet remove: each button only ever touches its own squads (own
   name prefix + own tracked-id list in localStorage: `FC26_justainoScoreSquadIds`).
 
-*How it's built:* `buildBestXiSquad(formationName, team)` (near `buildMetaBoards`) takes a board
-team's XI and drafts the bench from `JSCORE_BENCH_REQS`, returning a Gauntlet-shaped
-`{ slots, subs }` so it reuses `gauntletItemsForSquad` + `createGameSquad`. UI + the
+*How it's built:* `buildBestXiSquads(formationName, teamCount, board)` (near `buildMetaBoards`)
+drafts every team's bench from `JSCORE_BENCH_REQS`, returning Gauntlet-shaped `{ slots, subs }`
+squads so they reuse `gauntletItemsForSquad` + `createGameSquad`. UI + the
 `runCreateJustainoSquad` / `runRemoveJustainoSquads` handlers live in `renderMetaXiInto`. Console:
 `window.FC26.buildBestXiSquad("f433")` and the readable `window.FC26.previewBestXiSquad("f433")`.
 
@@ -637,18 +637,18 @@ version. Tapping a record to open that player is also a planned polish pass, not
 
 ---
 
-## 3q. New in v29 - the Score Customiser (rank by YOUR weighting)
+## 3q. New in v29 - Peks Lab (rank by YOUR weighting)
 
-Everything in §3d is **my** opinion of the meta, shipped as the default. The Score Customiser lets
+Everything in §3d is **my** opinion of the meta, shipped as the default. Peks Lab lets
 you override those numbers and rank your club by your own opinion instead, without losing mine.
 
 **The rule: two scores, never both at once.** One switch decides which score the WHOLE hub speaks -
 Rankings, Best XI, the Squad Builder draft and the score pill on a player card. There is deliberately
 no state where half the tool disagrees with the other half.
 
-**How to use it.** Open **Justaino Score**, then the **🔧 Score Customiser** pill at the top right
-(it shortens to "Customise" on a phone). The pill gains an accent ring + glow whenever a custom
-score is live, so you can never be looking at custom rankings unaware.
+**How to use it.** Open **Justaino Score**, then the **🔧 Peks Lab** pill at the top right. The pill
+gains an accent ring + glow whenever a custom score is live, so you can never be looking at custom
+rankings unaware.
 
 - **Active score** - the switch. `Justaino Score` or `My Score`. Flipping it does NOT delete your
   tuning, so you can A/B your numbers against mine freely. While Justaino is active the tuning
@@ -778,6 +778,65 @@ starting at the top, so every button that redraws used to fling you back to the 
 remembers `.ss-body`'s `scrollTop` and restores it after the rebuild (twice - once immediately, once
 on the next frame, since a taller/shorter page can clamp the first attempt). **If you add a button
 that redraws another full-page view, it needs the same treatment** - the fix isn't inherited.
+
+---
+
+## 3r. New in v33 - Best XI benches never overlap
+
+**What changed.** On **Justaino Score -> Best XI**, the depth-chart teams now share one squad of
+players: **nobody appears twice across the whole chart**, starters or subs.
+
+Before, only the starting XIs were kept apart. Each team's bench was drafted from "the whole club
+minus *this* team's 11", which meant:
+- Team 1's bench was, in effect, Team 2's spine, and
+- Team 2's bench could pick **Team 1's starters** - your best player in the club could show up as a
+  Team 2 sub.
+
+So creating Team 1 and Team 2 in game gave you two squads fighting over the same cards.
+
+**How it works now.** `buildBestXiSquads(formationName, teamCount, board)`:
+1. builds the board as before (the XIs were already used-once across teams),
+2. makes **one** bench pool = the club minus **every** team's XI,
+3. drafts each team's 7 subs out of that shared pool **in order**, splicing picks out as it goes.
+
+**Team 1 fills its whole bench first, then Team 2, then Team 3.** That's deliberate: the chart is
+ranked, so your best squad should also get the best bench. The trade-off is real and expected:
+
+- **Team 1's bench is weaker than it was in v32**, because the players it used to bench are now
+  reserved as Team 2 / Team 3 starters. Nothing is broken - those players are still in the chart,
+  just wearing a different shirt.
+- **Later teams thin out** and hit `missing` (a required ST/LM/RM/CM/CB/LB-RB the club can't cover)
+  more often. The page already reports that under the bench.
+- Showing **3 teams** reserves for 3 teams even if you only create Team 1. Drop the team count to
+  1 if you want Team 1's strongest possible bench.
+
+The bench label says **"no player used twice"** instead of "next best" whenever more than one team
+is on screen, so the change is visible without reading this.
+
+**Caching.** `metaRebuildBoards()` now also stores `metaSquads` (all teams' benches) alongside
+`metaBoards`, and `metaSquadFor(idx)` reads it. Benches **cannot** be drafted per team on demand any
+more - they share a pool, so they're built together. Clicking a team pill re-renders but does not
+re-draft; only a formation/count change or a club reload rebuilds. If you add anything that changes
+the club or the score, make sure it calls `metaRebuildBoards()` (not just a re-render), or the
+benches will be stale.
+
+**Console self-check:**
+```js
+window.FC26.checkBestXiOverlap("f433", 3)
+// -> { teams: 3, playersUsed: 54, duplicates: "none", benchAvgs: [...] }
+```
+`duplicates` must be `"none"`. `playersUsed` should be 18 x teams, minus any cell the club was too
+thin to fill. `benchAvgs` shows the intended Team 1 > Team 2 > Team 3 drop-off. Also:
+`window.FC26.previewBestXiSquad("f433", 1, 3)` prints Team 2 of a three-team chart in full.
+
+**Also in v33: "Score Customiser" is now "Peks Lab".** Label only - no behaviour, storage key or
+function name changed (`FC26_scoreCfg`, `scoreState`, `renderScorePage` etc. all keep their names).
+The **file stays `score-customiser.html`** so the published guide URL doesn't break, and the mobile
+short label is now just "Peks Lab" (it used to shorten to "Customise"). If you rename it again, the
+places to touch are: the pill in `renderMetaPage` and its `title`, the page header in
+`renderScorePage`, the storage-full warning in `saveScoreState`, `score-customiser.html` (title,
+lede, step 3, FAQ), the footer link text in `meta-page.js` (then re-run `node meta-page.js`), and
+`features.html`.
 
 ---
 
@@ -1110,7 +1169,8 @@ edits + regenerate + rebuild for you.
 - `meta-rating.html` - the meta-rating transparency page (generated - see below).
 - `meta-page.js` - regenerates `meta-rating.html` from the live weight tables (`node meta-page.js`, §7b).
   **Its footer links to `score-customiser.html`, so edit the link there, not in the generated HTML.**
-- `score-customiser.html` - the Score Customiser guide (§3q). **Hand-written, not generated**, so if
+- `score-customiser.html` - the Peks Lab guide (§3q). **Filename kept on purpose** after the v33
+  rename so the published URL doesn't break; only the wording inside changed. **Hand-written, not generated**, so if
   you change a baseline number (the 50/50 mix, the 1% OVR tiebreak, 3.5x, the ceiling of 5) or add a
   preset, update this page too. It's linked from the install page, the features page and the bottom
   of `meta-rating.html`.

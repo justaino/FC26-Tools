@@ -735,7 +735,7 @@
   // ~47% anyway (OVR spread 11.75 vs score spread 20.2 - only SPREAD moves a ranking, and the gap
   // between the two averages is a constant that cancels out).
   // Now 0.1: the Gauntlet draft should follow the active score (Justaino or your own), with OVR
-  // left as a light nudge for genuine near-ties. Adjustable live in Score Customiser -> Advanced.
+  // left as a light nudge for genuine near-ties. Adjustable live in Peks Lab -> Advanced.
   var DRAFT_OVR_MIX = 0.1;
 
   // ----------------------------------------------------------------------------
@@ -818,7 +818,7 @@
       scoreSaveOk = true;
     } catch (e) {
       scoreSaveOk = false;
-      console.warn("[FC26] Couldn't save your Score Customiser settings - browser storage is full, so they'll be lost on reload. " +
+      console.warn("[FC26] Couldn't save your Peks Lab settings - browser storage is full, so they'll be lost on reload. " +
         "Free some up with: localStorage.removeItem('console-history')", e);
     }
     return scoreSaveOk;
@@ -1927,27 +1927,10 @@
   ];
   var JSCORE_BENCH_SIZE = 7;   // a full FUT bench (same as the Gauntlet's SUBS_PER_SQUAD)
 
-  // buildBestXiSquad(formationName): the strongest XI for this formation (by Justaino meta score)
-  // PLUS a rules-based bench, shaped exactly like a Gauntlet squad ({ slots:[11], subs:[7] }) so
-  // it feeds straight into gauntletItemsForSquad + createGameSquad. Returns { error } if the
-  // formation is unknown. `missing` lists any required bench spot the club couldn't cover.
-  function buildBestXiSquad(formationName, team) {
-    if (!FORMATIONS[formationName]) return { error: "Unknown formation: " + formationName };
-    // 1) The XI. Default = the single strongest team. Callers viewing a depth-chart team (Team 2,
-    //    Team 3, ...) pass THAT team so we build its 2nd/3rd-best XI plus its own bench. Players
-    //    can repeat across teams by design - each squad is built independently (Team 1's bench may
-    //    reappear in Team 2's starters).
-    if (!team) {
-      var board = buildMetaBoards(formationName, 1);
-      if (board.error) return board;
-      team = board.teams[0];
-    }
-
-    // 2) Bench pool = every usable club player MINUS the 11 already in the XI (used-once rule).
-    var used = new Set();
-    team.slots.forEach(function (c) { if (c && c.player) used.add(playerKey(c.player)); });
-    var pool = gauntletPool().filter(function (it) { return !used.has(playerKey(it)); });
-
+  // benchForTeam(team, pool): draft ONE team's 7-man bench out of `pool`, removing each pick from
+  // it (splice) so the caller's pool shrinks as we go. That shared-pool trick is what stops two
+  // teams benching the same player. Returns the finished squad object.
+  function benchForTeam(team, pool) {
     var subs = [];        // ordered bench cells (like squad.subs elsewhere)
     var missing = [];     // required spot labels we couldn't fill (for the report / UI)
 
@@ -1964,17 +1947,16 @@
       return bestI < 0 ? null : { i: bestI, score: bestScore };
     }
 
-    // 2a) Fill the REQUIRED spots first, in priority order (best remaining for each).
+    // 1) Fill the REQUIRED spots first, in priority order (best remaining for each).
     JSCORE_BENCH_REQS.forEach(function (req) {
       if (subs.length >= JSCORE_BENCH_SIZE) return;
       var pick = bestForSlot(req.group, req.side);
       if (!pick) { missing.push(req.label); return; }
       var picked = pool.splice(pick.i, 1)[0];
-      used.add(playerKey(picked));
       subs.push({ group: req.group, side: req.side, reqLabel: req.label, player: picked, score: pick.score });
     });
 
-    // 2b) Fill the rest of the bench (up to 7) with the best remaining player at their
+    // 2) Fill the rest of the bench (up to 7) with the best remaining player at their
     // strongest position (bestJustaino) - the plain "next best" cover slot.
     while (subs.length < JSCORE_BENCH_SIZE) {
       var bestI = -1, bestScore = -1, bestGroup = null;
@@ -1985,7 +1967,6 @@
       }
       if (bestI < 0) { subs.push({ group: null, side: "", reqLabel: null, player: null, score: null }); continue; }
       var pk = pool.splice(bestI, 1)[0];
-      used.add(playerKey(pk));
       subs.push({ group: bestGroup, side: "", reqLabel: null, player: pk, score: bestScore });
     }
 
@@ -1994,7 +1975,7 @@
     subs.forEach(function (c) { if (c.player) { ssum += c.score; sfilled++; } });
 
     return {
-      formation: formationName,
+      formation: team.formation,
       slots: team.slots,          // 11 starters, formation order (for create)
       subs: subs,                 // 7 bench cells
       avg: team.avg, ovrAvg: team.ovrAvg, filled: team.filled,
@@ -2004,14 +1985,61 @@
       chem: chemSummary(squadPlaced({ slots: team.slots, subs: subs }))
     };
   }
+
+  // buildBestXiSquads(formationName, teamCount, board): the WHOLE depth chart as real 18-man
+  // squads - every team's XI plus its own bench, shaped exactly like a Gauntlet squad
+  // ({ slots:[11], subs:[7] }) so each feeds straight into gauntletItemsForSquad + createGameSquad.
+  //
+  // NO PLAYER APPEARS TWICE ANYWHERE ON THE CHART. buildMetaBoards already keeps the XIs apart;
+  // this adds the benches to that same used-once rule two ways:
+  //   - the bench pool starts as the club MINUS every team's XI, so a sub can never be another
+  //     team's starter (before, Team 2's bench happily picked Team 1's best players);
+  //   - all teams draft from that ONE shrinking pool, in order, so Team 1 fills its whole bench
+  //     from the best leftovers, then Team 2 from what's left, then Team 3.
+  // Team 1 therefore gets the strongest bench and later teams thin out - deliberate, since the
+  // chart is ranked (Team 1 IS your best squad). A team that runs out of cover for a required
+  // spot reports it in `missing`, which the UI already surfaces.
+  // Returns { error } if the formation is unknown.
+  function buildBestXiSquads(formationName, teamCount, board) {
+    if (!FORMATIONS[formationName]) return { error: "Unknown formation: " + formationName };
+    teamCount = Math.max(1, Math.min(5, teamCount | 0) || 1);
+    // Callers that already have a matching board (the Best XI page renders one every time) pass it
+    // in rather than paying for a second full draft.
+    if (!board || board.error || !board.teams || board.teams.length !== teamCount) {
+      board = buildMetaBoards(formationName, teamCount);
+      if (board.error) return board;
+    }
+
+    // The shared bench pool: every usable club player minus EVERY team's starting XI.
+    var taken = new Set();
+    board.teams.forEach(function (t) {
+      t.slots.forEach(function (c) { if (c && c.player) taken.add(playerKey(c.player)); });
+    });
+    var pool = gauntletPool().filter(function (it) { return !taken.has(playerKey(it)); });
+
+    // Sequential, best team first. benchForTeam splices its picks out of `pool`.
+    var squads = board.teams.map(function (t) { return benchForTeam(t, pool); });
+    return { formation: formationName, teamCount: teamCount, squads: squads };
+  }
+  window.FC26.buildBestXiSquads = buildBestXiSquads;
+
+  // buildBestXiSquad(formationName, teamIdx, teamCount): one squad off that chart, 0-based.
+  // `teamCount` is how many teams to RESERVE benches for - pass what the page is showing, so the
+  // squad you create can't clash with a sibling you might create next. Defaults keep the old
+  // console call working: buildBestXiSquad("f433") = Team 1 of a one-team chart, as before.
+  function buildBestXiSquad(formationName, teamIdx, teamCount, board) {
+    teamIdx = Math.max(0, teamIdx | 0);
+    var all = buildBestXiSquads(formationName, Math.max(teamCount | 0, teamIdx + 1), board);
+    if (all.error) return all;
+    return all.squads[teamIdx] || { error: "No team " + (teamIdx + 1) + " for " + formationName };
+  }
   window.FC26.buildBestXiSquad = buildBestXiSquad;
 
-  // Console-friendly, non-JS-readable preview for testing Step 1:
-  //   window.FC26.previewBestXiSquad("f433")
+  // Console-friendly, non-JS-readable preview:
+  //   window.FC26.previewBestXiSquad("f433")          -> Team 1 of a one-team chart
+  //   window.FC26.previewBestXiSquad("f433", 1, 3)    -> Team 2 of a three-team chart
   // -> the XI and bench as plain "Position: Name (score)" strings, plus any missing bench spot.
-  window.FC26.previewBestXiSquad = function (formationName) {
-    var sq = buildBestXiSquad(formationName || "f433");
-    if (sq.error) return sq.error;
+  function previewSquadLines(sq) {
     function nm(c) { return (c && c.player) ? (playerName(c.player) + " (" + (c.score != null ? c.score : "-") + ")") : "(empty)"; }
     return {
       formation: fmtFormation(sq.formation),
@@ -2019,6 +2047,35 @@
       bench: sq.subs.map(function (c) { return (c.reqLabel ? c.reqLabel : "best") + " -> " + nm(c); }),
       benchMissing: sq.missing.length ? sq.missing.join(", ") : "none",
       xiOvrAvg: sq.ovrAvg, benchAvg: sq.subAvg
+    };
+  }
+  window.FC26.previewBestXiSquad = function (formationName, teamIdx, teamCount) {
+    var sq = buildBestXiSquad(formationName || "f433", teamIdx, teamCount);
+    return sq.error ? sq.error : previewSquadLines(sq);
+  };
+
+  // checkBestXiOverlap(formationName, teamCount): the no-overlap self-check. Lists every player
+  // used more than once across the whole chart (starters AND benches). Should always be empty.
+  //   window.FC26.checkBestXiOverlap("f433", 3)
+  window.FC26.checkBestXiOverlap = function (formationName, teamCount) {
+    var all = buildBestXiSquads(formationName || "f433", teamCount || 3);
+    if (all.error) return all.error;
+    var seen = {}, dupes = [];
+    all.squads.forEach(function (sq, i) {
+      function note(c, where) {
+        if (!c || !c.player) return;
+        var k = playerKey(c.player), tag = "Team " + (i + 1) + " " + where;
+        if (seen[k]) dupes.push(playerName(c.player) + ": " + seen[k] + " AND " + tag);
+        else seen[k] = tag;
+      }
+      sq.slots.forEach(function (c) { note(c, "XI"); });
+      sq.subs.forEach(function (c) { note(c, "bench"); });
+    });
+    return {
+      teams: all.squads.length,
+      playersUsed: Object.keys(seen).length,          // should be 18 x teams (minus any empty cells)
+      duplicates: dupes.length ? dupes : "none",
+      benchAvgs: all.squads.map(function (sq, i) { return "Team " + (i + 1) + ": " + sq.subAvg + (sq.missing.length ? " (missing " + sq.missing.join(", ") + ")" : ""); })
     };
   };
 
@@ -4166,7 +4223,7 @@
       "#fc26-panel .db-pl{font-size:12px;color:var(--muted)}" +
       "#fc26-panel .db-pr{font-size:13px;font-weight:700;text-align:right}" +
       "#fc26-panel .db-pr .g{color:var(--gold);font-variant-numeric:tabular-nums}" +
-      // ---- Feature 6: Score Customiser (custom score) --------------------------
+      // ---- Feature 6: Peks Lab (custom score) --------------------------
       // Scrolling page body under the shared gt-bd-top header, then one card per group
       // of controls. Every colour comes from the theme tokens, so all three skins work.
       "#fc26-panel .ss-body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px;padding-right:2px}" +
@@ -4567,10 +4624,12 @@
   var metaXiCount = 3;     // how many depth-chart teams (Team 1 = best XI, Team 2 = next, ...)
   var metaXiIdx = 0;       // which team's pitch is showing
   var metaBoards = null;   // last buildMetaBoards() result
+  var metaSquads = null;   // last buildBestXiSquads() result (the XIs above + their benches)
 
   // metaRebuildBoards(): (re)run the depth-chart draft for the current formation + count.
   function metaRebuildBoards() {
     buildFormationCatalog();   // best-effort refresh in case formations weren't loaded when the panel opened
+    metaSquads = null;
     if (!FORMATION_ORDER.length || !FORMATIONS[metaXiFormation]) {
       if (FORMATIONS["f433"]) metaXiFormation = "f433"; else if (FORMATION_ORDER[0]) metaXiFormation = FORMATION_ORDER[0];
     }
@@ -4578,6 +4637,16 @@
     if (!getClubPlayers().length) { metaBoards = { empty: true }; return; }
     metaBoards = buildMetaBoards(metaXiFormation, metaXiCount);
     if (metaXiIdx >= metaXiCount) metaXiIdx = 0;
+    // Benches for EVERY team in one go (they share a pool, so they can't be drafted separately).
+    // Cached here rather than per render: switching team pills re-renders, and re-drafting all the
+    // benches each time would re-score the whole club several thousand times for no new answer.
+    metaSquads = buildBestXiSquads(metaXiFormation, metaXiCount, metaBoards);
+  }
+
+  // metaSquadFor(idx): the cached 18-man squad for a depth-chart team, or an { error } object.
+  function metaSquadFor(idx) {
+    if (!metaSquads || metaSquads.error) return metaSquads || { error: "No squads built yet" };
+    return metaSquads.squads[idx] || { error: "No team " + (idx + 1) };
   }
 
   // Persistent Rankings controls + list (created once; the page render re-appends them).
@@ -4644,14 +4713,14 @@
     var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeMetaPage);
     var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>" + esc(scoreLabel()) + "</b>";
     top.appendChild(back); top.appendChild(ttl);
-    // The Score Customiser lives HERE rather than as another tile in the Lineup column: it changes
+    // Peks Lab lives HERE rather than as another tile in the Lineup column: it changes
     // this page's numbers, so this is where you'd reach for it. It picks up an accent ring
     // while a custom score is active, so you can't be looking at custom rankings unaware.
     var ssBtn = document.createElement("button"); ssBtn.type = "button";
     ssBtn.className = "ss-hdrbtn" + (isCustomScore() ? " on" : "");
     // Icon + label. To change the icon, edit the one emoji below - nothing else depends on it.
-    ssBtn.innerHTML = "<span class='ic'>🔧</span><span class='tx-full'>Score Customiser</span><span class='tx-short'>Customise</span>";
-    ssBtn.title = isCustomScore() ? "Score Customiser (your own weighting is active)" : "Score Customiser";
+    ssBtn.innerHTML = "<span class='ic'>🔧</span><span class='tx-full'>Peks Lab</span><span class='tx-short'>Peks Lab</span>";
+    ssBtn.title = isCustomScore() ? "Peks Lab (your own weighting is active)" : "Peks Lab";
     ssBtn.setAttribute("aria-label", ssBtn.title);
     ssBtn.addEventListener("click", function () { openScorePage("meta"); });
     top.appendChild(ssBtn);
@@ -4820,10 +4889,10 @@
     // --- CREATE THIS SQUAD (under whichever team is being viewed) ---------------------------
     // Shows the rules-based bench (so you see the FULL squad before committing) and a Create
     // button that saves it in game as "Justaino Score Squad N". Offered on ANY team whose XI is
-    // complete - Team 1 creates the best XI, Team 2 the 2nd-best, etc. buildBestXiSquad adds the
-    // 7-man bench to THIS team's XI (bench players can repeat across teams by design).
+    // complete - Team 1 creates the best XI, Team 2 the 2nd-best, etc. The bench comes from the
+    // shared draft done in metaRebuildBoards, so no player appears on two teams anywhere.
     if (team.filled === 11) {
-      var jsq = buildBestXiSquad(metaXiFormation, team);
+      var jsq = metaSquadFor(metaXiIdx);
       if (!jsq.error) {
         var teamTag = (teams.length > 1) ? ("Team " + (metaXiIdx + 1) + " · ") : "";
         // Bench preview: 7 chips, each "POS Name score". reqLabel is the guaranteed spot
@@ -4835,7 +4904,10 @@
             ? "<span class='gt-chip'><span style='color:var(--muted);font-weight:800;font-size:9px;letter-spacing:.06em'>" + esc(lab) + "</span> " + esc(playerName(c.player)) + " <b>" + Math.round(c.score) + "</b></span>"
             : "<span class='gt-chip' style='opacity:.55'>" + esc(lab) + " (none)</span>";
         }).join("");
-        benchBox.innerHTML = "<div class='bl'>" + teamTag + "Bench · next best · 7 subs" + (jsq.subAvg ? " · avg " + jsq.subAvg : "") + "</div><div class='gt-chips'>" + chips + "</div>";
+        // On a multi-team chart the benches are drafted from one shared pool (Team 1 first), so say
+        // so - it explains why Team 1's bench is stronger than Team 3's, and why no name repeats.
+        var benchWhat = (teams.length > 1) ? "no player used twice" : "next best";
+        benchBox.innerHTML = "<div class='bl'>" + teamTag + "Bench · " + benchWhat + " · 7 subs" + (jsq.subAvg ? " · avg " + jsq.subAvg : "") + "</div><div class='gt-chips'>" + chips + "</div>";
         view.appendChild(benchBox);
 
         // If a required bench spot couldn't be filled (club too thin there), say so honestly.
@@ -5347,11 +5419,10 @@
   // statusEl is the Best XI page's own status <div>; createBtn/removeBtn are disabled while busy.
   async function runCreateJustainoSquad(statusEl, createBtn, removeBtn) {
     if (state.jsRunning || state.gtRunning) return;
-    // Build the CURRENTLY-VIEWED team fresh (Team 1 = best XI, Team 2 = 2nd best, ...), then add
-    // its bench. Rebuilt at click time so it reflects the live club and the team on screen.
-    var board = buildMetaBoards(metaXiFormation, metaXiCount);
-    var vteam = (!board.error && board.teams) ? board.teams[metaXiIdx] : null;
-    var jsq = vteam ? buildBestXiSquad(metaXiFormation, vteam) : { error: "no team" };
+    // Rebuild the WHOLE chart fresh at click time (so it reflects the live club), then take the
+    // team on screen. It has to be the whole chart, not just this team: the benches are drafted
+    // from one shared pool, which is what keeps this squad clear of any sibling you create next.
+    var jsq = buildBestXiSquad(metaXiFormation, metaXiIdx, metaXiCount);
     if (jsq.error || jsq.filled !== 11) { statusEl.innerHTML = gtToast("err", "Couldn't build a full XI for this formation - try another."); return; }
     var saved = await listSavedSquads();
     if (saved == null) { statusEl.innerHTML = gtToast("err", "Couldn't read your squad list. Open the Squads screen once, then try again."); return; }
@@ -5793,7 +5864,7 @@
 
   // There's deliberately NO launcher tile in the Lineup column - the column was getting
   // crowded, and these settings belong WITH the score they change. The way in is the small
-  // 🔧 Score Customiser button in the Justaino Score page header (see renderMetaPage), which is why
+  // 🔧 Peks Lab button in the Justaino Score page header (see renderMetaPage), which is why
   // closing this page returns you there rather than to the main panel.
 
   // The full-screen page host (hidden until opened; same .gt-builder shell as the others).
@@ -5967,7 +6038,7 @@
     var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back";
     back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeScorePage);
     var ttl = document.createElement("div"); ttl.className = "gt-bd-title";
-    ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>Score Customiser</b>";
+    ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>Peks Lab</b>";
     top.appendChild(back); top.appendChild(ttl);
     if (custom) { var chip = document.createElement("span"); chip.className = "ss-chip"; chip.textContent = "Custom"; top.appendChild(chip); }
     ssHost.appendChild(top);
@@ -6634,7 +6705,7 @@
     // Same for the other two full-screen pages (the Dashboard was missing here, so rotating
     // a phone with it open used to dump you back on the main layout with the page still "open").
     if (state.dashOpen) { layoutHost.style.display = "none"; dashHost.style.display = "flex"; renderDashPage(); }
-    // The Score Customiser is checked LAST and hides the meta page, because it's normally opened
+    // Peks Lab is checked LAST and hides the meta page, because it's normally opened
     // FROM it - both flags are true at once, and the settings page is the one in front.
     if (state.scorePageOpen) { layoutHost.style.display = "none"; metaPageHost.style.display = "none"; ssHost.style.display = "flex"; renderScorePage(); }
     // applyPanelChrome (above) clamped using the height BEFORE this content was added, so

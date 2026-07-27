@@ -394,7 +394,7 @@ ${cards}
     PlayStyle+ counts, and even which PlayStyles matter at which position. Your club then ranks by
     your reading of the meta instead of mine.
   </p>
-  <a class="install-btn" href="score-customiser.html" style="display:inline-block">🔧 Read the Score Customiser guide</a>
+  <a class="install-btn" href="score-customiser.html" style="display:inline-block">🔧 Read the Peks Lab guide</a>
 
   <footer>
     Men Gallant FC · Justaino FC Hub - a personal tool for the EA FC 26 Web App.<br>

@@ -5,6 +5,36 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v33 - 2026-07-27
+
+**PEKUN, THE LAST TWO UPDATES HAVE BEEN JUST FOR YOU OOO**
+
+**Best XI depth-chart squads no longer share players.**
+
+- **No player appears twice across the chart now**, starters or bench. Before, only the starting XIs
+  were kept apart: each bench was drafted from "the whole club minus *this* team's 11", so Team 1's
+  bench was basically Team 2's spine, and Team 2's bench could pick **Team 1's starters**. Creating
+  Team 1 and Team 2 in game gave you two squads fighting over the same cards.
+- **How it picks now:** all the XIs are drafted first, then every team's bench comes out of one
+  shared pool of what's left, **Team 1 first, then Team 2, then Team 3**. The chart is ranked, so
+  your best squad also gets the best bench.
+- **Expect Team 1's bench to look weaker than it did.** Nothing is missing: the players that used to
+  sit on Team 1's bench are now Team 2 and Team 3 starters instead. Later teams also run out of
+  cover for a required spot more often, which the page already tells you about under the bench.
+- **If you want Team 1's strongest possible bench, set the team count to 1.** Showing 3 teams
+  reserves players for 3 teams whether you create them or not.
+- The bench heading now reads **"no player used twice"** instead of "next best" when more than one
+  team is on screen.
+
+**"Score Customiser" is now "Peks Lab".**
+
+- Same feature, same settings, new name. Nothing you've saved is affected and every dial stays
+  exactly where you left it.
+- The pill on the Justaino Score page, the page header, and the website guide all follow. On a
+  phone the button now reads "Peks Lab" too, instead of shortening to "Customise".
+
+---
+
 ## v32 - 2026-07-27
 
 **Gauntlet squads now follow the score instead of leaning on OVR.**
