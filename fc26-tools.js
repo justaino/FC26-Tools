@@ -846,6 +846,21 @@
       psPlusMult: clampNum(o.psPlusMult, L.psPlusMult[0], L.psPlusMult[1], d.psPlusMult),
       psCeilPlus: Math.round(clampNum(o.psCeilPlus, L.psCeilPlus[0], L.psCeilPlus[1], d.psCeilPlus)),
       draftOvrMix: clampNum(o.draftOvrMix, L.draftOvrMix[0], L.draftOvrMix[1], d.draftOvrMix),
+      // psWeights: YOUR per-position PlayStyle tables. Unlike statWeights there's no baseline to
+      // merge with - a position either has your table (and uses it) or it doesn't (and scores by
+      // role as normal). Values are clamped; a non-numeric entry is dropped rather than trusted.
+      psWeights: (function () {
+        var out = {}, src = o.psWeights || {};
+        Object.keys(src).forEach(function (g) {
+          var row = {}, any = false;
+          Object.keys(src[g] || {}).forEach(function (n) {
+            var v = Number(src[g][n]);
+            if (isFinite(v)) { row[n] = Math.min(L.rank[1], Math.max(L.rank[0], v)); any = true; }
+          });
+          if (any) out[g] = row;
+        });
+        return out;
+      })(),
       rankCurve: (Array.isArray(o.rankCurve) && o.rankCurve.length === 4)
         ? o.rankCurve.map(function (v, i) { return clampNum(v, L.rank[0], L.rank[1], d.rankCurve[i]); })
         : d.rankCurve.slice(),
@@ -884,6 +899,87 @@
     saveScoreState(); rebuildCfg(); invalidateScoreCaches();
     return CFG[key];
   }
+  // setNestedWeight(table, group, key, value): change ONE number inside a per-position table
+  // ("statWeights" / "traitWeights") without disturbing its neighbours. A plain
+  // setScoreValue("statWeights", {...}) would REPLACE the whole override object, wiping every
+  // other position you'd tuned - this reads, modifies and writes back instead. Passing
+  // value = null removes just that one override, and any now-empty parent is pruned so
+  // "no differences" really means an empty cfg (which is what isCustomScore() keys off).
+  function setNestedWeight(table, group, key, value) {
+    var t = scoreState.cfg[table] || (scoreState.cfg[table] = {});
+    var row = t[group] || (t[group] = {});
+    if (value == null) {
+      delete row[key];
+      if (!Object.keys(row).length) delete t[group];
+      if (!Object.keys(t).length) delete scoreState.cfg[table];
+    } else {
+      row[key] = value;
+    }
+    saveScoreState(); rebuildCfg(); invalidateScoreCaches();
+  }
+  // setRankCurveAt(i, value): the role priority curve is stored as a whole 4-number array, so
+  // edit a copy of the LIVE one and write it back.
+  function setRankCurveAt(i, value) {
+    var curve = CFG.rankCurve.slice();
+    curve[i] = value;
+    scoreState.cfg.rankCurve = curve;
+    saveScoreState(); rebuildCfg(); invalidateScoreCaches();
+  }
+  // clearGroupWeights(group): put ONE position back on my baseline (both tables), leaving
+  // every other position's tuning alone.
+  function clearGroupWeights(group) {
+    ["statWeights", "traitWeights", "psWeights"].forEach(function (t) {
+      if (scoreState.cfg[t]) {
+        delete scoreState.cfg[t][group];
+        if (!Object.keys(scoreState.cfg[t]).length) delete scoreState.cfg[t];
+      }
+    });
+    saveScoreState(); rebuildCfg(); invalidateScoreCaches();
+  }
+  // groupIsTuned(group): does this position carry any override? Drives the "edited" marker.
+  function groupIsTuned(group) {
+    var c = scoreState.cfg;
+    return !!((c.statWeights && c.statWeights[group]) || (c.traitWeights && c.traitWeights[group]) ||
+      (c.psWeights && c.psWeights[group]));
+  }
+
+  // ---- YOUR OWN PlayStyle weights, per position -----------------------------------------------
+  // baselinePsWeights(group): the PlayStyle -> weight table this position uses TODAY, merged across
+  // every role it can be played in, taking the HIGHEST weight any role gives each PlayStyle (the
+  // best case the position can value it). This is exactly the table meta-rating.html publishes, and
+  // it's what a custom list is seeded from - so you adjust my numbers rather than start cold.
+  function baselinePsWeights(group) {
+    var roles = ROLES[group];
+    if (!roles) return copyObj(PLAYSTYLE_WEIGHTS[group] || {});
+    var merged = {};
+    Object.keys(roles).forEach(function (rn) {
+      var w = roleWeightsFromList(roles[rn]);
+      Object.keys(w).forEach(function (n) { if (merged[n] == null || w[n] > merged[n]) merged[n] = w[n]; });
+    });
+    return merged;
+  }
+  function copyObj(o) { var c = {}; Object.keys(o).forEach(function (k) { c[k] = o[k]; }); return c; }
+
+  // hasOwnPsList(group): is this position scoring on YOUR list rather than by role?
+  function hasOwnPsList(group) { return !!(CFG.psWeights && CFG.psWeights[group] && Object.keys(CFG.psWeights[group]).length); }
+  // startOwnPsList(group): take over this position, seeded with the numbers it already uses.
+  function startOwnPsList(group) {
+    var t = scoreState.cfg.psWeights || (scoreState.cfg.psWeights = {});
+    t[group] = baselinePsWeights(group);
+    saveScoreState(); rebuildCfg(); invalidateScoreCaches();
+  }
+  // setPsWeight(group, name, value): change or (value = null) remove one PlayStyle from your list.
+  // Removing the last one hands the position back to the role system.
+  function setPsWeight(group, name, value) { setNestedWeight("psWeights", group, name, value); }
+  // dropOwnPsList(group): give this position back to the role system entirely.
+  function dropOwnPsList(group) {
+    if (scoreState.cfg.psWeights) {
+      delete scoreState.cfg.psWeights[group];
+      if (!Object.keys(scoreState.cfg.psWeights).length) delete scoreState.cfg.psWeights;
+    }
+    saveScoreState(); rebuildCfg(); invalidateScoreCaches();
+  }
+
   // setScoreOn(on): flip the switch WITHOUT losing the saved differences, so you can A/B
   // your own tuning against mine.
   function setScoreOn(on) { scoreState.on = !!on; saveScoreState(); rebuildCfg(); invalidateScoreCaches(); return isCustomScore(); }
@@ -910,6 +1006,14 @@
     reset: resetScore,
     isCustom: isCustomScore,
     label: scoreLabel,
+    setWeight: function (group, key, v) { return setNestedWeight("statWeights", group, key, v); },
+    setTrait: function (group, key, v) { return setNestedWeight("traitWeights", group, key, v); },
+    setCurve: setRankCurveAt,
+    clearGroup: clearGroupWeights,
+    psBaseline: baselinePsWeights,      // what a position values today, merged across its roles
+    psStart: startOwnPsList,            // take a position over with your own list (seeded)
+    psSet: setPsWeight,                 // set/remove one PlayStyle's weight
+    psDrop: dropOwnPsList,              // hand the position back to the role system
     saved: function () { return scoreSaveOk; }   // false = storage is full, settings won't survive a reload
   };
 
@@ -1219,9 +1323,15 @@
       var name = traitName[p.traitId];        // base name (traitName has no "+")
       if (name) owned.push({ name: name, isIcon: !!p.isIcon });
     });
+    // A user-defined PlayStyle table for this position REPLACES the role system for it: you've
+    // said which PlayStyles matter here and by how much, so there's nothing left to fit a role
+    // against. Every other position keeps scoring by best-fitting role as normal.
     var roleTable = ROLES[group];
     var cands = [];
-    if (roleTable) {
+    var ownTable = CFG.psWeights && CFG.psWeights[group];
+    if (ownTable && Object.keys(ownTable).length) {
+      cands.push({ role: "Your list", weights: ownTable });
+    } else if (roleTable) {
       Object.keys(roleTable).forEach(function (rn) { cands.push({ role: rn, weights: roleWeightsFromList(roleTable[rn]) }); });
     }
     if (!cands.length) cands.push({ role: null, weights: PLAYSTYLE_WEIGHTS[group] || {} });
@@ -4114,6 +4224,15 @@
       "#fc26-panel .ss-impmv{flex:none;width:32px;text-align:right;font-size:10px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .ss-impmv.up{color:#6ee7b7}" +
       "#fc26-panel .ss-impmv.dn{color:#ff9d9d}" +
+      // Advanced section: the folded-out body of per-position weight sliders.
+      "#fc26-panel .ss-advbody{display:flex;flex-direction:column;gap:9px;margin-top:10px;padding-top:10px;border-top:1px solid var(--card-border)}" +
+      "#fc26-panel .ss-advbody .ss-lab{margin-top:4px}" +
+      "#fc26-panel .ss-advbody .ss-preset{align-self:flex-start}" +
+      // A PlayStyle weight row: the slider takes the width, the remove button sits at the end.
+      "#fc26-panel .ss-psrow{display:flex;align-items:flex-start;gap:8px}" +
+      "#fc26-panel .ss-psdial{flex:1;min-width:0}" +
+      "#fc26-panel .ss-psdel{flex:none;width:24px;height:24px;margin-top:2px;border-radius:7px;cursor:pointer;background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.32);color:#ffc2c2;font-family:inherit;font-size:14px;font-weight:700;line-height:1;padding:0}" +
+      "#fc26-panel .ss-psdel:hover{background:rgba(255,120,120,.22)}" +
       "@media (prefers-reduced-motion:reduce){#fc26-panel .ss-bar>i{transition:none}}" +
       "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
@@ -5679,6 +5798,8 @@
   // Which position the "who this moves" list previews. Starts on whatever the Rankings page is
   // showing (so the two agree when you arrive from it), falling back to ST.
   state.scoreImpactPos = (metaPos && META_GROUPS.indexOf(metaPos.value) !== -1) ? metaPos.value : "ST";
+  state.scoreAdvOpen = false;                     // the Advanced section starts folded away
+  state.scoreAdvPos = state.scoreImpactPos;       // which position its stat-weight sliders edit
   // Where "back" should go. "meta" = we came from the Justaino Score page's header button
   // (the normal way in), "layout" = opened straight from the Console helper.
   state.scoreFrom = "layout";
@@ -5794,14 +5915,27 @@
     rng.min = o.min; rng.max = o.max; rng.step = o.step; rng.value = o.value;
     rng.disabled = !!o.disabled;
     rng.setAttribute("aria-label", o.name);
-    var cap = document.createElement("div"); cap.className = "ss-dcap"; cap.textContent = o.cap;
     // "input" fires continuously while dragging, so the number tracks your thumb.
     rng.addEventListener("input", function () {
       val.textContent = o.fmt(Number(rng.value));
       o.onInput(Number(rng.value));
     });
-    wrap.appendChild(head); wrap.appendChild(rng); wrap.appendChild(cap);
+    wrap.appendChild(head); wrap.appendChild(rng);
+    // The caption is optional: the Advanced rows pack 8 sliders together and a line of prose
+    // under each one would bury them.
+    if (o.cap) { var cap = document.createElement("div"); cap.className = "ss-dcap"; cap.textContent = o.cap; wrap.appendChild(cap); }
     return wrap;
+  }
+
+  // ssWeightRow(o): one compact weight slider for the Advanced section - a short label, the live
+  // number, my baseline for comparison, and the slider. o = { label, value, base, min, max, step,
+  // disabled, onInput }.
+  function ssWeightRow(o) {
+    return ssDial({
+      name: o.label, value: o.value, min: o.min, max: o.max, step: o.step, disabled: o.disabled,
+      fmt: function (v) { return (Math.round(v * 10) / 10) + (Math.abs(v - o.base) < 0.001 ? "" : "  (was " + o.base + ")"); },
+      cap: "", onInput: o.onInput
+    });
   }
 
   // renderScorePage(): (re)build the whole page. Called on open and after anything that
@@ -5809,6 +5943,12 @@
   // does NOT redraw - that would rip the thumb out from under your finger.
   function renderScorePage() {
     if (!state.scorePageOpen) return;
+    // Redrawing replaces the scrolling body with a NEW element, which starts at the top - so
+    // pressing a button deep in Advanced used to fling you back to the switch. Remember where
+    // you were and put it back once the new body is in place.
+    var prevScroll = 0;
+    var oldBody = ssHost.querySelector(".ss-body");
+    if (oldBody) prevScroll = oldBody.scrollTop;
     ssHost.innerHTML = "";
     var custom = isCustomScore();
     var on = !!scoreState.on;
@@ -5956,6 +6096,176 @@
     bodyEl.appendChild(impCard);
     renderImpactList(impList, state.scoreImpactPos);   // first paint
 
+    // ---- Card 6: Advanced (collapsed) - per-position stat weights, role curve, draft blend ----
+    // Folded away by default: these are the knobs you reach for once the headline ones aren't
+    // enough. They write into the SAME store, one number at a time (setNestedWeight), so tuning
+    // ST's pace never disturbs CB's.
+    var advCard = document.createElement("div"); advCard.className = "ss-card" + offCls;
+    var advTog = document.createElement("button"); advTog.type = "button"; advTog.className = "gt-benchtoggle";
+    advTog.setAttribute("aria-expanded", String(!!state.scoreAdvOpen));
+    advTog.disabled = !on;
+    advTog.innerHTML = "<span>Advanced &middot; per-position weights</span><span>" + (state.scoreAdvOpen ? "–" : "+") + "</span>";
+    advTog.addEventListener("click", function () { state.scoreAdvOpen = !state.scoreAdvOpen; renderScorePage(); });
+    advCard.appendChild(advTog);
+
+    if (state.scoreAdvOpen && on) {
+      var advBody = document.createElement("div"); advBody.className = "ss-advbody";
+
+      // --- 6a: stat weights for ONE position at a time ---
+      var wRow = document.createElement("div"); wRow.className = "ss-imphead";
+      var wLab = document.createElement("div"); wLab.className = "ss-lab"; wLab.textContent = "Stat weights";
+      var wSel = document.createElement("select"); wSel.className = "gt-select";
+      wSel.innerHTML = META_GROUPS.map(function (g) {
+        return "<option" + (g === state.scoreAdvPos ? " selected" : "") + ">" + esc(g) + (groupIsTuned(g) ? " •" : "") + "</option>";
+      }).join("");
+      wSel.setAttribute("aria-label", "Position to edit");
+      wSel.addEventListener("change", function () {
+        state.scoreAdvPos = wSel.value.replace(/ •$/, "");   // strip the "edited" marker
+        renderScorePage();
+      });
+      wRow.appendChild(wLab); wRow.appendChild(wSel);
+      advBody.appendChild(wRow);
+
+      var grp = state.scoreAdvPos;
+      var gk = (grp === "GK");
+      var labels = gk ? GK_LABELS : FACE_LABELS;
+      var baseRow = SCORE_DEFAULTS.statWeights[grp] || {};
+      Object.keys(CFG.statWeights[grp] || {}).forEach(function (k) {
+        advBody.appendChild(ssWeightRow({
+          label: labels[k] || k, value: CFG.statWeights[grp][k], base: baseRow[k],
+          min: SCORE_LIMITS.statWeight[0], max: SCORE_LIMITS.statWeight[1], step: 0.5, disabled: !on,
+          onInput: function (v) { setNestedWeight("statWeights", grp, k, v); refreshImpact(); }
+        }));
+      });
+      // Skill moves + weak foot ride along as two light extra "stats". Keepers never get them,
+      // so the rows simply aren't offered for GK (TRAIT_STAT_WEIGHTS has no GK entry).
+      var tw = CFG.traitWeights[grp];
+      if (tw && !gk) {
+        var tBase = SCORE_DEFAULTS.traitWeights[grp] || {};
+        [["sm", "Skill moves"], ["wf", "Weak foot"]].forEach(function (p) {
+          advBody.appendChild(ssWeightRow({
+            label: p[1], value: tw[p[0]], base: tBase[p[0]],
+            min: 0, max: 6, step: 0.5, disabled: !on,
+            onInput: function (v) { setNestedWeight("traitWeights", grp, p[0], v); refreshImpact(); }
+          }));
+        });
+      }
+      var wNote = document.createElement("div"); wNote.className = "ss-note";
+      wNote.innerHTML = "Only the <b>ratios</b> matter, not the scale - doubling every number here changes nothing. " +
+        (gk ? "Keepers are scored on their six GK stats." : "Skill moves and weak foot count as two light extra stats.") +
+        " A <b>•</b> in the dropdown marks a position you've edited.";
+      advBody.appendChild(wNote);
+      if (groupIsTuned(grp)) {
+        var clr = document.createElement("button"); clr.type = "button"; clr.className = "ss-preset";
+        clr.textContent = "Reset " + grp + " to Justaino";
+        clr.addEventListener("click", function () { clearGroupWeights(grp); renderScorePage(); });
+        advBody.appendChild(clr);
+      }
+
+      // --- 6a2: YOUR OWN PlayStyle weights for this position ---
+      // The same shape meta-rating.html publishes: PlayStyle -> weight. Taking a position over
+      // switches it off the role system, so the numbers here are the whole story for it.
+      var pLab = document.createElement("div"); pLab.className = "ss-lab";
+      pLab.textContent = "PlayStyle weights · " + grp;
+      advBody.appendChild(pLab);
+
+      if (!hasOwnPsList(grp)) {
+        // Not taken over yet: show what it values today, read-only, plus the way in.
+        var preview = document.createElement("div"); preview.className = "mp-posrow";
+        var bw = baselinePsWeights(grp);
+        Object.keys(bw).sort(function (a, b) { return bw[b] - bw[a]; }).forEach(function (n) {
+          preview.innerHTML += "<span class='mp-poschip'>" + esc(n) + " <b>" + bw[n] + "</b></span>";
+        });
+        advBody.appendChild(preview);
+        var takeNote = document.createElement("div"); takeNote.className = "ss-note";
+        takeNote.innerHTML = grp + " currently scores by <b>best-fitting role</b>, and the above is what it can " +
+          "value. Take it over to set your own PlayStyles and weights - you'll start from these numbers.";
+        advBody.appendChild(takeNote);
+        var take = document.createElement("button"); take.type = "button"; take.className = "ss-preset";
+        take.textContent = "Use my own list for " + grp;
+        take.addEventListener("click", function () { startOwnPsList(grp); renderScorePage(); });
+        advBody.appendChild(take);
+      } else {
+        // Taken over: one editable row per PlayStyle, heaviest first, each removable.
+        var mine = CFG.psWeights[grp];
+        Object.keys(mine).sort(function (a, b) { return mine[b] - mine[a]; }).forEach(function (n) {
+          var row = document.createElement("div"); row.className = "ss-psrow";
+          var dial = ssWeightRow({
+            label: n, value: mine[n], base: baselinePsWeights(grp)[n] != null ? baselinePsWeights(grp)[n] : 0,
+            min: SCORE_LIMITS.rank[0], max: SCORE_LIMITS.rank[1], step: 0.5, disabled: !on,
+            onInput: function (v) { setPsWeight(grp, n, v); refreshImpact(); }
+          });
+          dial.classList.add("ss-psdial");
+          var del = document.createElement("button"); del.type = "button"; del.className = "ss-psdel";
+          del.innerHTML = "×"; del.title = "Remove " + n + " from " + grp;
+          del.setAttribute("aria-label", del.title);
+          del.addEventListener("click", function () { setPsWeight(grp, n, null); renderScorePage(); });
+          row.appendChild(dial); row.appendChild(del);
+          advBody.appendChild(row);
+        });
+
+        // Add a PlayStyle: every one not already on the list. GK-only PlayStyles are offered ONLY
+        // for GK, and the GK position is offered ONLY those plus the general ones - same rule the
+        // evo picker uses (the catalog's g:1 flag).
+        var addRow = document.createElement("div"); addRow.className = "ss-imphead";
+        var addSel = document.createElement("select"); addSel.className = "gt-select"; addSel.style.flex = "1";
+        var avail = PS.filter(function (e) {
+          if (mine[e.n] != null) return false;              // already on the list
+          return gk ? true : !e.g;                          // GK-only PlayStyles are for keepers only
+        }).map(function (e) { return e.n; }).sort();
+        addSel.innerHTML = "<option value=''>+ Add a PlayStyle…</option>" +
+          avail.map(function (n) { return "<option>" + esc(n) + "</option>"; }).join("");
+        addSel.setAttribute("aria-label", "Add a PlayStyle to " + grp);
+        addSel.addEventListener("change", function () {
+          if (!addSel.value) return;
+          setPsWeight(grp, addSel.value, 2);                // lands mid-table; drag it where you want
+          renderScorePage();
+        });
+        addRow.appendChild(addSel);
+        advBody.appendChild(addRow);
+
+        var pNote = document.createElement("div"); pNote.className = "ss-note";
+        pNote.innerHTML = "<b>" + esc(grp) + " now scores on this list, not by role.</b> A PlayStyle+ still counts " +
+          CFG.psPlusMult + "× its number here. Anything not listed is worth nothing at " + esc(grp) + ". " +
+          "Only the ratios matter, and the 0-100 ceiling follows the list, so a very short list makes scores swingy.";
+        advBody.appendChild(pNote);
+        var giveBack = document.createElement("button"); giveBack.type = "button"; giveBack.className = "ss-preset";
+        giveBack.textContent = "Score " + grp + " by role again";
+        giveBack.addEventListener("click", function () { dropOwnPsList(grp); renderScorePage(); });
+        advBody.appendChild(giveBack);
+      }
+
+      // --- 6b: the role priority curve ---
+      var cLab = document.createElement("div"); cLab.className = "ss-lab"; cLab.textContent = "Role priority curve";
+      advBody.appendChild(cLab);
+      [["Top 2 PlayStyles", 0], ["Next 2", 1], ["Next 2", 2], ["The rest", 3]].forEach(function (p) {
+        advBody.appendChild(ssWeightRow({
+          label: p[0], value: CFG.rankCurve[p[1]], base: SCORE_DEFAULTS.rankCurve[p[1]],
+          min: SCORE_LIMITS.rank[0], max: SCORE_LIMITS.rank[1], step: 0.5, disabled: !on,
+          onInput: function (v) { setRankCurveAt(p[1], v); refreshImpact(); }
+        }));
+      });
+      var cNote = document.createElement("div"); cNote.className = "ss-note";
+      cNote.innerHTML = "Each role has a priority-ordered list of PlayStyles. This is how much credit each rank earns. " +
+        "Steepen it (say 6/2/1/0) so only a role's top couple of PlayStyles really count, or flatten it so anything relevant counts.";
+      advBody.appendChild(cNote);
+
+      // --- 6c: the Squad Builder's own draft blend ---
+      var sLab = document.createElement("div"); sLab.className = "ss-lab"; sLab.textContent = "Squad Builder draft";
+      advBody.appendChild(sLab);
+      advBody.appendChild(ssDial({
+        name: "Lean on OVR", value: Math.round(CFG.draftOvrMix * 100), disabled: !on,
+        min: 0, max: 100, step: 5,
+        fmt: function (v) { return v + "%"; },
+        cap: "The Gauntlet Squad Builder drafts on a blend of OVR and the score, not the score alone - strong cards should start. " +
+          Math.round(SCORE_DEFAULTS.draftOvrMix * 100) + "% is my default; drop it to let your weighting shape those squads more.",
+        onInput: function (v) { setScoreValue("draftOvrMix", v / 100); }
+      }));
+
+      advCard.appendChild(advBody);
+    }
+    bodyEl.appendChild(advCard);
+
     // ---- Storage warning: only when a save has actually failed (see saveScoreState) ----
     if (!scoreSaveOk) {
       var warn = document.createElement("div"); warn.className = "gt-warn2";
@@ -5981,6 +6291,12 @@
     bodyEl.appendChild(acts);
 
     ssHost.appendChild(bodyEl);
+    // Restore the scroll position. Once now (covers the usual case) and once on the next frame,
+    // because a taller/shorter page can still be settling its layout and would clamp the value.
+    if (prevScroll) {
+      bodyEl.scrollTop = prevScroll;
+      window.requestAnimationFrame(function () { if (bodyEl.parentNode) bodyEl.scrollTop = prevScroll; });
+    }
   }
 
   // Console helper: open the page without clicking.

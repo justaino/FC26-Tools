@@ -5,6 +5,35 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v31 - 2026-07-27
+
+**Advanced tuning: set the stat weights per position, and say exactly which PlayStyles matter.**
+
+- **New Advanced section** in the Score Customiser (folded away until you want it).
+- **Stat weights, one position at a time.** Pick a position, then a slider per stat - so you can
+  decide that pace matters more at CB, or that passing carries your CDMs. Each slider shows my
+  original number next to yours. Keepers get their six GK stats instead, and correctly don't get
+  skill moves or weak foot. Positions you've edited are marked with a **•**, and each has its own
+  "Reset this position to Justaino".
+- **Your own PlayStyle list per position - the big one.** Until now you could only change *how much*
+  PlayStyles counted, not *which* ones. Now you can take a position over and set a weight for each
+  PlayStyle yourself, add any PlayStyle that isn't there, and remove ones you don't rate. It starts
+  seeded with the numbers that position already uses (the same table the "How the score works" page
+  shows), so you adjust rather than start from nothing.
+  - A position with your own list **stops scoring by best-fitting role** - your list is the whole
+    story for it, and anything not on it is worth nothing there. "Score CB by role again" hands it
+    back whenever you want, and other positions are unaffected.
+  - Keeper-only PlayStyles are only offered for GK.
+- **Role priority curve.** Each role has a priority-ordered list of PlayStyles; these four numbers
+  are how much credit each rank earns. Steepen it so only a role's top couple really count, or
+  flatten it so anything relevant counts.
+- **Squad Builder draft blend.** Gauntlet squads deliberately lean on OVR rather than the score
+  alone, which is why they move less than the rankings when you retune. You can now set how much.
+- **Fixed:** pressing a button deep in the settings (add a PlayStyle, take over a position) jumped
+  the page back to the top. It now keeps your place.
+
+---
+
 ## v30 - 2026-07-27
 
 **See who your tuning actually moves, and the rest of the hub now says which score it's using.**

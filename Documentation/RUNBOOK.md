@@ -725,9 +725,52 @@ spotlight card and the mobile Deck summary, so the three can't disagree. Worth h
 player card because the pill only ever shows a player's BEST position - a card can be a middling
 CM and an excellent CDM and you'd never see it.
 
-*Not yet built:* the advanced per-position stat weights + role priority curve (step 5 of
-`CUSTOM-SCORE-SPEC.md`). `CFG` already carries `statWeights`, `traitWeights` and `rankCurve`, so
-that step is UI only - nothing above changes.
+### Advanced (v31)
+
+Folded away by default, under the impact list. Four things live here:
+
+- **Stat weights, per position.** A dropdown picks the position, then a slider per stat, each
+  showing my baseline for comparison. Keepers get their six GK stats and correctly get NO skill
+  moves / weak foot rows (`TRAIT_STAT_WEIGHTS` has no GK entry). An edited position is marked with
+  a **•** in the dropdown and has its own "Reset <pos> to Justaino".
+- **Your own PlayStyle weights, per position** - see below.
+- **Role priority curve** - the four `rankCurve` numbers behind `roleWeightsFromList`.
+- **Squad Builder draft** (`draftOvrMix`) - how much those squads lean on OVR rather than the score.
+  This is why Gauntlet squads shift LESS than the Rankings when you retune.
+
+**The nested-write trap.** `setScoreValue("statWeights", {...})` would REPLACE the whole override
+object, wiping every other position you'd tuned. `setNestedWeight(table, group, key, value)` reads,
+modifies and writes back a single number instead, and prunes now-empty parents so "no differences"
+really means an empty `cfg` (which `isCustomScore()` keys off).
+
+### Your own PlayStyle weights, per position (v31)
+
+The one thing the sliders can't express: WHICH PlayStyles matter at a position, and by how much.
+
+- `baselinePsWeights(group)` builds the PlayStyle -> weight table the position uses today, merged
+  across every role it can be played in, taking the HIGHEST weight any role gives each PlayStyle.
+  **This is exactly the table `meta-rating.html` publishes**, and it's what a custom list is seeded
+  from, so you adjust my numbers rather than start cold.
+- Taking a position over stores `cfg.psWeights[group]`. In `scorePlayer`, a position with its own
+  table gets ONE candidate (`role: "Your list"`) **instead of** its role candidates - so a
+  customised position stops scoring by best-fitting role entirely. That's deliberate: once you've
+  said what matters there, there's nothing left to fit a role against. Anything not on the list is
+  worth zero at that position.
+- The 0-100 ceiling (`psMaxForWeights`) follows YOUR list, so a very short list makes scores
+  swingy - hence seeding from the full table rather than an empty one.
+- GK-only PlayStyles (catalog flag `g:1`) are offered only for GK.
+- "Score <pos> by role again" (`dropOwnPsList`) hands it straight back; other positions are
+  unaffected either way.
+
+**Console API (advanced):** `window.FC26.score.setWeight(group, stat, v) / .setTrait(group, "sm"|"wf", v)
+/ .setCurve(i, v) / .clearGroup(group) / .psBaseline(group) / .psStart(group) / .psSet(group, name, v)
+/ .psDrop(group)`.
+
+**Scroll position (v31).** `renderScorePage()` rebuilds the scrolling body, which is a NEW element
+starting at the top, so every button that redraws used to fling you back to the switch. It now
+remembers `.ss-body`'s `scrollTop` and restores it after the rebuild (twice - once immediately, once
+on the next frame, since a taller/shorter page can clamp the first attempt). **If you add a button
+that redraws another full-page view, it needs the same treatment** - the fix isn't inherited.
 
 ---
 
