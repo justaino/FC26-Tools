@@ -388,6 +388,14 @@ ${exampleHtml}
 ${cards}
   </div>
 
+  <div class="sec-title" style="margin-top:3rem">Don't agree with these numbers?</div>
+  <p style="color:var(--muted);font-size:0.95rem;line-height:1.7;max-width:680px;margin-bottom:1.2rem">
+    Every weight on this page can be overridden in the tool itself - the stat weights, how much a
+    PlayStyle+ counts, and even which PlayStyles matter at which position. Your club then ranks by
+    your reading of the meta instead of mine.
+  </p>
+  <a class="install-btn" href="score-customiser.html" style="display:inline-block">🔧 Read the Score Customiser guide</a>
+
   <footer>
     Men Gallant FC · Justaino FC Hub - a personal tool for the EA FC 26 Web App.<br>
     <span class="gen">Weights generated from the live tool on ${generatedOn}. Refreshed each season as the meta shifts.</span>

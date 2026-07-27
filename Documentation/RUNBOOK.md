@@ -1102,6 +1102,11 @@ edits + regenerate + rebuild for you.
 - `features.html` - the "what it does" page (linked from the install page).
 - `meta-rating.html` - the meta-rating transparency page (generated - see below).
 - `meta-page.js` - regenerates `meta-rating.html` from the live weight tables (`node meta-page.js`, §7b).
+  **Its footer links to `score-customiser.html`, so edit the link there, not in the generated HTML.**
+- `score-customiser.html` - the Score Customiser guide (§3q). **Hand-written, not generated**, so if
+  you change a baseline number (the 50/50 mix, the 1% OVR tiebreak, 3.5x, the ceiling of 5) or add a
+  preset, update this page too. It's linked from the install page, the features page and the bottom
+  of `meta-rating.html`.
 - `Documentation/RUNBOOK.md` - this file (how to run / maintain it).
 - `Documentation/USER-GUIDE.md` - friendly feature guide for using the tool.
 - `CHANGELOG.md` - plain-English per-version log of what changed (add an entry each release).

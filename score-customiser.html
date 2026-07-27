@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<title>Men Gallant FC - Justaino FC Hub - Score Customiser guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Inter:wght@400;500;600&display=swap');
+
+  /* Same palette + fonts as index.html / features.html / meta-rating.html so all four match. */
+  :root {
+    --bg: #0b0d10;
+    --surface: #13161b;
+    --surface2: #171b21;
+    --border: #1f242c;
+    --gold: #f0c040;
+    --gold-dim: #c49a20;
+    --accent: #00c6ff;
+    --emerald: #4fe3ac;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --green: #22c55e;
+    --red: #ff8a8a;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+  .wrap { width: 100%; max-width: 960px; margin: 0 auto; }
+
+  /* ── Top bar (identical to the other pages) ── */
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5rem; gap: 1rem; }
+  .back-link { color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; border-bottom: 1px solid transparent; transition: color 0.15s, border-color 0.15s; }
+  .back-link:hover { color: var(--text); border-bottom-color: var(--border); }
+  .install-btn { background: var(--gold); color: #1a1206; text-decoration: none; font-weight: 600; font-size: 0.85rem; padding: 8px 16px; border-radius: 8px; transition: transform 0.1s, box-shadow 0.15s; white-space: nowrap; }
+  .install-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(240,192,64,0.25); }
+
+  /* ── Hero ── */
+  .badge { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 0.7rem; letter-spacing: 0.18em; color: var(--emerald); text-transform: uppercase; background: rgba(79,227,172,0.08); border: 1px solid rgba(79,227,172,0.2); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-bottom: 1.25rem; }
+  h1 { font-family: 'Rajdhani', sans-serif; font-size: clamp(2rem, 6vw, 3.4rem); font-weight: 700; line-height: 1.05; margin-bottom: 0.9rem; }
+  h1 span { color: var(--emerald); }
+  .lede { color: var(--muted); font-size: 1.05rem; line-height: 1.65; max-width: 660px; margin-bottom: 1.5rem; }
+
+  /* ── The one rule callout ── */
+  .rule { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--emerald); border-radius: 12px; padding: 1rem 1.25rem; max-width: 660px; margin-bottom: 3rem; font-size: 0.92rem; line-height: 1.6; }
+  .rule .ico { font-size: 1.1rem; line-height: 1.4; }
+  .rule b { color: var(--emerald); }
+
+  /* ── Contents ── */
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 3.5rem; }
+  .toc-h { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.9rem; }
+  .toc ol { list-style: none; counter-reset: t; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0.55rem 1.5rem; }
+  .toc li { counter-increment: t; font-size: 0.92rem; }
+  .toc li::before { content: counter(t, decimal-leading-zero); color: var(--emerald); font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 0.78rem; margin-right: 0.6rem; }
+  .toc a { color: var(--text); text-decoration: none; border-bottom: 1px solid transparent; }
+  .toc a:hover { border-bottom-color: var(--emerald); color: var(--emerald); }
+
+  /* ── Sections ── */
+  section { margin-bottom: 3.5rem; scroll-margin-top: 1.5rem; }
+  .sec-title { font-family: 'Rajdhani', sans-serif; font-size: 1.65rem; font-weight: 700; line-height: 1.15; margin-bottom: 0.4rem; }
+  .sec-sub { color: var(--muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.5rem; max-width: 680px; }
+  .eyebrow { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--emerald); margin-bottom: 0.5rem; }
+  p.body { color: var(--text); font-size: 0.94rem; line-height: 1.7; margin-bottom: 1rem; max-width: 680px; }
+  p.body.muted { color: var(--muted); }
+  strong { font-weight: 600; }
+  em { color: var(--emerald); font-style: normal; font-weight: 600; }
+
+  /* ── Card ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.4rem 1.5rem; margin-bottom: 1rem; }
+  .card-h { font-family: 'Rajdhani', sans-serif; font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem; display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .card-h .tag { font-family: 'Inter', sans-serif; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--border); border-radius: 20px; padding: 2px 9px; }
+  .card p { color: var(--muted); font-size: 0.9rem; line-height: 1.65; }
+  .card p + p { margin-top: 0.7rem; }
+  .card p b, .card li b { color: var(--text); font-weight: 600; }
+
+  /* ── Bulleted list, matching features.html ── */
+  ul.dot { list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
+  ul.dot li { padding-left: 1.4rem; position: relative; font-size: 0.91rem; line-height: 1.6; color: var(--muted); }
+  ul.dot li::before { content: ''; position: absolute; left: 0; top: 0.55em; width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); }
+
+  /* ── Numbered steps ── */
+  ol.steps { list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 0.9rem; }
+  ol.steps li { counter-increment: s; position: relative; padding-left: 2.4rem; font-size: 0.92rem; line-height: 1.6; color: var(--muted); }
+  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: -1px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 0.8rem; color: var(--emerald); background: rgba(79,227,172,0.08); border: 1px solid rgba(79,227,172,0.25); }
+  ol.steps li b { color: var(--text); font-weight: 600; }
+
+  /* ── Panel mockup: mimics the tool's own UCL Night skin ── */
+  .ui { background: linear-gradient(160deg,#0f1b2e,#0a1320); border: 1px solid rgba(120,180,255,0.16); border-radius: 12px; padding: 0.9rem 1rem; font-size: 0.82rem; color: #e8f2ff; }
+  .ui + .ui { margin-top: 0.6rem; }
+  .ui-lab { font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(160,200,255,0.72); font-weight: 700; margin-bottom: 0.6rem; }
+  .ui-seg { display: flex; background: rgba(0,0,0,0.3); border: 1px solid rgba(120,180,255,0.18); border-radius: 9px; padding: 3px; gap: 3px; }
+  .ui-seg span { flex: 1; text-align: center; padding: 7px 6px; border-radius: 6px; font-weight: 700; font-size: 0.68rem; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(160,200,255,0.72); }
+  .ui-seg span.on { background: #38e1ff; color: #06131f; }
+  .ui-bal { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+  .ui-bal b { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ui-bal .k { display: block; font-size: 0.55rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(160,200,255,0.72); margin-top: 3px; font-weight: 700; }
+  .ui-bar { height: 10px; border-radius: 999px; background: rgba(255,255,255,0.07); border: 1px solid rgba(120,180,255,0.18); overflow: hidden; }
+  .ui-bar i { display: block; height: 100%; background: #38e1ff; opacity: 0.85; }
+  .ui-row { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(120,180,255,0.14); }
+  .ui-row + .ui-row { margin-top: 5px; }
+  .ui-rank { flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 0.62rem; font-weight: 700; background: rgba(255,255,255,0.08); color: rgba(160,200,255,0.72); }
+  .ui-row.top .ui-rank { background: #38e1ff; color: #06131f; }
+  .ui-nm { flex: 1; min-width: 0; font-size: 0.78rem; font-weight: 500; }
+  .ui-sc { font-size: 0.8rem; font-weight: 700; color: #ffd76a; font-variant-numeric: tabular-nums; }
+  .ui-mv { flex: none; width: 30px; text-align: right; font-size: 0.68rem; font-weight: 700; color: rgba(160,200,255,0.6); }
+  .ui-mv.up { color: #6ee7b7; }
+  .ui-mv.dn { color: #ff9d9d; }
+  .ui-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .ui-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(120,180,255,0.16); color: rgba(160,200,255,0.8); }
+  .ui-chip b { color: #e8f2ff; font-variant-numeric: tabular-nums; }
+  .ui-chip.hi { background: rgba(56,225,255,0.14); border-color: #38e1ff; color: #e8f2ff; }
+  .ui-chip.hi b { color: #38e1ff; }
+  .ui-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; padding: 4px 8px; border-radius: 6px; background: rgba(56,225,255,0.16); color: #38e1ff; border: 1px solid rgba(56,225,255,0.35); }
+  .ui-pill.gold { background: rgba(255,215,106,0.12); color: #ffd76a; border-color: rgba(255,215,106,0.34); }
+
+  /* ── Worked example block (same idea as meta-rating.html's .example) ── */
+  .example { background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 1.4rem 1.5rem; margin-top: 1rem; }
+  .ex-h { font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.9rem; display: flex; align-items: center; gap: 0.6rem; }
+  .ex-h .ex-num { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 0.72rem; background: rgba(240,192,64,0.12); border: 1px solid rgba(240,192,64,0.3); color: var(--gold); }
+  .ex-eq { font-size: 0.88rem; line-height: 1.7; color: var(--muted); }
+  .ex-eq b { color: var(--text); }
+  .ex-eq .res { color: var(--gold); font-weight: 700; }
+  .ex-small { font-size: 0.82rem; color: var(--muted); margin-top: 0.8rem; line-height: 1.6; }
+
+  /* ── Two-column split ── */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
+
+  /* ── Recipe cards ── */
+  .recipe { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.4rem 1.5rem; display: flex; flex-direction: column; gap: 0.8rem; }
+  .recipe h3 { font-family: 'Rajdhani', sans-serif; font-size: 1.2rem; font-weight: 700; line-height: 1.2; }
+  .recipe .want { color: var(--muted); font-size: 0.88rem; line-height: 1.6; }
+  .recipe .do { display: flex; flex-direction: column; gap: 0.45rem; }
+  .recipe .do div { font-size: 0.85rem; color: var(--text); padding-left: 1.1rem; position: relative; line-height: 1.5; }
+  .recipe .do div::before { content: '→'; position: absolute; left: 0; color: var(--emerald); font-size: 0.8rem; }
+  .recipe .why { font-size: 0.82rem; color: var(--muted); border-top: 1px solid var(--border); padding-top: 0.8rem; line-height: 1.6; }
+  .recipe .why b { color: var(--emerald); font-weight: 600; }
+
+  /* ── Warning card ── */
+  .warn { background: rgba(255,138,138,0.06); border: 1px solid rgba(255,138,138,0.25); border-left: 3px solid var(--red); border-radius: 12px; padding: 1.1rem 1.3rem; font-size: 0.89rem; line-height: 1.65; color: var(--muted); }
+  .warn b { color: var(--red); font-weight: 600; }
+  .warn + .warn { margin-top: 0.8rem; }
+
+  /* ── Table ── */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 0.87rem; }
+  th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+  th { font-family: 'Rajdhani', sans-serif; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 700; background: var(--surface); }
+  tr:last-child td { border-bottom: 0; }
+  td { color: var(--muted); line-height: 1.55; }
+  td b { color: var(--text); font-weight: 600; }
+  td .num { color: var(--gold); font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+
+  /* ── FAQ ── */
+  details { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0 1.3rem; margin-bottom: 0.6rem; }
+  summary { cursor: pointer; list-style: none; padding: 1rem 0; font-size: 0.93rem; font-weight: 500; display: flex; align-items: center; gap: 0.7rem; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: '\25B8'; color: var(--emerald); font-size: 0.7rem; transition: transform 0.15s; }
+  details[open] summary::before { transform: rotate(90deg); }
+  details p { color: var(--muted); font-size: 0.88rem; line-height: 1.7; padding-bottom: 1.1rem; }
+  details p + p { padding-bottom: 1.1rem; margin-top: -0.4rem; }
+
+  /* ── Closing CTA ── */
+  .cta { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2.5rem 2rem; text-align: center; margin-top: 1rem; }
+  .cta h2 { font-family: 'Rajdhani', sans-serif; font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .cta p { color: var(--muted); margin-bottom: 1.5rem; font-size: 0.95rem; }
+  .cta .install-btn { font-size: 0.95rem; padding: 12px 26px; display: inline-block; }
+  .foot { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 2.5rem; line-height: 1.7; }
+  .foot a { color: var(--emerald); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <a class="back-link" href="features.html">← Back to features</a>
+    <a class="install-btn" href="index.html">Get the tool</a>
+  </div>
+
+  <div class="badge">🔧 Guide</div>
+  <h1>Make it score players <span>your way</span></h1>
+  <p class="lede">
+    The Justaino Score is my opinion of the current FC 26 meta. You might not share it. The Score
+    Customiser lets you re-weight the whole thing to your own reading of the game, right down to
+    which PlayStyles matter at which position, and then ranks your club by that instead.
+  </p>
+
+  <div class="rule">
+    <span class="ico">⚖️</span>
+    <span><b>One rule runs through all of this: two scores, never both at once.</b> A single switch
+    decides which one the whole hub speaks - the rankings, the Best XI, the Squad Builder draft and
+    the score on a player card. There's no state where half the tool disagrees with the other half,
+    and my original is always one tap away.</span>
+  </div>
+
+  <div class="toc">
+    <div class="toc-h">What's on this page</div>
+    <ol>
+      <li><a href="#find">Finding it</a></li>
+      <li><a href="#switch">The switch</a></li>
+      <li><a href="#presets">Presets</a></li>
+      <li><a href="#balance">Balance</a></li>
+      <li><a href="#dials">The three dials</a></li>
+      <li><a href="#moves">Who this moves</a></li>
+      <li><a href="#stats">Stat weights</a></li>
+      <li><a href="#playstyles">Your own PlayStyles</a></li>
+      <li><a href="#curve">Role priority curve</a></li>
+      <li><a href="#draft">Squad Builder draft</a></li>
+      <li><a href="#recipes">Worked examples</a></li>
+      <li><a href="#elsewhere">What changes elsewhere</a></li>
+      <li><a href="#gotchas">Things to watch</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ol>
+  </div>
+
+  <!-- ───────────────────────── FINDING IT ───────────────────────── -->
+  <section id="find">
+    <div class="eyebrow">Step one</div>
+    <h2 class="sec-title">Finding it</h2>
+    <p class="sec-sub">It lives with the score it changes, not in the main menu.</p>
+    <ol class="steps">
+      <li>Open the tool and let your club load.</li>
+      <li>In the <b>Lineup</b> column, tap the <b>📊 Justaino Score</b> tile.</li>
+      <li>At the top right of that page, tap <b>🔧 Score Customiser</b>. On a phone the button reads
+        just <b>Customise</b> to leave the title room.</li>
+    </ol>
+    <p class="body muted" style="margin-top:1.2rem">
+      That button gains a glowing ring whenever your own weighting is switched on, so you can never
+      be looking at custom rankings without a signal in view. Closing the page drops you straight
+      back on the rankings, already re-sorted.
+    </p>
+  </section>
+
+  <!-- ───────────────────────── SWITCH ───────────────────────── -->
+  <section id="switch">
+    <div class="eyebrow">The control that matters</div>
+    <h2 class="sec-title">The switch</h2>
+    <p class="sec-sub">Everything else on the page is inert until this is on My Score.</p>
+
+    <div class="ui">
+      <div class="ui-lab">Active score</div>
+      <div class="ui-seg"><span>Justaino Score</span><span class="on">My Score</span></div>
+    </div>
+
+    <p class="body" style="margin-top:1.2rem">
+      <b>Justaino Score</b> is my numbers, and it's the default. <b>My Score</b> is yours. Switching
+      between them <em>never deletes your tuning</em> - it's a genuine A/B, so you can flip back and
+      forth and compare the same position under both readings.
+    </p>
+    <p class="body muted">
+      While the switch sits on Justaino Score, the tuning cards below it are dimmed and their
+      sliders won't move. That's deliberate: there's no state where you can drag something that
+      does nothing. And if you switch to My Score without having changed anything yet, it says so -
+      an untouched custom score is still identical to mine.
+    </p>
+  </section>
+
+  <!-- ───────────────────────── PRESETS ───────────────────────── -->
+  <section id="presets">
+    <div class="eyebrow">Somewhere to start</div>
+    <h2 class="sec-title">Presets</h2>
+    <p class="sec-sub">Four opinions, ready made. A preset is nothing more than a set of the sliders below, so picking one is identical to dragging them there yourself.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Preset</th><th>What it does</th><th>Good for</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Justaino baseline</b></td>
+            <td>Clears every custom value, back to my numbers.</td>
+            <td>Starting over without losing the switch.</td>
+          </tr>
+          <tr>
+            <td><b>Stats purist</b></td>
+            <td>Ranks mostly on raw stat fit for the position <span class="num">(75% stats)</span>, and drops how much a PlayStyle+ is worth.</td>
+            <td>If you think PlayStyles are overrated and pace, physical and shooting decide games.</td>
+          </tr>
+          <tr>
+            <td><b>PlayStyle maxxer</b></td>
+            <td>Flips it: PlayStyles carry most of the score <span class="num">(72%)</span> and a PlayStyle+ counts for more.</td>
+            <td>If you rate a Finesse Shot+ striker over one with better numbers.</td>
+          </tr>
+          <tr>
+            <td><b>OVR respecter</b></td>
+            <td>Pulls the result back toward the card's in-game OVR <span class="num">(15%)</span>.</td>
+            <td>If you want marquee high-OVR cards ranking near the top. This is how the hub scored before v28.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="body muted" style="margin-top:1rem">
+      A preset chip only lights up while your settings match it exactly. Drag any slider afterwards
+      and it quietly deselects, because you're no longer on that preset - you're on your own thing.
+    </p>
+  </section>
+
+  <!-- ───────────────────────── BALANCE ───────────────────────── -->
+  <section id="balance">
+    <div class="eyebrow">The biggest lever</div>
+    <h2 class="sec-title">Balance</h2>
+    <p class="sec-sub">If you change one thing on this page, change this one.</p>
+
+    <div class="ui">
+      <div class="ui-lab">Balance</div>
+      <div class="ui-bal">
+        <div><b>75%</b><span class="k">Stats</span></div>
+        <div style="text-align:right"><b>25%</b><span class="k">PlayStyles</span></div>
+      </div>
+      <div class="ui-bar"><i style="width:75%"></i></div>
+    </div>
+
+    <p class="body" style="margin-top:1.2rem">
+      Every player's score is built from two halves. <b>Stat fit</b> is how well their six face stats
+      suit the position, and <b>PlayStyle fit</b> is how many of the right PlayStyles they own for it.
+      This slider decides the split. My baseline is an even <b>50 / 50</b>.
+    </p>
+    <p class="body muted">
+      The two always total 100, so there's no invalid setting to get wrong.
+    </p>
+
+    <div class="example">
+      <div class="ex-h"><span class="ex-num">1</span> The same two strikers, judged two ways</div>
+      <div class="ex-eq">
+        <b>Vale</b> has the numbers but few useful PlayStyles: stat fit <b>95</b>, PlayStyle fit <b>58</b>.<br>
+        <b>Olsen</b> is the opposite: stat fit <b>84</b>, PlayStyle fit <b>96</b>.
+        <div style="margin-top:0.9rem">
+          At my <b>50 / 50</b>: &nbsp;Vale = 0.5&times;95 + 0.5&times;58 = <span class="res">76.5</span>
+          &nbsp;·&nbsp; Olsen = 0.5&times;84 + 0.5&times;96 = <span class="res">90.0</span> &nbsp;→ Olsen well clear.
+        </div>
+        <div style="margin-top:0.5rem">
+          At <b>75 / 25</b>: &nbsp;Vale = 0.75&times;95 + 0.25&times;58 = <span class="res">85.8</span>
+          &nbsp;·&nbsp; Olsen = 0.75&times;84 + 0.25&times;96 = <span class="res">87.0</span> &nbsp;→ almost level.
+        </div>
+        <div style="margin-top:0.5rem">
+          At <b>85 / 15</b>: &nbsp;Vale = <span class="res">89.5</span> &nbsp;·&nbsp; Olsen = <span class="res">85.8</span> &nbsp;→ Vale now leads.
+        </div>
+      </div>
+      <p class="ex-small">
+        One slider, and your best striker changes. This is why the page shows you who moves as you
+        drag rather than making you guess - see <a href="#moves" style="color:var(--emerald);text-decoration:none">Who this moves</a>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── DIALS ───────────────────────── -->
+  <section id="dials">
+    <div class="eyebrow">Fine tuning</div>
+    <h2 class="sec-title">The three dials</h2>
+    <p class="sec-sub">Each one tells you my baseline underneath it, so you can always see how far you've wandered.</p>
+
+    <div class="card">
+      <div class="card-h">OVR tiebreak <span class="tag">baseline 1%</span></div>
+      <p>How hard the finished score gets pulled toward the number on the front of the card. I keep
+      this at <b>1%</b>, which makes it a pure tiebreak: it only separates two players whose fit is
+      otherwise level, and can never lift a marquee card above one that genuinely suits the role
+      better.</p>
+      <p><b>Turn it up</b> if you want big-name cards ranking high regardless of how they read
+      statistically. <b>Turn it to 0</b> to ignore OVR completely.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-h">A PlayStyle+ is worth <span class="tag">baseline 3.5&times;</span></div>
+      <p>How many ordinary PlayStyles one <b>PlayStyle+</b> is worth. At 3.5, a striker with
+      Finesse Shot+ gets three and a half times the credit of one with plain Finesse Shot.</p>
+      <p><b>Turn it up</b> if you think the plus versions are where games are won. <b>Turn it down</b>
+      if you'd rather reward a card carrying lots of relevant PlayStyles of any kind.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-h">Full marks needs <span class="tag">baseline 5 PS+</span></div>
+      <p>The ceiling a card is measured against - how many relevant PlayStyle+ a "perfect" card for
+      the position would have. Everyone's PlayStyle half is scored as a fraction of this.</p>
+      <p><b>Turn it up</b> and stacking a sixth relevant plus keeps paying off. <b>Turn it down</b>
+      and a well-built card hits full marks sooner, which compresses the top of your rankings.</p>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── WHO THIS MOVES ───────────────────────── -->
+  <section id="moves">
+    <div class="eyebrow">The feedback loop</div>
+    <h2 class="sec-title">Who this moves</h2>
+    <p class="sec-sub">Tuning is only useful if you can see what it does to your actual players.</p>
+
+    <div class="ui">
+      <div class="ui-lab">Who this moves · ST</div>
+      <div class="ui-row top"><span class="ui-rank">1</span><span class="ui-nm">D. Vale</span><span class="ui-sc">89.4</span><span class="ui-mv up">▲5</span></div>
+      <div class="ui-row"><span class="ui-rank">2</span><span class="ui-nm">A. Ferreira</span><span class="ui-sc">88.5</span><span class="ui-mv up">▲3</span></div>
+      <div class="ui-row"><span class="ui-rank">3</span><span class="ui-nm">R. Baptiste</span><span class="ui-sc">88.1</span><span class="ui-mv dn">▼1</span></div>
+      <div class="ui-row"><span class="ui-rank">4</span><span class="ui-nm">K. Olsen</span><span class="ui-sc">85.8</span><span class="ui-mv dn">▼3</span></div>
+    </div>
+
+    <p class="body" style="margin-top:1.2rem">
+      This card sits under the dials and shows <em>your real club</em> - your top six at a chosen
+      position under your current settings. It re-sorts live as you drag. The arrow is how many
+      places each player has moved <b>against my order</b>, so green means your weighting rates them
+      higher than mine does.
+    </p>
+    <p class="body muted">
+      Change the position from the dropdown on the card. It's the fastest way to sanity-check a
+      change: if a tweak sends someone you know is good tumbling down the list, that's your answer.
+    </p>
+  </section>
+
+  <!-- ───────────────────────── STAT WEIGHTS ───────────────────────── -->
+  <section id="stats">
+    <div class="eyebrow">Advanced</div>
+    <h2 class="sec-title">Stat weights, position by position</h2>
+    <p class="sec-sub">Everything from here on lives under <b>Advanced</b>, folded away until you want it.</p>
+
+    <p class="body">
+      Pick a position and you get a slider for each of the six face stats. This is where you say
+      what a position actually needs: that your centre backs must be quick, that your CDMs live or
+      die on passing, that shooting barely matters at full back.
+    </p>
+
+    <div class="ui">
+      <div class="ui-lab">Stat weights · CB</div>
+      <div class="ui-chips">
+        <span class="ui-chip">PAC <b>7</b></span>
+        <span class="ui-chip">SHO <b>1</b></span>
+        <span class="ui-chip">PAS <b>4</b></span>
+        <span class="ui-chip">DRI <b>3</b></span>
+        <span class="ui-chip hi">DEF <b>10</b></span>
+        <span class="ui-chip">PHY <b>9</b></span>
+      </div>
+    </div>
+
+    <ul class="dot" style="margin-top:1.2rem">
+      <li><b>Only the ratios matter</b>, not the scale. Doubling every number changes nothing at all -
+        what counts is that DEF 10 is worth ten times SHO 1.</li>
+      <li><b>Skill moves and weak foot</b> ride along as two light extra stats, so you can decide a
+        five-star weak foot is worth something at ST and nothing at CB.</li>
+      <li><b>Keepers are different.</b> Pick GK and you get the six goalkeeper stats instead, and no
+        skill moves or weak foot rows, because those never applied to keepers.</li>
+      <li>Positions you've edited get a <b>•</b> next to them in the dropdown, and each has its own
+        <b>Reset this position</b> so you can undo one without losing the rest.</li>
+    </ul>
+  </section>
+
+  <!-- ───────────────────────── PLAYSTYLES ───────────────────────── -->
+  <section id="playstyles">
+    <div class="eyebrow">Advanced</div>
+    <h2 class="sec-title">Your own PlayStyle list</h2>
+    <p class="sec-sub">The deepest control on the page, and the one that changes the score most.</p>
+
+    <p class="body">
+      Out of the box, each position is scored against a set of <b>roles</b> - an Advanced Forward
+      wants different PlayStyles from a Target Forward - and every card is judged by whichever role
+      it fits best. You can see the whole set on the
+      <a href="meta-rating.html" style="color:var(--emerald);text-decoration:none;border-bottom:1px solid rgba(79,227,172,0.4)">how the score works</a> page.
+    </p>
+    <p class="body">
+      If you disagree with those lists, take the position over. You get a weight slider for every
+      PlayStyle, you can <b>add any PlayStyle</b> that isn't there, and you can <b>remove</b> ones
+      you don't rate. It starts seeded with the numbers that position already uses, so you're
+      adjusting my opinion rather than starting from a blank page.
+    </p>
+
+    <div class="ui">
+      <div class="ui-lab">PlayStyle weights · CB</div>
+      <div class="ui-chips">
+        <span class="ui-chip hi">Anticipate <b>9</b></span>
+        <span class="ui-chip">Intercept <b>4</b></span>
+        <span class="ui-chip">Bruiser <b>3</b></span>
+        <span class="ui-chip">Jockey <b>3</b></span>
+        <span class="ui-chip hi">Rapid <b>5</b></span>
+        <span class="ui-chip">Block <b>3</b></span>
+      </div>
+    </div>
+
+    <div class="warn" style="margin-top:1.2rem">
+      <b>Know what taking over does.</b> A position with your own list <b>stops being scored by
+      role</b>. That's the point: once you've said which PlayStyles matter at CB and by how much,
+      there's nothing left for a role to be fitted against. Anything not on your list is worth
+      nothing at that position. Every other position carries on by role exactly as before, and
+      <b>"Score CB by role again"</b> hands it straight back whenever you want.
+    </div>
+
+    <p class="body muted" style="margin-top:1.2rem">
+      Two smaller notes. Keeper-only PlayStyles (Far Reach, Footwork, 1v1 Close Down, Cross Claimer,
+      Deflector) are only offered for GK. And a PlayStyle+ still counts your weight multiplied by the
+      PlayStyle+ dial, so those two settings work together.
+    </p>
+  </section>
+
+  <!-- ───────────────────────── CURVE ───────────────────────── -->
+  <section id="curve">
+    <div class="eyebrow">Advanced</div>
+    <h2 class="sec-title">Role priority curve</h2>
+    <p class="sec-sub">How much credit a role's ordered list gives each rank.</p>
+
+    <p class="body">
+      Every role lists its PlayStyles in priority order. These four numbers decide what each rank in
+      that list earns. My baseline is <b>4 / 3 / 2 / 1</b>: the top two PlayStyles score 4, the next
+      two score 3, the next two score 2, and everything else scores 1.
+    </p>
+
+    <div class="split">
+      <div class="card">
+        <div class="card-h">Steepen it</div>
+        <p>Try <b>6 / 2 / 1 / 0</b>. Only a role's top couple of PlayStyles really count, and owning
+        the rest earns you nothing. Use this if you think one or two PlayStyles define a role and the
+        rest is noise.</p>
+      </div>
+      <div class="card">
+        <div class="card-h">Flatten it</div>
+        <p>Try <b>3 / 3 / 2 / 2</b>. Anything a role considers relevant counts for nearly the same.
+        Use this if you'd rather reward a well-rounded card than a specialist.</p>
+      </div>
+    </div>
+
+    <p class="body muted" style="margin-top:1rem">
+      This has no effect on a position where you've taken over the PlayStyle list, since that
+      position is no longer using roles at all.
+    </p>
+  </section>
+
+  <!-- ───────────────────────── DRAFT ───────────────────────── -->
+  <section id="draft">
+    <div class="eyebrow">Advanced</div>
+    <h2 class="sec-title">Squad Builder draft</h2>
+    <p class="sec-sub">Why your Gauntlet squads move less than your rankings do.</p>
+
+    <p class="body">
+      The Squad Builder doesn't draft purely on the score. It uses a blend that deliberately leans
+      on raw OVR - <b>60% by default</b> - because when you're filling several squads you generally
+      want your strongest cards starting, with role fit settling the close calls.
+    </p>
+    <p class="body">
+      That's why you can retune the score heavily, watch your rankings transform, and find your
+      Gauntlet squads looking much the same. If you want those squads to follow your weighting
+      properly, <b>drop this to 0-20%</b>.
+    </p>
+  </section>
+
+  <!-- ───────────────────────── RECIPES ───────────────────────── -->
+  <section id="recipes">
+    <div class="eyebrow">Put it together</div>
+    <h2 class="sec-title">Worked examples</h2>
+    <p class="sec-sub">Four opinions about football, and the settings that express them.</p>
+
+    <div class="split">
+      <div class="recipe">
+        <h3>"Pace beats everything"</h3>
+        <p class="want">You think a quick centre back who can't head a ball still beats a slow monster who can.</p>
+        <div class="do">
+          <div>Advanced → Stat weights → <b>CB</b></div>
+          <div>Drag <b>PAC</b> up to 10-12</div>
+          <div>Drag <b>PHY</b> down to 5</div>
+          <div>Repeat for <b>RB / LB</b></div>
+        </div>
+        <p class="why"><b>Watch:</b> set Who this moves to CB. Your quickest defenders should climb several places.</p>
+      </div>
+
+      <div class="recipe">
+        <h3>"Only PlayStyles matter"</h3>
+        <p class="want">You think face stats are noise and the meta is decided by which PlayStyle+ a card carries.</p>
+        <div class="do">
+          <div>Preset → <b>PlayStyle maxxer</b></div>
+          <div>Push <b>Balance</b> further to 15 / 85</div>
+          <div>Raise <b>A PlayStyle+ is worth</b> to 5-6&times;</div>
+          <div>Raise <b>Full marks needs</b> to 7</div>
+        </div>
+        <p class="why"><b>Why the last one:</b> with a low ceiling, cards with three good pluses all hit full marks together. Raising it keeps rewarding the fourth and fifth.</p>
+      </div>
+
+      <div class="recipe">
+        <h3>"My CBs need Anticipate, full stop"</h3>
+        <p class="want">You have a specific read on what wins duels, and my role lists don't match it.</p>
+        <div class="do">
+          <div>Advanced → PlayStyle weights → <b>CB</b></div>
+          <div><b>Use my own list for CB</b></div>
+          <div>Anticipate to <b>9</b>, Intercept to <b>6</b></div>
+          <div>Remove the ones you don't rate, add <b>Rapid</b> at 5</div>
+        </div>
+        <p class="why"><b>Remember:</b> CB now scores on this list alone. Anything you removed is worth zero there.</p>
+      </div>
+
+      <div class="recipe">
+        <h3>"Make my Gauntlet squads follow me"</h3>
+        <p class="want">You've tuned the score, but the squads the builder produces still look OVR-led.</p>
+        <div class="do">
+          <div>Advanced → <b>Squad Builder draft</b></div>
+          <div>Drag <b>Lean on OVR</b> down to 0-20%</div>
+          <div>Reopen the Squad Builder</div>
+        </div>
+        <p class="why"><b>Trade-off:</b> at 0% a high-rated card with the wrong PlayStyles can end up on the bench. That may be exactly what you want.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── ELSEWHERE ───────────────────────── -->
+  <section id="elsewhere">
+    <div class="eyebrow">Across the hub</div>
+    <h2 class="sec-title">What changes elsewhere</h2>
+    <p class="sec-sub">Your weighting doesn't stay on the settings page. Everything that ranks or names a score follows it.</p>
+
+    <div class="ui">
+      <div class="ui-lab">The score pill on a player card</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="ui-pill gold">JUSTAINO 88.4 · ST</span>
+        <span class="ui-pill">MY SCORE 91.2 · ST</span>
+      </div>
+    </div>
+
+    <ul class="dot" style="margin-top:1.2rem">
+      <li><b>Rankings</b> re-sort, and the note underneath tells you which score ranked them and the
+        exact mix it used.</li>
+      <li><b>Best XI</b> redrafts on your numbers, and so does the depth chart behind it.</li>
+      <li><b>The Squad Builder</b> drafts on your score, blended with OVR as above.</li>
+      <li><b>The score pill</b> on a player card, on both desktop and phone, reads MY SCORE.</li>
+      <li><b>Squads you create in game</b> are named <b>"My Score Squad 1"</b> rather than borrowing
+        mine, so you can tell which ruleset built them. Remove still catches both kinds.</li>
+      <li><b>The Club Dashboard's</b> top-score record follows too.</li>
+    </ul>
+  </section>
+
+  <!-- ───────────────────────── GOTCHAS ───────────────────────── -->
+  <section id="gotchas">
+    <div class="eyebrow">Before you go deep</div>
+    <h2 class="sec-title">Things to watch</h2>
+    <p class="sec-sub">None of these will break anything. They're the places where the maths behaves in a way you might not expect.</p>
+
+    <div class="warn">
+      <b>A very short PlayStyle list makes scores swingy.</b> Your list also sets the ceiling that
+      the 0-100 score is measured against. Strip a position down to three PlayStyles and any card
+      owning them will score enormously, while everyone else collapses. That's why taking a position
+      over seeds you with the full list rather than an empty one.
+    </div>
+
+    <div class="warn">
+      <b>Settings live in this browser only.</b> They're not stored on your EA account, so they don't
+      follow you to another device, and clearing site data clears them. Nothing in the game is ever
+      touched by changing them.
+    </div>
+
+    <div class="warn">
+      <b>If the browser's storage is full, saving fails.</b> The EA web app fills it with its own
+      console history. The page will tell you plainly when this happens, and how to free space up.
+      Until you do, your changes work but won't survive a reload.
+    </div>
+
+    <div class="warn">
+      <b>The score is a judgement, not a fact.</b> Mine included. It reads a card's stats and
+      PlayStyles against an opinion about the meta - it can't know that a card feels wrong on the
+      pitch. Use it to sort a big club quickly, not to overrule what you've seen in a game.
+    </div>
+  </section>
+
+  <!-- ───────────────────────── FAQ ───────────────────────── -->
+  <section id="faq">
+    <div class="eyebrow">Loose ends</div>
+    <h2 class="sec-title">Questions</h2>
+
+    <details>
+      <summary>Can I lose my tuning by switching back to the Justaino Score?</summary>
+      <p>No. The switch only changes which score is <em>active</em>. Your values sit safely underneath
+      and come straight back when you switch again. The only thing that erases them is
+      <b>Reset to Justaino</b>, which asks first.</p>
+    </details>
+
+    <details>
+      <summary>Do I have to press Save?</summary>
+      <p>There's no Save button. Everything applies and saves the moment you move it, which is what
+      makes the live re-ranking possible. Closing the page just takes you back to your rankings.</p>
+    </details>
+
+    <details>
+      <summary>Does any of this change my club or my players?</summary>
+      <p>No. The Score Customiser only changes how the tool <em>ranks</em> what you already own.
+      It never applies an evolution, never edits a card, and never touches your active squad. The one
+      thing it influences that writes to your account is the <em>contents</em> of a squad you
+      explicitly choose to create from the Best XI or Squad Builder page.</p>
+    </details>
+
+    <details>
+      <summary>Why did my Best XI change more than my Gauntlet squads?</summary>
+      <p>Because they're drafted differently on purpose. Best XI ranks on the score itself, while the
+      Squad Builder blends the score with raw OVR so your strongest cards start. Drop
+      <b>Advanced → Squad Builder draft → Lean on OVR</b> to bring them into line.</p>
+    </details>
+
+    <details>
+      <summary>I customised one position. What happens to the others?</summary>
+      <p>Nothing. Every setting is stored per position, so tuning CB leaves ST exactly as it was.
+      The same is true of PlayStyle lists: taking CB over doesn't affect how any other position is
+      scored.</p>
+    </details>
+
+    <details>
+      <summary>What does the • next to a position mean?</summary>
+      <p>You've edited that position. It's there so you can tell at a glance which ones you've
+      changed and which are still on my numbers, without opening each one.</p>
+    </details>
+
+    <details>
+      <summary>If the Justaino Score gets retuned for a new season, do my settings break?</summary>
+      <p>No, and this was deliberate. Only the values you actually changed are stored. Anything you
+      left alone follows my updated numbers automatically, so you inherit a seasonal retune for
+      everything except the parts you had an opinion about.</p>
+    </details>
+  </section>
+
+  <div class="cta">
+    <h2>Ready to disagree with me?</h2>
+    <p>Install the hub, load your club, and start with the Balance slider.</p>
+    <a class="install-btn" href="index.html">Get the tool</a>
+  </div>
+
+  <p class="foot">
+    Men Gallant FC · Justaino FC Hub<br>
+    <a href="meta-rating.html">How the score works</a> &nbsp;·&nbsp;
+    <a href="features.html">All features</a> &nbsp;·&nbsp;
+    <a href="index.html">Install</a>
+  </p>
+
+</div>
+</body>
+</html>
