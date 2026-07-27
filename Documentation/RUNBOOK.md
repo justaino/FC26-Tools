@@ -455,7 +455,8 @@ actually accept.
 
 Two fixes so the builder starts your best cards (see the `CHANGELOG` for the plain-English version):
 - **OVR-aware draft.** The draft ranks by `draftScoreFromScore(sc)` = `DRAFT_OVR_MIX * OVR +
-  (1 - DRAFT_OVR_MIX) * Justaino`, `DRAFT_OVR_MIX = 0.6`. `scorePlayer` / the Meta rating tab are
+  (1 - DRAFT_OVR_MIX) * Justaino`. **`DRAFT_OVR_MIX` was 0.6 here in v20; it is 0.1 as of v32** -
+  see the note in §3q. (The live value is `CFG.draftOvrMix`, editable in the Score Customiser.) `scorePlayer` / the Meta rating tab are
   untouched; the Justaino score is still what's displayed. Candidates carry a `disp` (Justaino) field
   through `chemPick`, stored as `cell.score` so the pitch "JS" and disc-colour tiers stay Justaino.
 - **Icons.** `isIcon(it)` = `it.leagueId === 2118` (discovered live - no `isIcon()` method, and
@@ -736,7 +737,13 @@ Folded away by default, under the impact list. Four things live here:
 - **Your own PlayStyle weights, per position** - see below.
 - **Role priority curve** - the four `rankCurve` numbers behind `roleWeightsFromList`.
 - **Squad Builder draft** (`draftOvrMix`) - how much those squads lean on OVR rather than the score.
-  This is why Gauntlet squads shift LESS than the Rankings when you retune.
+  **Default lowered from 0.6 to 0.1 in v32.** The 0.6 was set in v20 to stop high-OVR icons (few
+  PlayStyles) being benched, but at that time the score ITSELF carried 35% OVR, so 0.6 really meant
+  ~74% OVR. We cut `OVR_MIX` twice afterwards and never revisited this. Measuring a real 546-player
+  club also showed "60%" behaving like ~47%, because a weighted average only splits influence evenly
+  when both inputs have a similar SPREAD (OVR spread 11.75 vs score spread 20.2; the 28-point gap
+  between their averages is a constant that cancels out). At 0.1 the Gauntlet draft follows the
+  active score, with OVR as a light nudge for genuine near-ties.
 
 **The nested-write trap.** `setScoreValue("statWeights", {...})` would REPLACE the whole override
 object, wiping every other position you'd tuned. `setNestedWeight(table, group, key, value)` reads,

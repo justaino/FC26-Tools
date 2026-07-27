@@ -724,11 +724,19 @@
   // better-fitting one. Set it to 0 to ignore OVR entirely.
   var OVR_MIX  = 0.01;
 
-  // DRAFT_OVR_MIX: the SQUAD BUILDER's own blend (NOT the Justaino Score). The draft wants the
-  // strongest cards to start, so it leans on OVR while letting Justaino/role-fit shape near-ties.
-  // 0 = pure Justaino, 1 = pure OVR. Lives up here with the other knobs so SCORE_DEFAULTS (below)
+  // DRAFT_OVR_MIX: the SQUAD BUILDER's own blend (NOT the Justaino Score itself).
+  // 0 = pure score, 1 = pure OVR. Lives up here with the other knobs so SCORE_DEFAULTS (below)
   // can read it; it's USED by draftScoreFromScore() down in the Squad Builder section.
-  var DRAFT_OVR_MIX = 0.6;
+  //
+  // History, because the number moved for a reason: it was 0.6 from v20, chosen to stop high-OVR
+  // icons (few PlayStyles) being benched by meta-kitted lower-rated cards. BUT at that time the
+  // score itself carried 35% OVR, so 0.6 really meant ~74% OVR. We since cut OVR_MIX to 0.01 and
+  // never revisited this, and measuring a real 546-player club showed the "60%" was behaving like
+  // ~47% anyway (OVR spread 11.75 vs score spread 20.2 - only SPREAD moves a ranking, and the gap
+  // between the two averages is a constant that cancels out).
+  // Now 0.1: the Gauntlet draft should follow the active score (Justaino or your own), with OVR
+  // left as a light nudge for genuine near-ties. Adjustable live in Score Customiser -> Advanced.
+  var DRAFT_OVR_MIX = 0.1;
 
   // ----------------------------------------------------------------------------
   // FEATURE 5 (step 1 of 5) - CUSTOM SCORE: the config store

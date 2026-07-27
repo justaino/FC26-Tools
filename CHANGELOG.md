@@ -5,6 +5,26 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v32 - 2026-07-27
+
+**Gauntlet squads now follow the score instead of leaning on OVR.**
+
+- **The Squad Builder draft is now led by the Justaino Score (or your own).** It used to blend 60%
+  raw OVR into its picks; that's now **10%**, just enough to give the better card the shirt when two
+  players are genuinely level. Expect high-rated cards with few useful PlayStyles to lose their
+  place to better-kitted ones, especially icons.
+- **Why it changed:** the 60% was set back in v20 to stop icons being benched - but at that time the
+  score itself already carried 35% OVR, so 60% really meant about 74%. The score's OVR has since
+  been cut twice (down to 1%), and this number was never revisited. Measuring a real 546-player club
+  showed the "60%" was actually behaving like 47%, because what moves a ranking is how much the
+  numbers *spread*, not the label on the dial.
+- You can still set this yourself in **Score Customiser → Advanced → Squad Builder draft**. Turn it
+  up if you'd rather the builder simply started your strongest cards.
+- The Score Customiser guide on the website has been updated to match, including a worked example
+  of why this particular dial reads higher than it behaves.
+
+---
+
 ## v31 - 2026-07-27
 
 **Advanced tuning: set the stat weights per position, and say exactly which PlayStyles matter.**

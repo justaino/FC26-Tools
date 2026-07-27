@@ -529,15 +529,37 @@
     <p class="sec-sub">Why your Gauntlet squads move less than your rankings do.</p>
 
     <p class="body">
-      The Squad Builder doesn't draft purely on the score. It uses a blend that deliberately leans
-      on raw OVR - <b>60% by default</b> - because when you're filling several squads you generally
-      want your strongest cards starting, with role fit settling the close calls.
+      The Squad Builder doesn't draft purely on the score. It blends in a little raw OVR - <b>10% by
+      default</b> - so that when two players are genuinely level on merit, the better card gets the
+      shirt. The other 90% is whichever score is active, so your squads follow your weighting.
     </p>
     <p class="body">
-      That's why you can retune the score heavily, watch your rankings transform, and find your
-      Gauntlet squads looking much the same. If you want those squads to follow your weighting
-      properly, <b>drop this to 0-20%</b>.
+      <b>Turn it up</b> if you'd rather the builder simply started your strongest cards and used the
+      score only to settle close calls. At high values a well-kitted lower-rated player will lose
+      their place to a big name with the wrong PlayStyles - which may be exactly what you want when
+      you're filling several squads at once.
     </p>
+
+    <div class="example">
+      <div class="ex-h"><span class="ex-num">2</span> Why the number lies a little</div>
+      <div class="ex-eq">
+        This setting is a weighted average of two numbers that <b>aren't on the same scale</b>, and
+        only the <em>spread</em> of a number affects the order things come out in.
+        <div style="margin-top:0.9rem">
+          Measured on a real 546-player club: OVR averaged <b>81.6</b> with a spread of <b>11.75</b>,
+          while the score averaged <b>53.8</b> with a spread of <b>20.2</b>.
+        </div>
+        <div style="margin-top:0.5rem">
+          The 28-point gap between those averages does nothing at all - it's a constant, and it
+          cancels out. The score's wider spread is what does the work, which meant a setting once
+          labelled 60% was really behaving like <span class="res">47%</span>.
+        </div>
+      </div>
+      <p class="ex-small">
+        So treat this dial as a direction rather than a precise percentage. The reliable test is the
+        one below: build the same formation at two settings and see how many shirts change hands.
+      </p>
+    </div>
   </section>
 
   <!-- ───────────────────────── RECIPES ───────────────────────── -->
@@ -584,14 +606,14 @@
       </div>
 
       <div class="recipe">
-        <h3>"Make my Gauntlet squads follow me"</h3>
-        <p class="want">You've tuned the score, but the squads the builder produces still look OVR-led.</p>
+        <h3>"Just start my best cards"</h3>
+        <p class="want">You're filling three Gauntlet squads and you'd rather the big names played than the perfectly-kitted squad players.</p>
         <div class="do">
           <div>Advanced → <b>Squad Builder draft</b></div>
-          <div>Drag <b>Lean on OVR</b> down to 0-20%</div>
+          <div>Drag <b>Lean on OVR</b> up to 50-70%</div>
           <div>Reopen the Squad Builder</div>
         </div>
-        <p class="why"><b>Trade-off:</b> at 0% a high-rated card with the wrong PlayStyles can end up on the bench. That may be exactly what you want.</p>
+        <p class="why"><b>By default this sits at 10%</b>, so squads follow your score. Turning it up hands the shirt back to the higher-rated card whenever it's close.</p>
       </div>
     </div>
   </section>
@@ -681,10 +703,12 @@
     </details>
 
     <details>
-      <summary>Why did my Best XI change more than my Gauntlet squads?</summary>
-      <p>Because they're drafted differently on purpose. Best XI ranks on the score itself, while the
-      Squad Builder blends the score with raw OVR so your strongest cards start. Drop
-      <b>Advanced → Squad Builder draft → Lean on OVR</b> to bring them into line.</p>
+      <summary>Do my Gauntlet squads follow my weighting too?</summary>
+      <p>Yes. The Squad Builder drafts on whichever score is active, with only a light 10% pull
+      toward raw OVR to settle genuine near-ties. If you'd rather it simply started your
+      highest-rated cards, turn <b>Advanced → Squad Builder draft → Lean on OVR</b> up.</p>
+      <p>One difference worth knowing: the Best XI page ranks on the score alone, with no OVR pull at
+      all, so the two can still disagree slightly at the margins.</p>
     </details>
 
     <details>
