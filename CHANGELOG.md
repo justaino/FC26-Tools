@@ -5,6 +5,48 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v36 - 2026-07-30
+
+**The PlayStyle Deck is now a board, grouped like fut.gg.**
+
+- Every PlayStyle appears **once**, as a diamond, under the same six headings fut.gg uses:
+  Finishing, Passing, Defending, Ball control, Physical, Goalkeeping. The category name sits
+  above its row, with a tally on the right of what the card holds there (`2+ 3` = two
+  PlayStyle+, three basics).
+- **Colour tells you everything at a glance.** Gold filled = the card has the PlayStyle+.
+  White filled = it has the basic. White with a small gold **+** on the corner = it has the
+  basic and the upgrade is still open. Dim = it hasn't got it.
+- **A ring is something you've queued** - gold for a PlayStyle+, cyan for a basic. So the rule
+  is: a solid fill is always a fact about the card, a ring is always something you're about to
+  spend. Dashed and faded means it can't be added right now, because that cap is full.
+- **The PlayStyle+ / Basic switch stays, but it no longer changes what you see.** The board
+  always shows the whole card; the switch only decides what a **tap adds**, and it's tinted by
+  what that costs (gold for PS+, cyan for basic). Switching sides never clears what you queued.
+- **This fixes a real trap.** The old Basic tab hid which styles you'd already upgraded to +,
+  so it was easy to queue a basic you'd long since passed. Now you can see it.
+- Goalkeeping is hidden for outfielders (with a small note saying so). Goalkeepers still see
+  every category, because general evos apply to them too, exactly as in the game.
+- **Suggest reads better**: its picks light up as rings across the whole board on one screen
+  instead of being split over two tabs.
+- Nothing about applying changed - same caps, same Suggest, same Apply, same batch.
+
+**Bigger icons, and Intercept's blank icon is fixed.**
+
+- The PlayStyle pictograms are much larger in the new diamonds - 42px diamonds on desktop,
+  46px on a phone.
+- Basic **Intercept** used to show as an empty diamond. That one's on EA: their own stylesheet
+  defines the icon for all 36 PlayStyle+ versions but only 35 of the basics, and the one it
+  leaves out is Intercept.
+- The panel now checks which icons the game actually defines and, where one is missing,
+  **borrows the other version of the same PlayStyle** - the same picture, so nothing looks odd.
+  It covers every icon in the panel, not just the deck, and if EA ever add the missing one we
+  pick theirs up automatically.
+- Console, if you're curious: `FC26.iconCheck()` lists any icons the game doesn't define and
+  what we're drawing instead; `FC26.checkBoard()` proves all 36 PlayStyles are on the board
+  exactly once.
+
+---
+
 ## v35 - 2026-07-30
 
 **Applied PlayStyles now show up instantly, every time.**

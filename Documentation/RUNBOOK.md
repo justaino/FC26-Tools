@@ -996,6 +996,114 @@ through EA's lag.
 
 ---
 
+## 3u. New in v36 - the categorised PlayStyle board
+
+The deck used to be a flat A-to-Z grid of square tiles, shown one tab at a time. It's now a
+**board**: one diamond per PlayStyle, grouped under the six categories fut.gg uses.
+
+### How to read a diamond
+
+The rule behind the colours, and the thing to remember:
+
+> **A solid fill is a fact about the card. A ring is something you're about to spend.**
+
+| Look | Meaning |
+|---|---|
+| Gold, filled | The card has this as a **PlayStyle+** |
+| White, filled | The card has the **basic** version |
+| White with a small gold **+** on the corner | Has the basic, and the upgrade to + is still available |
+| Dim | The card hasn't got it |
+| **Gold ring** | You've queued it to be added as a PlayStyle+ |
+| **Cyan ring** | You've queued it to be added as a basic |
+| Dashed and faded | Can't be added right now: that cap is full, or it's GK-only and this is an outfielder |
+
+A diamond the card **already owns stays solid and simply isn't tappable** - it doesn't fade.
+That's deliberate: fading facts would make the whole board look dead once a cap is full.
+
+### The PlayStyle+ / Basic switch
+
+It's still there, but it no longer changes **what you see** - the board always shows the whole
+card. It decides only **what a tap adds**, so it's tinted by cost: gold on the PlayStyle+ side,
+cyan on Basic. Switching sides never clears what you've queued.
+
+This is the real win over the old two tabs: the Basic tab used to **hide** which styles you
+already had as a +, so it was easy to queue a basic you'd already upgraded past.
+
+### The category table
+
+`PS_CATEGORIES` near the top of `fc26-tools.js`, right after `psByName` / `pspByName`:
+
+```js
+{ c: "Finishing", gk: 0, ps: ["Finesse Shot", "Chip Shot", ...] }
+```
+
+- `c` is the heading, `ps` are **base names spelled exactly as in the `PS` catalog** (that's the
+  key `psByName` / `pspByName` are built on), and `gk:1` marks the Goalkeeping row.
+- The Goalkeeping six are precisely our six `g:1` evos, so hiding the whole category for an
+  outfielder needs no extra data. A goalkeeper still sees every category, because general evos
+  apply to keepers too - same as the game.
+- fut.gg calls **1v1 Close Down** "Rush Out". We keep our name: it's what the game's own evo
+  list shows, so it matches what you tap.
+- `BOARD_SHORT` just below holds shorter labels for names that won't fit under a diamond
+  (4 across in a 286px pane). A name that's missing from it is untidy, never broken - the label
+  ellipsis-clips in CSS.
+
+**After editing either table, run this in the Console:**
+
+```js
+FC26.checkBoard()
+```
+
+`ok: true`, `total: 36`, `catalog: 36`, and empty `missing` / `unknown` / `duplicated` means the
+table still covers the catalog exactly. `unknown` catches a mistyped name.
+
+### Category labels sit ABOVE the row
+
+fut.gg puts them in a left gutter, but that needs about 140px and the deck pane is 286px wide -
+a gutter would leave room for roughly two diamonds per row. So the label sits above its row with
+a hairline rule, and the figure on the right is what the card holds in that category: `2+ 3`
+means two PlayStyle+ and three basics.
+
+### The Intercept icon gap (and the general fix)
+
+Basic Intercept used to draw as an **empty diamond**. The cause is in **EA's own stylesheet**:
+it defines 71 PlayStyle icon rules - all 36 `icon_icontraitN`, but only **35** `icon_basetraitN`,
+with `icon_basetrait16` missing entirely. Trait 16 is Intercept. Nothing we can style fixes a
+class that was never written.
+
+So every PlayStyle icon in the panel now goes through one helper:
+
+```js
+psIco(traitId, isPlus)   // -> the finished <i class='ico ...'></i>
+```
+
+It scans once, at startup, for which of those classes the app actually defines (`ICON_CLASSES`),
+and when the one it wants is missing it **borrows the other variant of the same PlayStyle** - the
+same pictogram, so nothing looks out of place. If EA ever fills the gap we pick up their real icon
+with no code change. If the scan can't read the stylesheets at all (a cross-origin sheet throws),
+it behaves exactly as before and asks for what it wanted.
+
+Nine places draw these icons and all of them route through the helper: the board, the spotlight
+card's chips, the Lineup and Rankings PS+ strips, the apply queue tiles, the apply summary chips,
+the batch tiles, the mobile card and the GH-4th tiles.
+
+```js
+FC26.iconCheck()
+```
+
+Returns the number of rules found in the app plus every gap and what we're drawing instead.
+Expect one gap today: Intercept's basic, drawing `icon_icontrait16`.
+
+### Sizing
+
+A square rotated 45° only has room for a level square about 70% of its width, so the icon is
+sized against **that**, not the box: a 42px diamond gives roughly 30px of usable space. Desktop is
+42px / 30px, a phone is 46px / 33px (5 across instead of 4, but wider cells). `overflow:visible`
+lets a wide glyph breathe past the rotated edge rather than clip. To go bigger than this, drop to
+3 diamonds per row rather than growing the diamond.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

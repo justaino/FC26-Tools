@@ -558,9 +558,64 @@
     });
   }
 
+  // ---- PLAYSTYLE ICONS (and the gap in EA's own stylesheet) ------------------
+  // The app draws PlayStyle pictograms from its own "UltimateTeam-Icons" font using one
+  // class per PlayStyle: icon_basetraitN for the basic, icon_icontraitN for the "+"
+  // version, where N is the traitId (rewardId - 301).
+  //
+  // EA's stylesheet has a HOLE in it. Confirmed live: it defines 71 of these rules - all
+  // 36 icontrait ones, but only 35 basetrait, with **icon_basetrait16 missing entirely**.
+  // Trait 16 is Intercept, which is exactly the PlayStyle that was drawing as an empty
+  // diamond. Nothing we can style fixes a class that was never written.
+  //
+  // So: scan once for the classes the app actually defines, and when the one we want is
+  // missing, borrow the OTHER variant of the same PlayStyle. It's the same pictogram, so
+  // nothing looks out of place. If the scan can't read the stylesheets (some may be
+  // cross-origin and throw), we behave exactly as before and ask for what we wanted.
+  var ICON_CLASSES = (function () {
+    var found = { __count: 0 };
+    function walk(rules) {
+      for (var i = 0; i < rules.length; i++) {
+        var r = rules[i];
+        if (r.cssRules) { try { walk(r.cssRules); } catch (e) {} }        // @media etc - look inside
+        if (!r.selectorText) continue;
+        var m = r.selectorText.match(/icon_(?:base|icon)trait\d+/g);
+        if (m) { for (var j = 0; j < m.length; j++) { found[m[j]] = 1; found.__count++; } }
+      }
+    }
+    try {
+      for (var s = 0; s < document.styleSheets.length; s++) {
+        try { walk(document.styleSheets[s].cssRules || []); } catch (e) {}  // cross-origin sheet - skip it
+      }
+    } catch (e) {}
+    return found;
+  })();
+
+  // psIcoClass(traitId, isPlus): the icon class to actually use, after the fallback.
+  function psIcoClass(traitId, isPlus) {
+    var want = (isPlus ? "icon_icontrait" : "icon_basetrait") + traitId;
+    if (!ICON_CLASSES.__count || ICON_CLASSES[want]) return want;   // scan failed, or the class exists
+    var alt = (isPlus ? "icon_basetrait" : "icon_icontrait") + traitId;
+    return ICON_CLASSES[alt] ? alt : want;                          // borrow the other variant's glyph
+  }
+  // psIco(traitId, isPlus): the finished <i> tag, ready to drop into innerHTML. Every
+  // PlayStyle icon in the panel goes through here, so a gap anywhere is covered once.
+  function psIco(traitId, isPlus) { return "<i class='ico " + psIcoClass(traitId, isPlus) + "'></i>"; }
+
   // Expose for Console poking while we build.
   window.FC26.getClubPlayers = getClubPlayers;
   window.FC26.state = state;
+  // window.FC26.iconCheck() -> which PlayStyle icons the app's OWN css doesn't define, and
+  // what we're drawing instead. Expect exactly one gap: Intercept's basic (traitId 16).
+  window.FC26.iconCheck = function () {
+    var gaps = [];
+    PS.forEach(function (x) {
+      var t = x.r - TRAIT_OFFSET;
+      if (!ICON_CLASSES["icon_basetrait" + t]) gaps.push({ playStyle: x.n, traitId: t, missing: "basic", drawingInstead: psIcoClass(t, false) });
+      if (!ICON_CLASSES["icon_icontrait" + t]) gaps.push({ playStyle: x.n, traitId: t, missing: "plus", drawingInstead: psIcoClass(t, true) });
+    });
+    return { rulesFoundInTheApp: ICON_CLASSES.__count, gaps: gaps.length ? gaps : "none - every PlayStyle has both icons" };
+  };
   // Feature 1 (rarity table) Console helpers:
   //   window.FC26.getRarityDefs()      -> the full [{id,name,searchable}] list read at startup
   //   window.FC26.reloadRarityDefs()   -> re-read it from the app (and redraw the picker)
@@ -1149,6 +1204,60 @@
   var psByName = {}, pspByName = {};
   PS.forEach(function (x) { psByName[x.n] = x; });
   PSP.forEach(function (x) { pspByName[x.n.replace(/\+$/, "")] = x; });
+
+  // ----------------------------------------------------------------------------
+  // THE PLAYSTYLE BOARD - the six categories (fut.gg's grouping)
+  // ----------------------------------------------------------------------------
+  // The deck used to be one flat A-to-Z grid per tab. It's now grouped under the same
+  // six headings fut.gg uses on a player page, so a card reads at a glance.
+  //
+  // Names below are the BASE names, spelled EXACTLY as they appear in the PS catalog
+  // above, because that's the key `psByName` / `pspByName` are built on. All 36 appear
+  // once, nothing left over and nothing duplicated - `FC26.checkBoard()` proves it from
+  // the Console, so a typo here can't go unnoticed.
+  //
+  // The Goalkeeping six are precisely the six flagged g:1 in the catalog, so hiding that
+  // whole category for an outfielder needs no new data - hence gk:1 on the row.
+  //
+  // fut.gg calls "1v1 Close Down" -> "Rush Out". We keep OUR name: it's what the game's
+  // own evolution list shows, so it matches what you tap in the app.
+  var PS_CATEGORIES = [
+    { c: "Finishing",    gk: 0, ps: ["Finesse Shot", "Chip Shot", "Power Shot", "Dead Ball", "Precision Header", "Acrobatic", "Low Driven Shot", "Gamechanger"] },
+    { c: "Passing",      gk: 0, ps: ["Incisive Pass", "Pinged Pass", "Long Ball Pass", "Tiki Taka", "Whipped Pass", "Inventive"] },
+    { c: "Defending",    gk: 0, ps: ["Jockey", "Block", "Intercept", "Anticipate", "Slide Tackle", "Aerial Fortress"] },
+    { c: "Ball control", gk: 0, ps: ["Technical", "Rapid", "First Touch", "Trickster", "Press Proven"] },
+    { c: "Physical",     gk: 0, ps: ["Quick Step", "Relentless", "Long Throw", "Bruiser", "Enforcer"] },
+    { c: "Goalkeeping",  gk: 1, ps: ["Far Throw", "Footwork", "Cross Claimer", "1v1 Close Down", "Far Reach", "Deflector"] }
+  ];
+
+  // BOARD_SHORT: shorter labels for the names that won't fit under a diamond (the board
+  // is 4 across in a 286px pane). Anything not listed here uses its full name; the label
+  // also ellipsis-clips in CSS, so a missing entry is untidy, never broken.
+  var BOARD_SHORT = {
+    "Finesse Shot": "Finesse", "Chip Shot": "Chip", "Power Shot": "Power",
+    "Precision Header": "Header", "Low Driven Shot": "Low Driven", "Gamechanger": "Gamechngr",
+    "Incisive Pass": "Incisive", "Pinged Pass": "Pinged", "Long Ball Pass": "Long Ball",
+    "Whipped Pass": "Whipped", "Slide Tackle": "Slide", "Aerial Fortress": "Aerial",
+    "First Touch": "First Tch", "Press Proven": "Press Prvn",
+    "Cross Claimer": "Cross Clm", "1v1 Close Down": "1v1 Close"
+  };
+
+  // window.FC26.checkBoard() -> proves the table above still covers the catalog exactly.
+  // Returns { ok, total, missing, unknown, duplicated }. ok:true and total:36 is correct.
+  // Run it after ever editing PS_CATEGORIES or the PS catalog.
+  window.FC26.checkBoard = function () {
+    var seen = {}, dupes = [], unknown = [], total = 0;
+    PS_CATEGORIES.forEach(function (cat) {
+      cat.ps.forEach(function (n) {
+        total++;
+        if (seen[n]) dupes.push(n); else seen[n] = 1;
+        if (!psByName[n] || !pspByName[n]) unknown.push(n);   // name not in the catalog (typo?)
+      });
+    });
+    var missing = PS.filter(function (x) { return !seen[x.n]; }).map(function (x) { return x.n; });
+    return { ok: !dupes.length && !unknown.length && !missing.length && total === PS.length,
+             total: total, catalog: PS.length, missing: missing, unknown: unknown, duplicated: dupes };
+  };
 
   // ----------------------------------------------------------------------------
   // FEATURE 4b - limited "one-off" PlayStyle+ reward evos (e.g. the GH 4th PlayStyle+)
@@ -2825,7 +2934,7 @@
       if (!list.length) return "";
       var chips = list.map(function (e) {
         return "<span class='pv-chip" + (isPlus ? " plus" : "") + "'>" +
-          "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + e.traitId + "'></i>" +
+          psIco(e.traitId, isPlus) +
           esc(e.name) + "</span>";
       }).join("");
       return "<div class='pv-group'><div class='pv-gl'>" + label + "</div>" +
@@ -2975,7 +3084,7 @@
       // can see a card's PS+ at a glance without opening it. Uses the game icon font.
       var psPlus = effectivePlayStyles(it).filter(function (p) { return p.isIcon; });
       var psHTML = psPlus.length
-        ? "<span class='pl-ps'>" + psPlus.map(function (p) { return "<i class='ico icon_icontrait" + p.traitId + "'></i>"; }).join("") + "</span>"
+        ? "<span class='pl-ps'>" + psPlus.map(function (p) { return psIco(p.traitId, true); }).join("") + "</span>"
         : "";
       // The position badge sits right AFTER the name (like the Meta list) - the name
       // truncates and the badge stays put, so it never crowds the PS+ icons on the right.
@@ -3196,8 +3305,13 @@
   evoList.style.cssText = "margin-top:6px;overflow:auto;display:flex;flex-direction:column;gap:3px";
 
   function updateEvoCount() {
-    var sp = selectedCount("PS+"), sb = selectedCount("PS");
-    evoCount.textContent = (sp + sb) + " selected (" + sp + " PS+, " + sb + " PS)";
+    var sp = selectedCount("PS+"), sb = selectedCount("PS"), it = state.player;
+    // Reads "2 queued · PS+ 2/4 · Basic 7/8": what you're about to spend, then what the
+    // card already holds. The caps half is dropped when no player is picked.
+    var bits = [];
+    if (sp + sb) bits.push((sp + sb) + " queued (" + sp + " PS+, " + sb + " basic)");
+    if (it) bits.push("PS+ " + numPlus(it) + "/" + Math.max(CAP_PLUS, numPlus(it)) + " · Basic " + numBasic(it) + "/" + CAP_BASIC);
+    evoCount.textContent = bits.length ? bits.join(" · ") : "0 queued";
     if (typeof updateGuide === "function") updateGuide();   // keep the mobile guide button / Review gate live
     if (typeof updateApplyBtn === "function") updateApplyBtn();   // enable/disable "Apply selected" by selection
   }
@@ -3219,48 +3333,130 @@
     renderEvos();
   }
 
-  // renderEvos(): (re)build the active tab's tickable list, applying all the rules:
-  //   - already-owned        -> disabled (would error if applied)
-  //   - GK-only on a non-GK  -> disabled
-  //   - once a kind's cap is reached, remaining unticked ones of that kind -> disabled
+  // renderEvos(): (re)build THE BOARD - one diamond per PlayStyle, grouped under the six
+  // categories, fut.gg style. This replaced the old "one flat grid per tab" deck.
+  //
+  // THE IDEA IN ONE LINE: the board always shows the whole truth of the card; the
+  // PlayStyle+ / Basic switch above it no longer changes what you SEE, only what a tap ADDS.
+  //
+  // How to read a diamond (the rule is: solid fill = a FACT about the card, a ring =
+  // something you're ABOUT TO SPEND):
+  //   gold filled     - the card has this as a PlayStyle+
+  //   white filled    - the card has the basic version
+  //   white with a +  - has the basic, and the upgrade to + is still available
+  //   dim             - the card doesn't have it
+  //   gold ring       - you've queued it to be added as a PlayStyle+
+  //   cyan ring       - you've queued it to be added as a basic
+  //   dashed + faded  - can't be added right now (that cap is full, or it's GK-only)
+  //
+  // Why this is better than the old two tabs: the Basic tab used to HIDE which styles you
+  // already had as +, so it was easy to queue a basic you'd already upgraded past.
+  //
+  // All the rules are exactly as before - owned can't be re-added, GK-only evos are
+  // out of scope for outfielders, and each cap blocks further picks of that kind.
   function renderEvos() {
-    // Active tab uses the emerald accent with dark text; inactive stays a faint wash.
-    tabPlus.style.background = state.tab === "PS+" ? "var(--accent)" : "transparent";
-    tabPlus.style.color = state.tab === "PS+" ? "var(--accent-ink)" : "var(--muted)";
-    tabBase.style.background = state.tab === "PS" ? "var(--accent)" : "transparent";
-    tabBase.style.color = state.tab === "PS" ? "var(--accent-ink)" : "var(--muted)";
+    // The switch is now "what does a tap add?", so it's tinted by cost: gold for the
+    // PlayStyle+ side, accent for Basic. Inactive stays a faint wash.
+    var plusMode = state.tab === "PS+";
+    tabPlus.style.background = plusMode ? "var(--gold)" : "transparent";
+    tabPlus.style.color = plusMode ? "#2a1e00" : "var(--muted)";
+    tabBase.style.background = plusMode ? "transparent" : "var(--accent)";
+    tabBase.style.color = plusMode ? "var(--muted)" : "var(--accent-ink)";
     evoList.innerHTML = "";
     var it = state.player;
     if (typeof updateGhVisibility === "function") { try { updateGhVisibility(); } catch (e) {} }   // show/hide the GH-4th section for this player
     if (!it) { evoList.innerHTML = "<div style='opacity:.7'>Select a player above to choose evolutions.</div>"; updateEvoCount(); return; }
     var gk = isGKPlayer(it);
-    var list = state.tab === "PS+" ? PSP : PS;
-    var capReached = state.tab === "PS+"
-      ? (numPlus(it) + selectedCount("PS+") >= CAP_PLUS)
-      : (numBasic(it) + selectedCount("PS") >= CAP_BASIC);
-    var isPlus = state.tab === "PS+";
-    // Build a 3-column grid of icon tiles (styles live in the injected <style>).
-    var grid = document.createElement("div");
-    grid.className = "fc26-grid";
-    list.forEach(function (evo) {
-      var owned = hasEvo(it, evo);
-      var wrongScope = !!evo.g && !gk;            // GK-only evo, but player is not a GK
-      var selected = state.selected.has(evo.s);
-      var disabled = owned || wrongScope || (capReached && !selected);
-      var reason = owned ? "already owned" : wrongScope ? "GK-only evo" : (disabled ? "cap full" : "");
-      var nm = evo.n.replace(/\+$/, "");          // name implies the kind via the tab
-      var tile = document.createElement("div");
-      tile.className = "fc26-ec" + (isPlus ? " psp" : "") + (selected ? " sel" : "") + (disabled ? " dis" : "");
-      tile.title = nm + (reason ? " - " + reason : "");
-      // the <i> uses the app's PlayStyle icon font via icon_basetraitN / icon_icontraitN
-      tile.innerHTML =
-        "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + evoTrait(evo) + "'></i>" +
-        "<div class='nm'>" + esc(nm) + "</div>" +
-        (owned ? "<span class='own'>✓</span>" : "");
-      if (!disabled) { tile.addEventListener("click", function () { toggleEvo(evo, !state.selected.has(evo.s)); }); }
-      grid.appendChild(tile);
+    // Both caps, worked out once: what the card holds PLUS what's already queued.
+    var plusFull = numPlus(it) + selectedCount("PS+") >= CAP_PLUS;
+    var baseFull = numBasic(it) + selectedCount("PS") >= CAP_BASIC;
+    var capReached = plusMode ? plusFull : baseFull;   // the cap that applies to a tap right now
+    var hidGK = false;                                  // did we drop the Goalkeeping row?
+
+    PS_CATEGORIES.forEach(function (cat) {
+      // The Goalkeeping six ARE our six GK-only evos, so the whole category simply
+      // disappears for an outfielder (a GK still sees every category - general evos
+      // apply to keepers too, same as the game).
+      if (cat.gk && !gk) { hidGK = true; return; }
+
+      var block = document.createElement("div");
+      block.className = "ps-cat";
+      var board = document.createElement("div");
+      board.className = "ps-board";
+      var ownPlus = 0, ownBase = 0;                     // how much of this category the card already holds
+
+      cat.ps.forEach(function (name) {
+        var base = psByName[name], plus = pspByName[name];
+        if (!base || !plus) return;                     // name not in the catalog - see FC26.checkBoard()
+
+        // What's TRUE about the card, and what's QUEUED, for both versions of this style.
+        var hasPlus = hasEvo(it, plus), hasBase = hasEvo(it, base);
+        var selPlus = state.selected.has(plus.s), selBase = state.selected.has(base.s);
+        if (hasPlus) ownPlus++; else if (hasBase) ownBase++;
+
+        // What a tap would do, in the mode you're currently in.
+        var target = plusMode ? plus : base;
+        var targetOwned = plusMode ? hasPlus : hasBase;
+        var targetSel = plusMode ? selPlus : selBase;
+        var wrongScope = !!base.g && !gk;               // GK-only style on an outfielder
+        var blocked = wrongScope || (capReached && !targetSel);
+        var canTap = !targetOwned && !blocked;
+
+        // Classes. Note "off" (dashed + faded) is only for a diamond with nothing to
+        // report: if the card already HAS the style, we keep it solid and simply don't
+        // let you tap it - fading a fact would make the board look dead at full caps.
+        var cls = "ps-item";
+        if (hasPlus) cls += " has-plus";
+        else if (hasBase) cls += " has-basic";
+        if (hasBase && !hasPlus && !plusFull) cls += " up";   // upgrade to + still available
+        if (selPlus) cls += " sel-plus";                       // gold ring wins if somehow both are queued
+        else if (selBase) cls += " sel-basic";
+        if (blocked && !hasPlus && !hasBase) cls += " off";
+        if (!canTap) cls += " nope";
+
+        // Plain-English tooltip: the fact first, then what a tap would do.
+        var tip = name + " - " + (hasPlus ? "has the PlayStyle+" : hasBase ? "has the basic" : "not on this card");
+        if (selPlus && selBase) tip += "; queued as BOTH basic and PS+";
+        else if (selPlus) tip += "; queued as PS+";
+        else if (selBase) tip += "; queued as basic";
+        else if (targetOwned) tip += "; already has the " + (plusMode ? "PS+" : "basic");
+        else if (wrongScope) tip += "; goalkeepers only";
+        else if (blocked) tip += "; " + (plusMode ? "PS+" : "basic") + " cap full";
+        else tip += "; tap to queue as " + (plusMode ? "PS+" : "basic");
+
+        // The icon is the app's own PlayStyle pictogram - the "+" artwork when the diamond
+        // is showing a PlayStyle+, the plain one otherwise.
+        var asPlus = hasPlus || selPlus;
+        var item = document.createElement("div");
+        item.className = cls;
+        item.title = tip;
+        item.innerHTML =
+          "<div class='ps-dia'>" + psIco(evoTrait(base), asPlus) + "</div>" +
+          "<div class='ps-nm'>" + esc(BOARD_SHORT[name] || name) + "</div>";
+        if (canTap) { item.addEventListener("click", function () { toggleEvo(target, !state.selected.has(target.s)); }); }
+        board.appendChild(item);
+      });
+
+      // Label ABOVE the row (fut.gg puts it in a left gutter, but that needs ~140px and
+      // the deck pane is 286px). Right-hand figure = what the card holds here, e.g.
+      // "2+ 3" for two PlayStyle+ and three basics.
+      var tally = [];
+      if (ownPlus) tally.push(ownPlus + "+");
+      if (ownBase) tally.push(String(ownBase));
+      var lab = document.createElement("div");
+      lab.className = "ps-catlab";
+      lab.innerHTML = "<span>" + esc(cat.c) + "</span><span class='ln'></span><i>" + (tally.join(" ") || "0") + "</i>";
+
+      block.appendChild(lab); block.appendChild(board);
+      evoList.appendChild(block);
     });
-    evoList.appendChild(grid);
+
+    if (hidGK) {
+      var foot = document.createElement("div");
+      foot.className = "ps-foot";
+      foot.textContent = "Goalkeeping hidden - outfielder";
+      evoList.appendChild(foot);
+    }
     updateEvoCount();
     if (typeof ghOpen !== "undefined" && ghOpen) { try { renderGHList(); } catch (e) {} }   // keep GH tiles' enabled/note in sync with the selected player
   }
@@ -3350,7 +3546,7 @@
       tile.type = "button";
       tile.className = "gh-tile" + (canApply ? "" : " dis");
       tile.disabled = !canApply;
-      tile.innerHTML = (trait != null ? "<i class='ico icon_icontrait" + trait + "'></i>" : "") + "<span>" + esc(label) + "</span>";
+      tile.innerHTML = (trait != null ? psIco(trait, true) : "") + "<span>" + esc(label) + "</span>";
       tile.title = "Apply " + esc(evo.name) + " to the selected player (one-off)";
       tile.addEventListener("click", function () { runGHApply(evo); });
       ghList.appendChild(tile);
@@ -3735,7 +3931,7 @@
       t.className = "fc26-ec" + (isPlus ? " psp" : "");
       var nm = evo ? evo.n.replace(/\+$/, "") : String(sid);
       t.innerHTML =
-        "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + (evo ? evoTrait(evo) : "") + "'></i>" +
+        (evo ? psIco(evoTrait(evo), isPlus) : "<i class='ico'></i>") +
         "<div class='nm'>" + esc(nm) + "</div><span class='ap-badge'></span>";
       grid.appendChild(t);
       return t;
@@ -3761,7 +3957,7 @@
       var isPlus = evo.kind === "PS+";
       var c = document.createElement("span");
       c.className = "ap-chip" + (isPlus ? " plus" : "");
-      c.innerHTML = "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + evoTrait(evo) + "'></i>" + esc(evo.n.replace(/\+$/, ""));
+      c.innerHTML = psIco(evoTrait(evo), isPlus) + esc(evo.n.replace(/\+$/, ""));
       chipsWrap.appendChild(c);
       return c;
     });
@@ -3925,7 +4121,7 @@
           var evo = r.evo, isPlus = evo.kind === "PS+";
           var t = document.createElement("div"); t.className = "fc26-ec" + (isPlus ? " psp" : "");
           t.innerHTML =
-            "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + evoTrait(evo) + "'></i>" +
+            psIco(evoTrait(evo), isPlus) +
             "<div class='nm'>" + esc(evo.n.replace(/\+$/, "")) + "</div><span class='ap-badge'></span>";
           grid.appendChild(t);
           rows.push({ slotId: r.slotId, evo: evo, tileEl: t });
@@ -4330,6 +4526,51 @@
       "#fc26-panel .fc26-ec.psp .ico{color:var(--gold)}" +
       "#fc26-panel .fc26-ec .nm{font-size:9px;line-height:1.15;color:var(--ink);opacity:.85;word-break:break-word;text-transform:uppercase;letter-spacing:.03em}" +
       "#fc26-panel .fc26-ec .own{position:absolute;top:3px;right:4px;font-size:10px;color:#67e08a}" +
+      // ---- THE PLAYSTYLE BOARD (categorised diamonds) --------------------------
+      // See renderEvos() for how to read one. The rule the colours follow:
+      //   solid fill = a FACT about the card    ring = something you're ABOUT TO SPEND
+      // Category label sits ABOVE its row with a hairline and the owned tally.
+      "#fc26-panel .ps-cat{margin-bottom:11px}" +
+      "#fc26-panel .ps-catlab{display:flex;align-items:center;gap:7px;font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}" +
+      "#fc26-panel .ps-catlab .ln{flex:1;height:1px;background:var(--border)}" +
+      "#fc26-panel .ps-catlab i{font-style:normal;color:var(--gold);opacity:.85;letter-spacing:.06em;font-variant-numeric:tabular-nums}" +
+      // 4 diamonds per row in the 286px desktop pane, 5 on a phone (more width there).
+      "#fc26-panel .ps-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}" +
+      "#fc26-panel.fc26-mobile .ps-board{grid-template-columns:repeat(5,minmax(0,1fr))}" +
+      "#fc26-panel .ps-item{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;cursor:pointer;user-select:none}" +
+      "#fc26-panel .ps-item.nope{cursor:default}" +
+      // The diamond itself: a rounded square rotated 45deg, with the icon spun back level.
+      // Sizing note: a square rotated 45deg only has room for a level square about 70% of
+      // its width (36 / 1.41 = 25px), so the icon is sized against THAT, not the 36px box.
+      // overflow:visible lets a wide glyph breathe past the rotated edge rather than clip.
+      "#fc26-panel .ps-dia{position:relative;overflow:visible;width:42px;height:42px;margin:10px 0 9px;transform:rotate(45deg);border-radius:9px;display:grid;place-items:center;background:var(--tile);border:1px solid var(--tile-border);transition:.1s}" +
+      "#fc26-panel .ps-item:hover .ps-dia{border-color:var(--accent)}" +
+      "#fc26-panel .ps-item.nope:hover .ps-dia{border-color:var(--tile-border)}" +
+      "#fc26-panel .ps-dia .ico{transform:rotate(-45deg);font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:30px;line-height:1;color:var(--icon);opacity:.9}" +
+      // A phone row is 5 across but each cell is wider there, so the diamonds go up a size.
+      "#fc26-panel.fc26-mobile .ps-dia{width:46px;height:46px}" +
+      "#fc26-panel.fc26-mobile .ps-dia .ico{font-size:33px}" +
+      "#fc26-panel .ps-nm{font-size:8px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}" +
+      // FACT: the card has the basic (white) / the PlayStyle+ (gold).
+      "#fc26-panel .ps-item.has-basic .ps-dia{background:var(--ink);border-color:var(--ink)}" +
+      "#fc26-panel .ps-item.has-basic .ps-dia .ico{color:var(--accent-ink);opacity:1}" +
+      "#fc26-panel .ps-item.has-basic .ps-nm{color:var(--ink)}" +
+      "#fc26-panel .ps-item.has-plus .ps-dia{background:var(--gold);border-color:var(--gold)}" +
+      "#fc26-panel .ps-item.has-plus .ps-dia .ico{color:#2a1e00;opacity:1}" +
+      "#fc26-panel .ps-item.has-plus .ps-nm{color:var(--gold)}" +
+      // ABOUT TO SPEND: queued as basic (accent ring) / queued as PlayStyle+ (gold ring).
+      "#fc26-panel .ps-item.sel-basic .ps-dia{background:var(--sel);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}" +
+      "#fc26-panel .ps-item.sel-basic .ps-dia .ico{color:var(--accent);opacity:1}" +
+      "#fc26-panel .ps-item.sel-basic .ps-nm{color:var(--accent)}" +
+      "#fc26-panel .ps-item.sel-plus .ps-dia{background:var(--tile-psp);border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}" +
+      "#fc26-panel .ps-item.sel-plus .ps-dia .ico{color:var(--gold);opacity:1}" +
+      "#fc26-panel .ps-item.sel-plus .ps-nm{color:var(--gold)}" +
+      // Has the basic, and the upgrade to + is still open: a small gold + on the corner.
+      "#fc26-panel .ps-item.up .ps-dia::after{content:'+';position:absolute;right:-14px;top:-14px;transform:rotate(-45deg);width:16px;height:16px;border-radius:50%;background:var(--gold);color:#2a1e00;font-size:12px;font-weight:800;display:grid;place-items:center;line-height:1}" +
+      // Can't be added right now (cap full / GK-only) AND the card hasn't got it either.
+      "#fc26-panel .ps-item.off{opacity:.32}" +
+      "#fc26-panel .ps-item.off .ps-dia{border-style:dashed}" +
+      "#fc26-panel .ps-foot{font-size:9.5px;color:var(--muted);opacity:.75;margin-top:2px}" +
       // ---- apply progress (tiles spin -> tick) + result summary ----------------
       "#fc26-panel .fc26-ec .ap-badge{position:absolute;top:3px;right:4px;width:14px;height:14px;border-radius:50%;display:grid;place-items:center;font-size:9px;opacity:0;transform:scale(.4)}" +
       "#fc26-panel .fc26-ec.applying{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset,0 0 14px rgba(79,227,172,.45)}" +
@@ -5072,7 +5313,7 @@
     effectivePlayStyles(it).forEach(function (p) { (p.isIcon ? plus : basic).push({ traitId: p.traitId, name: traitName[p.traitId] || ("trait " + p.traitId) }); });
     function groupHTML(label, list, isPlus) {
       if (!list.length) return "";
-      var chips = list.map(function (e) { return "<span class='pv-chip" + (isPlus ? " plus" : "") + "'><i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + e.traitId + "'></i>" + esc(e.name) + "</span>"; }).join("");
+      var chips = list.map(function (e) { return "<span class='pv-chip" + (isPlus ? " plus" : "") + "'>" + psIco(e.traitId, isPlus) + esc(e.name) + "</span>"; }).join("");
       return "<div class='pv-group'><div class='pv-gl'>" + label + "</div><div class='pv-chips'>" + chips + "</div></div>";
     }
     var noneMsg = (!plus.length && !basic.length) ? "<div class='pv-none'>No PlayStyles yet.</div>" : "";
@@ -5256,7 +5497,7 @@
       // strip of the player's actual PlayStyle+ icons only (same as the lineup list),
       // so it honestly shows how many PS+ they have - NOT every owned meta PlayStyle.
       var psPlus = effectivePlayStyles(it).filter(function (p) { return p.isIcon; });
-      var psHTML = psPlus.map(function (p) { return "<i class='ico icon_icontrait" + p.traitId + "'></i>"; }).join("");
+      var psHTML = psPlus.map(function (p) { return psIco(p.traitId, true); }).join("");
       row.innerHTML =
         "<span class='meta-rank'>" + r.rank + "</span>" +
         "<span class='meta-ovr'>" + (it.rating != null ? it.rating : "?") + "</span>" +
