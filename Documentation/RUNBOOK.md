@@ -1420,6 +1420,64 @@ edits + regenerate + rebuild for you.
 
 ---
 
+## 7c. The changelog page (`changelog.html`)
+
+A page on the site that shows the release history: a timeline with the newest release open and
+every older one collapsed to its headline, plus search and New / Fixed filters.
+
+**It has no copy of its own.** It fetches `CHANGELOG.md` - the same file you already update on
+every release - and renders it in the browser. So there is nothing to keep in step: write the
+changelog entry as normal, push, and the page is current. No generated file, no second place to
+edit, and `release.js` doesn't need to know about it.
+
+### What the reader understands
+
+Only what the changelog actually uses, so keep writing entries the way you already do:
+
+| Markdown | Becomes |
+|---|---|
+| `## v37 - 2026-07-30` | a new release on the timeline (this is what splits the file up) |
+| `**A whole line in bold.**` | a section headline inside that release |
+| `### Sub-heading` | a smaller gold sub-heading (only the older v9-v13 entries use these) |
+| `- bullet` | a bullet; wrapped lines indented two spaces are joined back on |
+| `  - nested bullet` | a nested bullet |
+| `**bold**`, `*italic*`, `` `code` `` | inline formatting |
+| `---` | ignored (it's just a separator) |
+
+Two rules worth knowing when you write an entry:
+
+- A headline must be **bold for the whole line**. A line that merely *starts* bold
+  (`**For maintenance:** node minify.js now...`) is treated as a paragraph, which is what you want.
+- The release heading must match `## vN - YYYY-MM-DD` exactly, or that release won't appear.
+
+### New / Fixed tags
+
+Nothing in the markdown records which a release was, so the page works it out from the words:
+a headline that describes something being put right gets **Fixed**, anything else gets **New**,
+and a release that did both gets both. Some fixes are written as good news ("Applied PlayStyles
+now show up instantly"), so when a headline reads like new work the page also checks that
+section's **first bullet** for an unambiguous fix word. Only the first bullet - go deeper and
+almost everything reads as a fix, because most entries explain what used to happen.
+
+If a release ever gets tagged wrong, the honest fix is to reword the headline. The word lists are
+`FIX_WORDS` and `FIX_BODY` in the page.
+
+### Testing it locally
+
+The page reads a neighbouring file, so **opening it by double-clicking won't work** - browsers
+block a `file://` page from reading the file next to it. The page says so plainly rather than
+showing a blank screen. To test properly:
+
+```bash
+cd "/Users/justaino/Claude Project/FC26 Tools"
+python3 -m http.server 8000
+# then open http://localhost:8000/changelog.html
+```
+
+Each release has a permalink: `changelog.html#v29` opens v29 and scrolls to it.
+
+---
+
 ## 8. Troubleshooting
 
 | Symptom | Fix |
@@ -1446,6 +1504,7 @@ edits + regenerate + rebuild for you.
 - `meta-rating.html` - the meta-rating transparency page (generated - see below).
 - `meta-page.js` - regenerates `meta-rating.html` from the live weight tables (`node meta-page.js`, §7b).
   **Its footer links to `score-customiser.html`, so edit the link there, not in the generated HTML.**
+- `changelog.html` - the release-history page (§7c). Reads `CHANGELOG.md` live, so it needs no upkeep.
 - `score-customiser.html` - the Peks Lab guide (§3q). **Filename kept on purpose** after the v33
   rename so the published URL doesn't break; only the wording inside changed. **Hand-written, not generated**, so if
   you change a baseline number (the 50/50 mix, the 1% OVR tiebreak, 3.5x, the ceiling of 5) or add a

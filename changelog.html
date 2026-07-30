@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<title>Men Gallant FC - Justaino FC Hub - Changelog</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Inter:wght@400;500;600&display=swap');
+
+  /* Same palette + fonts as the install page (index.html) so all the pages match. */
+  :root {
+    --bg: #0b0d10;
+    --surface: #13161b;
+    --border: #1f242c;
+    --gold: #f0c040;
+    --gold-dim: #c49a20;
+    --accent: #00c6ff;
+    --emerald: #4fe3ac;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --green: #22c55e;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+
+  .wrap { width: 100%; max-width: 780px; margin: 0 auto; }
+
+  /* ── Top bar ── */
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5rem; }
+  .back-link {
+    color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500;
+    border-bottom: 1px solid transparent; transition: color 0.15s, border-color 0.15s;
+  }
+  .back-link:hover { color: var(--text); border-bottom-color: var(--border); }
+  .install-btn {
+    background: var(--gold); color: #1a1206; text-decoration: none; font-weight: 600;
+    font-size: 0.85rem; padding: 8px 16px; border-radius: 8px; transition: background 0.15s;
+  }
+  .install-btn:hover { background: var(--gold-dim); }
+
+  /* ── Hero ── */
+  .badge {
+    display: inline-block; font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    font-size: 0.7rem; letter-spacing: 0.18em; color: var(--gold); text-transform: uppercase;
+    background: rgba(240,192,64,0.08); border: 1px solid rgba(240,192,64,0.2);
+    padding: 4px 12px; border-radius: 20px; margin-bottom: 1.25rem;
+  }
+  h1 {
+    font-family: 'Rajdhani', sans-serif; font-size: clamp(2rem, 6vw, 3.2rem);
+    font-weight: 700; line-height: 1.05; margin-bottom: 0.7rem;
+  }
+  h1 span { color: var(--gold); }
+  .lede { color: var(--muted); font-size: 0.98rem; line-height: 1.65; max-width: 60ch; }
+
+  /* ── Controls: search + filter pills ── */
+  .controls { margin: 2rem 0 0.5rem; display: flex; flex-direction: column; gap: 0.7rem; }
+  .search {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px;
+  }
+  .search svg { flex: none; opacity: 0.5 }
+  .search input {
+    flex: 1; min-width: 0; background: none; border: 0; outline: none;
+    color: var(--text); font-family: 'Inter', sans-serif; font-size: 0.9rem;
+  }
+  .search input::placeholder { color: var(--muted); }
+  .search button {
+    flex: none; background: none; border: 0; color: var(--muted); cursor: pointer;
+    font-size: 1rem; line-height: 1; padding: 2px 4px; display: none;
+  }
+  .search button:hover { color: var(--text); }
+  .search.has-text button { display: block; }
+
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .fpill {
+    background: none; border: 1px solid var(--border); border-radius: 999px;
+    color: var(--muted); font-family: 'Inter', sans-serif; font-size: 0.78rem;
+    padding: 5px 13px; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .fpill:hover { color: var(--text); }
+  .fpill.on { background: var(--border); color: var(--text); border-color: var(--border); }
+  .expand-all {
+    margin-left: auto; background: none; border: 0; color: var(--muted);
+    font-family: 'Inter', sans-serif; font-size: 0.78rem; cursor: pointer; padding: 5px 2px;
+    border-bottom: 1px solid transparent;
+  }
+  .expand-all:hover { color: var(--accent); border-bottom-color: rgba(0,198,255,0.4); }
+
+  .resultline { color: var(--muted); font-size: 0.8rem; min-height: 1.1rem; }
+  .resultline b { color: var(--text); font-weight: 600; }
+
+  /* ── The timeline ── */
+  .timeline { position: relative; margin-top: 1.6rem; padding-left: 1.55rem; }
+  .timeline::before {
+    content: ""; position: absolute; left: 4px; top: 8px; bottom: 8px;
+    width: 1px; background: var(--border);
+  }
+  .rel { position: relative; padding-bottom: 1.3rem; scroll-margin-top: 1.5rem; }
+  .rel::before {
+    content: ""; position: absolute; left: -1.55rem; top: 7px;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--bg); border: 2px solid var(--border);
+  }
+  .rel.latest::before { background: var(--gold); border-color: var(--gold); }
+
+  .relmeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 0.55rem; }
+  .vchip {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 0.8rem;
+    letter-spacing: 0.04em; padding: 2px 9px; border-radius: 6px;
+    background: rgba(240,192,64,0.10); border: 1px solid rgba(240,192,64,0.30);
+    color: var(--gold); font-variant-numeric: tabular-nums;
+  }
+  .rel.latest .vchip { background: var(--gold); border-color: var(--gold); color: #1a1400; }
+  .vdate { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+  .tag {
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted);
+  }
+  .tag.new { color: var(--green); border-color: rgba(34,197,94,0.4); }
+  .tag.fix { color: var(--accent); border-color: rgba(0,198,255,0.35); }
+  .permalink {
+    margin-left: auto; color: var(--border); text-decoration: none; font-size: 0.85rem;
+    padding: 0 4px; transition: color 0.15s;
+  }
+  .permalink:hover, .rel:hover .permalink { color: var(--muted); }
+
+  /* collapsed: one clickable line with the headline */
+  .fold {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    width: 100%; text-align: left; cursor: pointer;
+    background: none; border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 14px; color: var(--muted);
+    font-family: 'Inter', sans-serif; font-size: 0.88rem; line-height: 1.4;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .fold:hover { border-color: var(--gold-dim); background: var(--surface); }
+  .fold b { color: var(--text); font-weight: 600; }
+  .fold .more { flex: none; color: var(--muted); font-size: 0.72rem; }
+  .fold .chev { flex: none; transition: transform 0.2s; }
+
+  /* expanded card */
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem;
+  }
+  .rel.latest .card { border-color: rgba(240,192,64,0.28); }
+  .sec + .sec { margin-top: 1rem; padding-top: 0.95rem; border-top: 1px solid var(--border); }
+  .sec h3 {
+    font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600;
+    color: var(--text); line-height: 1.35;
+  }
+  .sec h4 {
+    font-family: 'Rajdhani', sans-serif; font-size: 0.85rem; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold);
+    margin-top: 0.85rem;
+  }
+  .sec p { color: var(--muted); font-size: 0.86rem; line-height: 1.6; margin-top: 0.5rem; }
+  .sec ul { list-style: none; margin-top: 0.55rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .sec li {
+    position: relative; padding-left: 15px; color: var(--muted);
+    font-size: 0.86rem; line-height: 1.55;
+  }
+  .sec li::before {
+    content: ""; position: absolute; left: 3px; top: 0.62em;
+    width: 4px; height: 4px; border-radius: 50%; background: var(--border);
+  }
+  .sec li ul { margin-top: 0.4rem; }
+  .sec b { color: var(--text); font-weight: 600; }
+  .sec code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86em; background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; color: var(--text);
+  }
+  mark { background: rgba(240,192,64,0.28); color: var(--text); border-radius: 2px; }
+
+  /* ── States: loading / empty / error ── */
+  .state {
+    border: 1px dashed var(--border); border-radius: 12px;
+    padding: 2rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.9rem;
+    line-height: 1.6; margin-top: 1.6rem;
+  }
+  .state b { display: block; color: var(--text); font-size: 1rem; margin-bottom: 0.4rem; }
+  .state code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85em; color: var(--gold);
+  }
+  .state a { color: var(--accent); }
+
+  footer {
+    margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 0.8rem; line-height: 1.8; text-align: center;
+  }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  @media (max-width: 520px) {
+    body { padding: 1.5rem 0.9rem 3rem; }
+    .timeline { padding-left: 1.15rem; }
+    .rel::before { left: -1.15rem; }
+    .expand-all { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Top bar: back to install + quick install button (same as features.html) -->
+  <div class="topbar">
+    <a class="back-link" href="index.html">← Back to install</a>
+    <a class="install-btn" href="index.html">Get the tool</a>
+  </div>
+
+  <div class="badge">📜 Release history</div>
+  <h1>What's <span>changed</span></h1>
+  <p class="lede">
+    Every update to the Justaino FC Hub, newest first. The latest release is open below;
+    click any older one to read it. Search finds anything ever written here.
+  </p>
+
+  <div class="controls">
+    <div class="search" id="searchbox">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
+      </svg>
+      <input id="q" type="search" placeholder="Search the changelog..." autocomplete="off" aria-label="Search the changelog">
+      <button id="clear" type="button" aria-label="Clear search">&times;</button>
+    </div>
+    <div class="filters">
+      <button class="fpill on" data-filter="all" type="button">All</button>
+      <button class="fpill" data-filter="new" type="button">New</button>
+      <button class="fpill" data-filter="fix" type="button">Fixed</button>
+      <button class="expand-all" id="expandAll" type="button">Expand all</button>
+    </div>
+    <div class="resultline" id="resultline"></div>
+  </div>
+
+  <div id="out"></div>
+
+  <footer>
+    Men Gallant FC · Justaino FC Hub - a personal tool for the EA FC 26 Web App.<br>
+    <a href="features.html" style="color:var(--emerald);text-decoration:none">Everything it can do</a> &nbsp;·&nbsp;
+    <a href="meta-rating.html" style="color:var(--emerald);text-decoration:none">How the score works</a> &nbsp;·&nbsp;
+    <a href="score-customiser.html" style="color:var(--emerald);text-decoration:none">Peks Lab guide</a>
+  </footer>
+
+</div>
+
+<script>
+/* ============================================================================
+   CHANGELOG PAGE
+   ----------------------------------------------------------------------------
+   This page has NO copy of its own. It reads CHANGELOG.md - the same file that
+   gets updated with every release - and renders it. So there is nothing to keep
+   in step: ship a version, update the changelog as always, and this page is
+   current the moment it's pushed.
+
+   Three jobs below:
+     1. parseChangelog()  - turn the markdown into { version, date, sections[] }
+     2. tagFor()          - decide whether a release reads as New or Fixed
+     3. render()          - draw the timeline, honouring search + filter
+   ========================================================================== */
+
+/* ---- 1. THE MARKDOWN READER ------------------------------------------------
+   Only the handful of things CHANGELOG.md actually uses, nothing more:
+     ## v36 - 2026-07-30     a release heading (starts a new entry)
+     **Whole line bold.**    a section headline inside that release
+     ### Sub-heading         an older sub-heading style, kept for v9-v13
+     - bullet                a bullet, which may wrap onto indented lines
+       - nested bullet       (a handful of these exist)
+     plain text              a paragraph
+     ---                     a separator, ignored
+   Inline: **bold**, *italic* and `code`.
+--------------------------------------------------------------------------- */
+
+// esc(s): make text safe to drop into innerHTML. Everything the reader outputs
+// goes through here BEFORE any markup is added, so the file can never inject tags.
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c];
+  });
+}
+
+// inline(s): the small inline formats. Escaped first, so the tags we add are the
+// only tags there are. Code is done first because its contents shouldn't be
+// re-formatted, then bold (**) before italic (*) so ** never matches as two *.
+function inline(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/\*([^*]+)\*/g, "<i>$1</i>");
+}
+
+function parseChangelog(md) {
+  var lines = md.split(/\r?\n/);
+  var releases = [], rel = null, sec = null, para = [], list = null, item = null;
+
+  // A section is a headline plus the blocks under it. Releases that open with
+  // bullets before any headline get an untitled section, so nothing is dropped.
+  function newSection(title, kind) {
+    flushPara(); flushList();
+    sec = { title: title || "", kind: kind || "head", blocks: [] };
+    if (rel) rel.sections.push(sec);
+  }
+  function ensureSection() { if (!sec) newSection("", "head"); }
+  function flushPara() {
+    if (para.length && sec) sec.blocks.push({ t: "p", html: inline(para.join(" ")) });
+    para = [];
+  }
+  function flushList() {
+    if (list && sec) sec.blocks.push({ t: "ul", items: list });
+    list = null; item = null;
+  }
+
+  for (var i = 0; i < lines.length; i++) {
+    var raw = lines[i];
+    var line = raw.trim();
+
+    // ---- release heading: "## v36 - 2026-07-30"
+    var mv = line.match(/^##\s+v(\d+)\s*[-–]\s*(\d{4})-(\d{2})-(\d{2})\s*$/);
+    if (mv) {
+      flushPara(); flushList();
+      rel = { v: parseInt(mv[1], 10), iso: mv[2] + "-" + mv[3] + "-" + mv[4], sections: [] };
+      releases.push(rel);
+      sec = null;
+      continue;
+    }
+    if (!rel) continue;                                  // skip the file's own title + intro
+
+    if (!line || line === "---") { flushPara(); flushList(); continue; }
+
+    // ---- "### Sub-heading" (used by some of the older entries)
+    var mh = line.match(/^###\s+(.*)$/);
+    if (mh) { newSection(mh[1], "sub"); continue; }
+
+    // ---- a whole line in bold is a section headline. A line that merely STARTS
+    // bold ("**For maintenance:** node minify.js now...") is a paragraph, which
+    // is why this insists the bold closes at the end of the line.
+    var mb = line.match(/^\*\*(.+)\*\*$/);
+    if (mb && mb[1].indexOf("**") === -1) { newSection(mb[1], "head"); continue; }
+
+    // ---- bullets. Indent decides nesting: "- x" top level, "  - x" nested.
+    var ml = raw.match(/^(\s*)-\s+(.*)$/);
+    if (ml) {
+      ensureSection(); flushPara();
+      var nested = ml[1].length >= 2;
+      if (!list) list = [];
+      if (nested && item) {
+        item.kids = item.kids || [];
+        item.kids.push(ml[2]);
+      } else {
+        item = { text: ml[2], kids: null };
+        list.push(item);
+      }
+      continue;
+    }
+
+    // ---- an indented line under a bullet continues that bullet's sentence.
+    if (list && item && /^\s{2,}\S/.test(raw)) {
+      if (item.kids && item.kids.length) item.kids[item.kids.length - 1] += " " + line;
+      else item.text += " " + line;
+      continue;
+    }
+
+    // ---- anything else is a paragraph.
+    ensureSection(); flushList();
+    para.push(line);
+  }
+  flushPara(); flushList();
+
+  // Render each section's blocks to HTML once, up front, and keep a plain-text
+  // copy of the whole release for the search box to look through.
+  releases.forEach(function (r) {
+    var text = [];
+    r.sections.forEach(function (s) {
+      if (s.title) text.push(s.title);
+      s.html = s.blocks.map(function (b) {
+        if (b.t === "p") { text.push(b.html.replace(/<[^>]+>/g, "")); return "<p>" + b.html + "</p>"; }
+        return "<ul>" + b.items.map(function (it) {
+          text.push(it.text);
+          var kids = it.kids ? "<ul>" + it.kids.map(function (k) { text.push(k); return "<li>" + inline(k) + "</li>"; }).join("") + "</ul>" : "";
+          return "<li>" + inline(it.text) + kids + "</li>";
+        }).join("") + "</ul>";
+      }).join("");
+    });
+    r.search = ("v" + r.v + " " + text.join(" ")).toLowerCase();
+  });
+
+  return releases;
+}
+
+/* ---- 2. NEW OR FIXED -------------------------------------------------------
+   Nothing in the markdown records which a release was, so we read the headlines.
+   A headline that describes something being put right reads as "Fixed"; anything
+   else reads as "New". A release that did both gets both tags, which is honest -
+   most of them did.
+-------------------------------------------------------------------------- */
+var FIX_WORDS = /\b(fix|fixes|fixed|fixing|no longer|not any more|stops?|stopped|bug|blank|missing|disappear|vanish|wrong|broken|breaks?|correct(?:s|ed|ly)?|properly now|finally)\b/i;
+
+// Some fixes are written as the good news rather than the problem - v35's headline is
+// "Applied PlayStyles now show up instantly", which says nothing about a bug. So when a
+// headline looks like new work, we check its FIRST bullet for an unambiguous fix word
+// before settling. Only the first bullet: go deeper and almost everything reads as a fix,
+// because most entries explain what used to happen.
+var FIX_BODY = /\b(the bug|a bug|bug|fixed|fixes|no longer|was broken|stopped working|used to (?:break|fail|vanish|disappear))\b/i;
+
+function tagFor(rel) {
+  var fix = false, add = false;
+  rel.sections.forEach(function (s) {
+    if (!s.title) return;
+    var isFix = FIX_WORDS.test(s.title);
+    if (!isFix) {
+      var firstList = s.blocks.filter(function (b) { return b.t === "ul"; })[0];
+      if (firstList && firstList.items.length) isFix = FIX_BODY.test(firstList.items[0].text);
+    }
+    if (isFix) fix = true; else add = true;
+  });
+  if (!fix && !add) add = true;                          // a release with no headlines at all (v1)
+  return { fix: fix, add: add };
+}
+
+/* ---- 3. RENDER ------------------------------------------------------------- */
+var RELEASES = [];
+var state = { q: "", filter: "all", open: {}, expandAll: false };
+var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// firstBullet(rel): the opening bullet of a release, trimmed - used as the collapsed
+// summary for the one release (v1) written before headlines existed.
+function firstBullet(rel) {
+  for (var i = 0; i < rel.sections.length; i++) {
+    var b = rel.sections[i].blocks.filter(function (x) { return x.t === "ul"; })[0];
+    if (b && b.items.length) {
+      var t = b.items[0].text.replace(/\*\*/g, "").replace(/`/g, "");
+      return t.length > 78 ? t.slice(0, 76).replace(/[\s,.:;-]+$/, "") + "..." : t;
+    }
+  }
+  return "See what changed";
+}
+
+// prettyDate("2026-07-30") -> "30 Jul 2026"
+function prettyDate(iso) {
+  var p = iso.split("-");
+  return parseInt(p[2], 10) + " " + MONTHS[parseInt(p[1], 10) - 1] + " " + p[0];
+}
+
+// highlight(html, q): wrap search hits in <mark>, without ever matching inside a
+// tag - the negative lookahead skips anything followed by a ">" before the next "<".
+function highlight(html, q) {
+  if (!q) return html;
+  var safe = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return html.replace(new RegExp("(" + safe + ")(?![^<]*>)", "gi"), "<mark>$1</mark>");
+}
+
+function render() {
+  var out = document.getElementById("out");
+  var q = state.q.trim().toLowerCase();
+
+  var shown = RELEASES.filter(function (r) {
+    if (state.filter === "new" && !r.tags.add) return false;
+    if (state.filter === "fix" && !r.tags.fix) return false;
+    if (q && r.search.indexOf(q) === -1) return false;
+    return true;
+  });
+
+  // The result line only says something when it has something to say.
+  var rl = document.getElementById("resultline");
+  if (q || state.filter !== "all") {
+    rl.innerHTML = shown.length
+      ? "<b>" + shown.length + "</b> of " + RELEASES.length + " releases" + (q ? ' matching "' + esc(state.q.trim()) + '"' : "")
+      : "";
+  } else {
+    rl.innerHTML = "<b>" + RELEASES.length + "</b> releases, v1 to v" + RELEASES[0].v;
+  }
+
+  if (!shown.length) {
+    out.innerHTML = '<div class="state"><b>Nothing matches that</b>Try a different word, or clear the search to see all ' + RELEASES.length + " releases.</div>";
+    return;
+  }
+
+  var html = '<div class="timeline">';
+  shown.forEach(function (r, idx) {
+    // Open when: it's the newest release on the page, you've opened it, "Expand
+    // all" is on, or a search is running (hiding the hit you searched for would
+    // be perverse).
+    var open = state.expandAll || !!state.open[r.v] || !!q || (idx === 0 && state.filter === "all" && !q);
+    var latest = r.v === RELEASES[0].v;
+    var tags = (r.tags.add ? '<span class="tag new">New</span>' : "") + (r.tags.fix ? '<span class="tag fix">Fixed</span>' : "");
+
+    html += '<div class="rel' + (latest ? " latest" : "") + '" id="v' + r.v + '">';
+    html += '<div class="relmeta"><span class="vchip">v' + r.v + '</span>' +
+            '<span class="vdate">' + prettyDate(r.iso) + "</span>" + tags +
+            '<a class="permalink" href="#v' + r.v + '" aria-label="Link to v' + r.v + '">#</a></div>';
+
+    if (open) {
+      html += '<div class="card">';
+      r.sections.forEach(function (s) {
+        html += '<div class="sec">';
+        if (s.title) html += (s.kind === "sub" ? "<h4>" : "<h3>") + highlight(inline(s.title), q) + (s.kind === "sub" ? "</h4>" : "</h3>");
+        html += highlight(s.html, q);
+        html += "</div>";
+      });
+      html += "</div>";
+    } else {
+      var titled = r.sections.filter(function (s) { return s.title; });
+      var extra = titled.length - 1;
+      // The collapsed line shows the release's first headline. The very first release
+      // predates headlines, so fall back to its opening bullet, trimmed to fit.
+      var summary = titled.length ? titled[0].title : firstBullet(r);
+      html += '<button class="fold" type="button" data-v="' + r.v + '" aria-expanded="false">' +
+                "<span><b>" + inline(summary) + "</b></span>" +
+                (extra > 0 ? '<span class="more">+' + extra + " more</span>" : "") +
+                '<span class="chev" aria-hidden="true">▾</span>' +
+              "</button>";
+    }
+    html += "</div>";
+  });
+  html += "</div>";
+  out.innerHTML = html;
+
+  // Clicking a collapsed release opens it (and leaves it open).
+  Array.prototype.forEach.call(out.querySelectorAll(".fold"), function (btn) {
+    btn.addEventListener("click", function () {
+      state.open[btn.getAttribute("data-v")] = true;
+      render();
+    });
+  });
+}
+
+/* ---- Controls -------------------------------------------------------------- */
+var qInput = document.getElementById("q");
+var searchBox = document.getElementById("searchbox");
+
+qInput.addEventListener("input", function () {
+  state.q = qInput.value;
+  searchBox.classList.toggle("has-text", !!state.q);
+  render();
+});
+document.getElementById("clear").addEventListener("click", function () {
+  qInput.value = ""; state.q = ""; searchBox.classList.remove("has-text"); qInput.focus(); render();
+});
+Array.prototype.forEach.call(document.querySelectorAll(".fpill"), function (pill) {
+  pill.addEventListener("click", function () {
+    Array.prototype.forEach.call(document.querySelectorAll(".fpill"), function (p) { p.classList.remove("on"); });
+    pill.classList.add("on");
+    state.filter = pill.getAttribute("data-filter");
+    render();
+  });
+});
+var expandBtn = document.getElementById("expandAll");
+expandBtn.addEventListener("click", function () {
+  state.expandAll = !state.expandAll;
+  if (!state.expandAll) state.open = {};                 // collapsing again clears what was opened by hand
+  expandBtn.textContent = state.expandAll ? "Collapse all" : "Expand all";
+  render();
+});
+
+/* ---- Load the markdown ----------------------------------------------------- */
+document.getElementById("out").innerHTML = '<div class="state">Loading the changelog...</div>';
+
+fetch("CHANGELOG.md", { cache: "no-cache" })
+  .then(function (res) {
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.text();
+  })
+  .then(function (md) {
+    RELEASES = parseChangelog(md);
+    if (!RELEASES.length) throw new Error("no releases found");
+    RELEASES.forEach(function (r) { r.tags = tagFor(r); });
+    RELEASES.sort(function (a, b) { return b.v - a.v; });          // newest first, whatever order the file is in
+    render();
+    // Opened via a #v29 link? Open that release and scroll to it.
+    var hash = (location.hash || "").match(/^#v(\d+)$/);
+    if (hash) {
+      state.open[hash[1]] = true;
+      render();
+      var el = document.getElementById("v" + hash[1]);
+      if (el) el.scrollIntoView();
+    }
+  })
+  .catch(function (err) {
+    // The usual cause is opening this file straight off the hard drive: browsers
+    // won't let a file:// page read the file next to it. Say so, rather than
+    // showing an empty page and letting you wonder.
+    var local = location.protocol === "file:";
+    document.getElementById("out").innerHTML =
+      '<div class="state"><b>' + (local ? "Open this page from the site, not the file" : "Couldn't load the changelog") + "</b>" +
+      (local
+        ? "Your browser blocks a page opened from your hard drive from reading <code>CHANGELOG.md</code> next to it. " +
+          'View it on the live site, or run a local server from the project folder: <code>python3 -m http.server</code>, then open <code>localhost:8000/changelog.html</code>.'
+        : "<code>CHANGELOG.md</code> didn't load (" + esc(err.message) + "). It should sit next to this page in the repo.") +
+      "</div>";
+    document.getElementById("resultline").innerHTML = "";
+  });
+</script>
+</body>
+</html>
