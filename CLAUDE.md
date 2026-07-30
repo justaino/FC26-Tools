@@ -42,6 +42,20 @@ comment every block. Don't assume front-end knowledge.
   instead. Never hand me a change without a test for it.
 - You can't see the live app (it's behind login), so I run Console commands and
   paste output/errors back. That hand-off is normal - rely on it.
+- **Every Console command you give me must RETURN its answer, never just
+  `console.log` it.** A bare `console.log(...)` evaluates to `undefined`, so that's
+  all I see - the actual output is easy to miss or not shown at all on a mobile
+  console. Write it as an expression that ends in the value (wrap it in an IIFE that
+  `return`s an object if it needs several lines). For anything async, stash the
+  result on `window.__something`, return a "started, wait Ns" string right away, and
+  tell me the second command to run to read it. Also strip `//` comments from any
+  one-line paste - they swallow the rest of the line.
+- **Before I test anything, tell me to run `node minify.js` then
+  `pbcopy < bookmarklet.txt`** (from the project root) and give me the BUILD ID that
+  minify printed. Never tell me to copy out of the editor - it serves a cached copy
+  and I've already wasted a session testing stale code. The panel's header badge
+  shows the same `dev-xxxxxx` fingerprint, so I check the badge matches before
+  trusting any test result. `FC26.diag().build` reports it too.
 - **When a new feature is approved and committed, ALWAYS update `RUNBOOK.md` and
   `CHANGELOG.md` in the same change** - `RUNBOOK.md` with how to use/maintain it,
   `CHANGELOG.md` with a plain-English entry under the current install-page version
@@ -57,7 +71,10 @@ comment every block. Don't assume front-end knowledge.
 - `GIT-SAFETY-PROMPTS.md` - save-point / rollback prompts to protect working versions.
 - `fc26-tools.js` - **the thing we're building** (my output). Edit this.
 - `bookmarklet.txt` - the one-line bookmarklet version of fc26-tools.js for daily use.
-- `minify.js` - rebuilds `bookmarklet.txt` from the source (`node minify.js`).
+- `minify.js` - rebuilds `bookmarklet.txt` from the source (`node minify.js`). Also
+  stamps a **BUILD ID** (`dev-<6 hex>`, a fingerprint of the code) into the build and
+  prints it, so a cached copy can't pass itself off as the latest. The panel's header
+  badge shows the same id. `release.js` overwrites that slot with the real `vN`.
 - `release.js` - cuts a new install-page version (`node release.js "note"`): rebuilds the
   bookmarklet, then prepends it to `versions.js` as `MGFC_Justaino_vN` (keeps old ones).
   Also `node release.js list` and `node release.js remove <n>` to view/delete versions.

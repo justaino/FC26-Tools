@@ -5,6 +5,62 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v34 - 2026-07-30
+
+**Applied PlayStyles no longer disappear from the Lineup.**
+
+- This was the "I applied it, it worked, but the card doesn't show it" bug. It happened on desktop
+  too, just less often, and it was pure timing, which is why it came and went.
+- **What was going wrong:** the game serves your club **from its own memory**, and that copy can
+  still be the card as it was *before* your evo landed. Our club load ended by replacing the whole
+  list in one go, so any stale copy silently overwrote the freshly-evo'd card we'd just saved. The
+  background club load that runs when the panel opens is slow (slower on a phone), so whether it
+  finished before or after your apply was a coin toss.
+- **What happens now:** whenever the server hands back an updated card in reply to one of our own
+  applies or removals - the most trustworthy copy there is - it gets **pinned**. Every club load
+  merges those pinned cards back over its results, so a stale copy can't undo a change we know
+  happened. A pin retires itself once the game's own copy catches up, or when a full load shows the
+  card has left your club.
+- Two club loads can no longer race each other either: a second one now joins the first instead of
+  starting a rival sweep. And the panel was **starting two full club sweeps on every run** from a
+  duplicated block of code, which is now gone.
+- Console escape hatches if a pinned card ever looks wrong: `FC26.fresh()` lists what's pinned,
+  `FC26.clearFresh()` forgets them all.
+
+**The phone flow now matches the desktop one.**
+
+- **Two tabs instead of three.** "PlayStyle Deck" and "Review" are merged into one **Build & Apply**
+  tab. It holds the same spotlight card, the same PlayStyle grid and the same Apply button, in the
+  same order, as the right-hand pane of the desktop dock - the very same on-screen pieces, not
+  phone-only copies of them.
+- **Why it needed doing:** the deck and the Apply button were on separate screens, Review was locked
+  until you'd ticked something, and each screen had grown its own little summary bar showing the
+  same rating and caps in a different shape. That's what made it feel scattered.
+- **No more locked tab.** You can open Build & Apply whenever you like; the Apply button stays greyed
+  out until something is ticked, exactly as on desktop.
+- On a phone the card's **stats and PlayStyle chips fold away** behind a "▾ Stats & PlayStyles"
+  toggle so the tiles stay in reach, and it remembers your choice. Desktop shows everything as before.
+- **Remove Latest Evo / Clear all evos** now sit on the card itself instead of hidden behind "Manage
+  this card", and the "← Back to players" button is gone - the Lineup tab is one tap away.
+
+**"↻ Reload club" finally looks like it's doing something on a phone.**
+
+- The button was working the whole time; you just couldn't see it. Its progress was being written to
+  a status line that, on mobile, **only existed on the Review step** - so on the Lineup step it was
+  updating an element that wasn't on screen.
+- The button is now the progress bar: a spinner and a live count (`⟳ Loading… 320`), and it can't be
+  tapped twice. Under it, a status line in the Lineup shows the same thing.
+- A reload of an already-loaded club comes back in a fraction of a second, so it used to flash past
+  unseen. The spinner now holds for a beat, then a **"✓ Club loaded - N players"** confirmation
+  lingers before settling back.
+
+**For maintenance:** `node minify.js` now stamps a **BUILD ID** (`dev-a1b2c3`, a fingerprint of the
+code) into the build and prints it. The panel's header badge shows the same id, so a cached copy
+can't pass itself off as the latest. Copy the file with `pbcopy < bookmarklet.txt`, never out of the
+editor. `FC26.diag()` reports the running build plus what's actually on screen.
+
+---
+
 ## v33 - 2026-07-27
 
 **PEKUN, THE LAST TWO UPDATES HAVE BEEN JUST FOR YOU OOO**

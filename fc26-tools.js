@@ -19,8 +19,12 @@
   // needed after an update (this applies whether you click the bookmark or paste
   // the source). To keep the rebuild instant, we grab the club we already loaded in
   // the previous run and reuse it instead of re-fetching all ~1300 players.
-  var prevClub = null;
+  // We also carry over the "fresh-card overrides" (cards we've evo'd this session, see
+  // FRESH-CARD OVERRIDES further down), so a Reload club straight after a rebuild can't
+  // serve you a stale pre-evo copy of a player you just changed.
+  var prevClub = null, prevFresh = null;
   try { if (window.FC26 && window.FC26.state && window.FC26.state.clubItems) prevClub = window.FC26.state.clubItems; } catch (e) {}
+  try { if (window.FC26 && window.FC26.state && window.FC26.state.fresh && window.FC26.state.fresh.size) prevFresh = window.FC26.state.fresh; } catch (e) {}
   var oldPanel = document.getElementById("fc26-panel"); if (oldPanel) oldPanel.remove();
   var oldStyle = document.getElementById("fc26-style"); if (oldStyle) oldStyle.remove();
 
@@ -430,7 +434,10 @@
   //              empty, Apply targets just the active player (unchanged single flow).
   //   theme    = chosen colourway id (see THEMES); applied by applyTheme, remembered
   //   rarityDefs = the app's full rarity table [{id,name,searchable}] (Feature 1); [] if unread
-  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme(), rarityDefs: loadRarityDefs() };
+  //   fresh    = id -> the freshest copy of a card we've seen, taken straight from the
+  //              server's own reply to one of OUR applies/removals. See "FRESH-CARD
+  //              OVERRIDES" further down (near loadFullClub) for why this exists.
+  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme(), rarityDefs: loadRarityDefs(), fresh: prevFresh || new Map() };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
@@ -500,6 +507,41 @@
   //   window.FC26.reloadRarityDefs()   -> re-read it from the app (and redraw the picker)
   window.FC26.getRarityDefs = function () { return state.rarityDefs; };
   window.FC26.reloadRarityDefs = function () { state.rarityDefs = loadRarityDefs(); try { renderPlayers(); } catch (e) {} return state.rarityDefs; };
+
+  // Fresh-card override helpers (see FRESH-CARD OVERRIDES further down). Normally you never
+  // need these - they're the manual escape hatch if a pinned card ever looks wrong:
+  //   window.FC26.fresh()        -> ["Mbappe (4 PlayStyles)", ...] currently pinned as fresher than the club
+  //   window.FC26.clearFresh()   -> forget all of them and trust the next club load completely
+  window.FC26.fresh = function () {
+    return Array.from(state.fresh.values()).map(function (it) {
+      return playerName(it) + " (" + currentPlayStyles(it).length + " PlayStyles)";
+    });
+  };
+  window.FC26.clearFresh = function () { state.fresh = new Map(); return "Cleared. Hit Reload club for a clean pull."; };
+
+  // window.FC26.diag() -> a plain object describing what's actually on screen right now.
+  // It RETURNS the object (rather than console.log-ing it) so the Console prints it as the
+  // result of the command - a console.log on its own evaluates to `undefined`, which is all
+  // you see on some mobile consoles.
+  window.FC26.diag = function () {
+    var p = document.getElementById("fc26-panel");
+    var line = p && p.querySelector(".fc26-clubstat");
+    var btn = p && p.querySelector(".fc26-reload");
+    function box(el) { if (!el) return null; var r = el.getBoundingClientRect(); return Math.round(r.width) + "x" + Math.round(r.height); }
+    return {
+      build: FC26_VERSION,   // compare against the BUILD ID that `node minify.js` printed
+      mode: (window.matchMedia("(max-width: 620px)").matches ? "mobile" : "desktop"),
+      panelClass: p ? p.className : "(no panel)",
+      statusLineInDOM: !!line,
+      statusLineText: line ? line.textContent : null,
+      statusLineSize: box(line),
+      buttonInDOM: !!btn,
+      buttonText: btn ? btn.textContent : null,
+      buttonClass: btn ? btn.className : null,
+      buttonSize: box(btn),
+      clubPlayers: getClubPlayers().length
+    };
+  };
 
   // Console helpers for editing the evo-eligible rarity list by hand. Each one
   // saves to storage AND redraws the panel, and returns the updated list:
@@ -2310,12 +2352,62 @@
   pickerTitle.className = "fc26-lab";
   pickerTitle.style.cssText = "flex:1";
   var refreshBtn = document.createElement("button");
+  refreshBtn.className = "fc26-reload";
   refreshBtn.textContent = "↻ Reload club";
   refreshBtn.title = "Load your full club (every player, not just the squad)";
-  refreshBtn.style.cssText = "background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px";
+  // NOTE: this button's look lives in the STYLESHEET (.fc26-reload), not in an inline
+  // style.cssText like most buttons here. That matters: an inline style ALWAYS beats a
+  // stylesheet rule, so while the colours were set inline the ".busy" / ".done" states
+  // could never recolour the button - the class went on, but nothing changed on screen.
   refreshBtn.addEventListener("click", function () { loadFullClub(); });
   pickerHead.appendChild(pickerTitle);
   pickerHead.appendChild(refreshBtn);
+
+  // ---- FEATURE: club-load feedback in the Lineup itself -----------------------
+  // WHY: the main status line (the `status` div above) lives in applyMod, which on a phone
+  // is ONLY in the DOM on the Review step. So every "Loading full club... 320" message was
+  // being written to a detached element and you could never see it - tapping "Reload club"
+  // on the Lineup step looked like it did nothing at all. (On desktop applyMod is always in
+  // the right pane, which is why it only looked broken on mobile.)
+  // FIX: a second, small status line that sits INSIDE the Lineup module, right under the
+  // Reload button, so it's visible from wherever that button is. setClubStatus() writes to
+  // both this line and the main status, so desktop behaviour is unchanged.
+  var clubStat = document.createElement("div");
+  clubStat.className = "fc26-clubstat";
+  //   text = what to show
+  //   kind = "busy" (spinner + accent), "done" (tick + accent), "err" (red), or "" (plain)
+  function setClubStatus(text, kind) {
+    status.textContent = text;                                     // the original line (desktop / Review step)
+    var mark = kind === "busy" ? "<span class='fc26-btnspin'></span>"
+             : kind === "done" ? "<span class='fc26-tick'>✓</span>" : "";
+    clubStat.className = "fc26-clubstat" + (kind ? " " + kind : "");
+    clubStat.innerHTML = mark + "<span>" + esc(text) + "</span>";
+  }
+
+  // ---- the Reload button's own three states ----------------------------------
+  // "busy" = spinner + live count, disabled.  "done" = a tick that lingers a moment.
+  // "idle" = back to normal.
+  //
+  // WHY the timings below: when your club is already in the app's memory the whole sweep
+  // comes back in ONE page and finishes in a couple of hundred milliseconds - so the
+  // spinner and the count flashed past before you could see them, and the tap still looked
+  // like it did nothing. RELOAD_MIN_MS holds the busy state for a beat so the tap is always
+  // visibly acknowledged, and RELOAD_DONE_MS keeps a "✓ Reloaded" confirmation on screen
+  // afterwards. Neither delays the actual data - the list is already updated underneath.
+  var RELOAD_MIN_MS = 650;      // shortest time the spinner is allowed to be on screen
+  var RELOAD_DONE_MS = 2600;    // how long the "✓ Reloaded" confirmation lingers
+  var reloadDoneTimer = null;
+  function setReloadBtn(mode, label) {
+    refreshBtn.disabled = (mode === "busy");
+    refreshBtn.className = "fc26-reload" + (mode === "busy" ? " busy" : mode === "done" ? " done" : "");
+    if (mode === "busy") refreshBtn.innerHTML = "<span class='fc26-btnspin'></span><span>" + esc(label || "Loading…") + "</span>";
+    else if (mode === "done") refreshBtn.innerHTML = "<span class='fc26-tick'>✓</span><span>Reloaded</span>";
+    else refreshBtn.textContent = "↻ Reload club";
+  }
+  // clubReadyText(): the calm resting message the status line settles back to.
+  function clubReadyText() {
+    return "Club ready: " + getClubPlayers().length + " players (tap ↻ Reload club to refresh).";
+  }
 
   // Search box: type to filter the list by name.
   var playerSearch = document.createElement("input");
@@ -2547,7 +2639,7 @@
       sel.style.cursor = many ? "not-allowed" : "";
     });
     renderBatchList();                 // refresh the "applying to N players" roll-call
-    if (typeof updateWizWho === "function") updateWizWho();  // keep the mobile step-2 header in sync
+    if (typeof updateGuide === "function") updateGuide();    // batching a player unlocks "Next: Build & Apply"
   }
 
   // Scrollable list of club players. Its height is set by CSS (.fc26-plist): a fixed
@@ -2592,6 +2684,14 @@
   var spotHint = document.createElement("div");
   spotHint.className = "fc26-spothint";
   spotHint.textContent = "Pick a player from the lineup to spotlight them here.";
+
+  // Open/closed state for the spotlight card's foldaway detail on mobile (see renderPreview).
+  // Reuses the OLD Deck-summary storage key, so if you'd already opted into seeing stats on
+  // the phone that preference carries straight over to the merged card.
+  var CARD_DETAIL_KEY = "FC26_deckStatsOpen";
+  function loadCardDetailOpen() { try { return window.localStorage.getItem(CARD_DETAIL_KEY) === "1"; } catch (e) { return false; } }
+  function saveCardDetailOpen() { try { window.localStorage.setItem(CARD_DETAIL_KEY, state.cardDetailOpen ? "1" : "0"); } catch (e) {} }
+  state.cardDetailOpen = loadCardDetailOpen();
 
   // renderPreview(): redraw the selected-player card. Same info as before -
   // name/OVR/rarity, caps used, and current PlayStyles - but laid out visually:
@@ -2675,6 +2775,23 @@
       ? "<span class='pv-jr' title='Justaino rating (0-100) as " + esc(jr.group) + (jr.score.role ? " (" + esc(jr.score.role) + ")" : "") + ": meta " + jr.score.metaBlend + " (stats " + jr.score.statPart + " + PlayStyles " + jr.score.psPart + "), blended " + Math.round(CFG.ovrMix * 100) + "% with OVR " + jr.score.ovr + "'>" + scoreLabel().toUpperCase() + " " + jr.score.total.toFixed(1) + " &middot; " + esc(jr.group) + "</span>"
       : "";
 
+    // The heavier half of the card. On DESKTOP it's always shown (there's room in the
+    // spotlight column). On MOBILE the card now sits directly above the PlayStyle grid
+    // (they're one step since the Deck and Review were merged), so showing all of this
+    // would push the tiles below the fold - it folds away behind a toggle instead, and
+    // your choice is remembered. Same markup and same order either way.
+    var detailHTML =
+      "<div class='pv-metaline'>rarity #" + it.rareflag + " &middot; item " + it.id + "</div>" +
+      // Score at every position this card can play (same block the Rankings detail shows).
+      scoreByPositionHTML(it) +
+      // Face stats grid (Feature: fill the spotlight) - same 6 numbers the Justaino rating reads.
+      faceStatsHTML(it) +
+      noneMsg +
+      groupHTML("PlayStyle+", plus, true) +
+      groupHTML("Basic", basic, false);
+    var mobile = currentMode() === "mobile";
+    var detailOpen = !mobile || !!state.cardDetailOpen;
+
     preview.innerHTML =
       // Broadcast "spotlight": giant rating number next to the name, like a lower-third.
       "<div class='pv-hero'>" +
@@ -2684,19 +2801,17 @@
           "<div class='pv-sub'>" + esc(rarityName(it)) + posLine + "</div>" +
         "</div>" +
       "</div>" +
-      "<div class='pv-metaline'>rarity #" + it.rareflag + " &middot; item " + it.id + "</div>" +
       eligHTML +
       "<div class='pv-meters'>" +
         meterHTML("PlayStyle+", pUsed, plusCap, "plus") +
         meterHTML("Basic", bUsed, basicCap, "basic") +
       "</div>" +
-      // Score at every position this card can play (same block the Rankings detail shows).
-      scoreByPositionHTML(it) +
-      // Face stats grid (Feature: fill the spotlight) - same 6 numbers the Justaino rating reads.
-      faceStatsHTML(it) +
-      noneMsg +
-      groupHTML("PlayStyle+", plus, true) +
-      groupHTML("Basic", basic, false) +
+      (mobile
+        ? "<button type='button' class='pv-more'>" + (detailOpen ? "▴ Hide stats &amp; PlayStyles" : "▾ Stats &amp; PlayStyles") + "</button>" +
+          // Explicit inline display, not the `hidden` attribute - we're injected into EA's
+          // page and a host reset like `[hidden]{display:block}` would unfold it on us.
+          "<div class='pv-detail'" + (detailOpen ? "" : " style='display:none'") + ">" + detailHTML + "</div>"
+        : detailHTML) +
       // Reset row (only when there's something to remove): "Remove one" undoes a single
       // PlayStyle; "Clear all" strips them all (confirmed). See runRemove().
       ((plus.length || basic.length)
@@ -2705,6 +2820,14 @@
             "<button class='pv-rm-all'>Clear all evos</button>" +
           "</div>"
         : "");
+
+    // Fold/unfold the detail block (mobile only - the button doesn't exist on desktop).
+    var moreBtn = preview.querySelector(".pv-more");
+    if (moreBtn) moreBtn.addEventListener("click", function () {
+      state.cardDetailOpen = !state.cardDetailOpen;
+      saveCardDetailOpen();
+      renderPreview();
+    });
 
     // Wire the eligibility button (listener, not inline onclick - the app's CSP
     // blocks inline handlers). Toggles this rarity, then redraws the card + list.
@@ -2735,10 +2858,10 @@
     renderPreview();
     populatePositions();          // dropdowns now reflect this player's positions
     renderEvos();
-    updateWizWho();               // keep the wizard's mini header in sync
-    // On mobile the picker is step 1 of the wizard; choosing a player moves to step 2
+    // On mobile the picker is step 1; choosing a player moves you to Build & Apply
     // (skipped when keepStep=true, e.g. ticking a batch checkbox).
     if (!keepStep && currentMode() === "mobile" && state.wizStep === 1) { goStep(2); }
+    else if (typeof updateGuide === "function") updateGuide();   // otherwise just refresh the guide button
     reclampPanel();               // the right pane just grew - keep the whole panel on-screen
     console.log("[FC26] selected player", playerName(it), it.id);
   }
@@ -3171,7 +3294,10 @@
       for (var att = 0; att < 4; att++) {
         try { await loadFullClub(); } catch (e) {}
         var fresh = findPlayerById(itemId); if (fresh) state.player = fresh;
-        if (state.player && currentPlayStyles(state.player).length > prevCount) break;
+        if (state.player && currentPlayStyles(state.player).length > prevCount) {
+          rememberFresh(state.player);   // the grant is visible - pin it so a later club load can't lose it
+          break;
+        }
         if (att < 3) { status.textContent = "Waiting for the grant to register..."; await sleep(700); }
       }
     }
@@ -3221,12 +3347,75 @@
     } catch (e) { return undefined; }
   }
 
+  // ---- FRESH-CARD OVERRIDES --------------------------------------------------
+  // THE PROBLEM this solves (the "I applied a PlayStyle but the Lineup doesn't show it" bug):
+  // services.Club.search serves the club FROM THE APP'S OWN IN-MEMORY STORE, and that store
+  // can keep handing back the card as it was BEFORE our evo landed. loadFullClub() used to
+  // finish with a flat "state.clubItems = all", so any of those stale copies would silently
+  // overwrite the freshly-graded card we'd just planted, and the PS+ icons would vanish from
+  // the list. It only bit SOMETIMES because it's a race: the background club sweep that runs
+  // when the panel opens is slow (slower still on a phone), so whether it lands before or
+  // after your apply is pure timing.
+  //
+  // THE FIX: whenever the server hands us a fresh copy of a card (the "updatedItem" in its
+  // reply to our own apply/remove call - the most authoritative thing we ever see), we keep
+  // it in state.fresh. Every club load then merges those overrides back OVER its results, so
+  // a stale search can never undo a change we know happened.
+  //
+  // An override is dropped when it's no longer needed:
+  //   - the freshly-loaded copy matches it PlayStyle-for-PlayStyle (the store has caught up), or
+  //   - a COMPLETE club load doesn't contain that card at all (it genuinely left the club, e.g.
+  //     fully reverted or sold), or
+  //   - you call FC26.clearFresh() from the Console (manual escape hatch).
+
+  // psSig(it): a short text "fingerprint" of a card's PlayStyles, e.g. "4+|9|17". Sorted so
+  // the same set always produces the same string, which lets us compare two copies of a card
+  // with one === instead of walking the lists.
+  function psSig(it) {
+    try {
+      return currentPlayStyles(it).map(function (p) { return p.traitId + (p.isIcon ? "+" : ""); }).sort().join("|");
+    } catch (e) { return ""; }
+  }
+
+  // rememberFresh(item): record this card as the freshest copy we know of.
+  function rememberFresh(item) {
+    if (!item || item.id == null) return;
+    try { state.fresh.set(item.id, item); } catch (e) {}
+  }
+  // forgetFresh(id): stop overriding this card (it left the club, or the club caught up).
+  function forgetFresh(id) { try { state.fresh["delete"](id); } catch (e) {} }
+
+  // mergeFresh(list, complete): overlay our known-fresh cards on a just-loaded club list.
+  //   list     = the players the club search returned
+  //   complete = true when that search reported it had retrieved the WHOLE club
+  // Returns the list to actually keep. Note we only ever REPLACE an entry that's already in
+  // the list - we never add a card back in, so a sold/consumed player can't reappear as a ghost.
+  function mergeFresh(list, complete) {
+    if (!state.fresh || !state.fresh.size) return list;
+    var seenIds = {};
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i]; if (!row || row.id == null) continue;
+      seenIds[row.id] = 1;
+      var override = state.fresh.get(row.id);
+      if (!override) continue;
+      if (psSig(row) === psSig(override)) { forgetFresh(row.id); continue; }  // store caught up - override no longer needed
+      list[i] = override;                                                      // stale copy - keep OUR fresher card
+    }
+    // On a complete load, any override whose card isn't in the club any more is dead weight.
+    if (complete) {
+      Array.from(state.fresh.keys()).forEach(function (id) { if (!seenIds[id]) forgetFresh(id); });
+    }
+    return list;
+  }
+
   // upsertClubItem(item): drop a fresh item entity into our snapshot (state.clubItems),
   // replacing the old copy with the same id (or appending if new). We use this to plant
   // the freshly-graded card the apply call hands back, so the picker/preview update WITHOUT
-  // waiting on a club re-search (see applyUpdatedItem below).
+  // waiting on a club re-search (see applyUpdatedItem below). It ALSO records the card as a
+  // fresh-card override, so a later club load can't quietly undo it (see above).
   function upsertClubItem(item) {
     if (!item || item.id == null) return;
+    rememberFresh(item);
     // If our snapshot is empty/thin (common on mobile, where the full club can be slow to
     // load and the list is being served from the app's OWN collection instead), seed it from
     // that collection FIRST. Otherwise pushing the single fresh card would collapse the list
@@ -3290,14 +3479,52 @@
   // one-off duplicate), and (d) RE-SWEEP a few times until the club stops growing or the
   // app reports retrievedAll - so a still-filling club keeps getting picked up without a
   // manual reload.
-  async function loadFullClub() {
+  //
+  // RE-ENTRANCY: a sweep can run for many seconds, so it's easy to start a second one on top
+  // of the first (tapping "Reload club" twice, or a retry-poll firing while the panel's own
+  // opening sweep is still going). Two sweeps both finishing with "state.clubItems = ..." is
+  // a race with no winner. So loadFullClub() is a thin wrapper: if a sweep is already running
+  // it hands back THAT sweep's promise, and everyone waiting simply shares the one result.
+  // The wrapper also owns the button's busy state, so EVERY caller (your tap, the panel's
+  // own opening load, and the retry-polls after an apply) shows the same visible progress.
+  var clubLoadInFlight = null;                       // the promise of the running sweep, or null when idle
+  function loadFullClub() {
+    if (clubLoadInFlight) return clubLoadInFlight;   // already sweeping - join that run instead of starting another
+    if (reloadDoneTimer) { clearTimeout(reloadDoneTimer); reloadDoneTimer = null; }   // cancel a lingering tick
+    var startedAt = Date.now();
+    setReloadBtn("busy", "Loading…");
+    var p = sweepFullClub();
+    clubLoadInFlight = p;
+    // Whichever way it ends: clear the flag, then hold the spinner until RELOAD_MIN_MS has
+    // passed (a warm club finishes far too fast to see), and only then show the outcome.
+    var settle = function (ok) {
+      if (clubLoadInFlight !== p) return;
+      clubLoadInFlight = null;
+      setTimeout(function () { finishReload(ok); }, Math.max(0, RELOAD_MIN_MS - (Date.now() - startedAt)));
+    };
+    p.then(function (v) { settle(v === true); }, function () { settle(false); });
+    return p;
+  }
+  // finishReload(ok): show the outcome on the button, then settle everything back to calm.
+  // On failure we leave the red error message alone and just re-enable the button.
+  function finishReload(ok) {
+    if (!ok) { setReloadBtn("idle"); return; }
+    setReloadBtn("done");
+    setClubStatus("Club loaded - " + getClubPlayers().length + " players.", "done");
+    reloadDoneTimer = setTimeout(function () {
+      reloadDoneTimer = null;
+      setReloadBtn("idle");
+      setClubStatus(clubReadyText());
+    }, RELOAD_DONE_MS);
+  }
+  async function sweepFullClub() {
     var svc = getServices();
     var S = svc && svc.Club;
-    if (!S || !S.search || !window.UTSearchCriteriaDTO) { status.textContent = "Club search unavailable on this page."; return; }
+    if (!S || !S.search || !window.UTSearchCriteriaDTO) { setClubStatus("Club search unavailable on this page.", "err"); return; }
     var all = [], seen = {};                 // UNIQUE players kept across every pass (by item id)
     var SWEEP_CAP = 8, PAGE_CAP = 200, BLANK_RETRY_MAX = 4;
     var sweep = 0, lastTotal = -1, stableSweeps = 0, retrievedAll = false, hardFail = null;
-    status.textContent = "Loading full club...";
+    setClubStatus("Loading full club…", "busy");
     while (sweep++ < SWEEP_CAP) {
       var offset = 0, pageGuard = 0, blankRetries = 0, noNewStreak = 0, passDone = false;
       while (pageGuard++ < PAGE_CAP) {
@@ -3322,20 +3549,30 @@
         var added = 0;
         for (var i = 0; i < items.length; i++) { var it = items[i], id = it && it.id; if (id != null && !seen[id]) { seen[id] = 1; all.push(it); added++; } }
         offset += items.length;
-        status.textContent = "Loading full club... " + all.length;
+        // Live count, both on the button and in the Lineup's status line, so you can SEE it working.
+        setClubStatus("Loading full club… " + all.length + " players", "busy");
+        setReloadBtn("busy", "Loading… " + all.length);
         if (retrievedAll) { passDone = true; break; }
         noNewStreak = (added === 0) ? (noNewStreak + 1) : 0;
         if (noNewStreak >= 2) { passDone = true; break; }   // two pages, no new players -> seen them all this pass
         await sleep(120);
       }
-      if (hardFail && !all.length) { status.textContent = "Club load failed: " + hardFail; return; }
+      if (hardFail && !all.length) { setClubStatus("Club load failed: " + hardFail, "err"); return; }
       if (retrievedAll) break;                              // app confirms the whole club is loaded
       if (all.length === lastTotal) { if (++stableSweeps >= 2) break; }   // total not growing across passes -> done
       else stableSweeps = 0;
       lastTotal = all.length;
       await sleep(500);                                     // give the still-filling club a moment, then sweep again
     }
-    state.clubItems = all;
+    // Overlay any card we KNOW is fresher than what the search returned, so a stale copy from
+    // the app's in-memory store can't wipe out an evo we just applied (see FRESH-CARD OVERRIDES).
+    state.clubItems = mergeFresh(all, retrievedAll);
+    // The active player may have just been swapped for its fresher copy in that merge - re-point
+    // state.player at whatever is now in the list, so the preview and the Lineup never disagree.
+    if (state.player && state.player.id != null) {
+      var again = findPlayerById(state.player.id);
+      if (again) state.player = again;
+    }
     renderPlayers();
     try { renderMetaRating(); } catch (e) {}   // refresh the Meta rating list if it's open
     // If the Meta page is open on the Best XI tab, rebuild it now that the full club is in.
@@ -3343,7 +3580,7 @@
     // (that's cached per position and is only valid for the club it was measured on).
     try { impactBaseline = { group: null, ids: null }; } catch (e0) {}
     try { if (state.metaPageOpen && metaView === "xi") { metaBoards = null; renderMetaPage(); } } catch (e) {}
-    status.textContent = "Club loaded: " + getClubPlayers().length + " players.";
+    return true;   // success - loadFullClub's finishReload() shows the "✓ Club loaded" confirmation
   }
 
   // "claim & finish" toggle.
@@ -3452,16 +3689,9 @@
       none.textContent = "Nothing was added.";
       applyBox.appendChild(none);
     }
-    // "Back to players" - jump straight back to the player list to pick the next card.
-    // "Back to players" only on mobile (the wizard hides the list on other steps). On
-    // desktop the player list is always visible in the left pane, so the button is redundant.
-    if (currentMode() === "mobile") {
-      var backBtn = document.createElement("button");
-      backBtn.className = "ap-back";
-      backBtn.textContent = "← Back to players";
-      backBtn.addEventListener("click", function () { renderPlayers(); goStep(1); });
-      applyBox.appendChild(backBtn);
-    }
+    // (There used to be a mobile-only "← Back to players" button here. With the wizard down
+    // to two tabs, the Lineup tab is always one tap away at the top of the screen, so the
+    // button was a second way to do the same thing - and desktop never had it.)
     // Stagger the pop-in (non-blocking so the club refresh can run underneath).
     chipEls.forEach(function (c, i) { setTimeout(function () { c.classList.add("show"); }, 90 * i); });
   }
@@ -3508,7 +3738,9 @@
     // Show the spinner where the button that triggered it lives: the preview card on desktop,
     // but the Review "Manage this card" panel on mobile (the preview isn't in the DOM there).
     // Both are wiped by the re-render at the end (renderPreview / renderWizStep).
-    var loaderHost = (currentMode() === "mobile" && typeof reviewSummary !== "undefined" && reviewSummary) ? reviewSummary : preview;
+    // The preview card is now in the DOM in BOTH modes (desktop spotlight column, mobile
+    // Build & Apply step), so the spinner always lands next to the button you pressed.
+    var loaderHost = preview;
     loaderHost.appendChild(loader);
     function setLoad(t) { var el = loader.querySelector(".rm-txt"); if (el) el.textContent = t; }
     var id = it.id, removed = 0, guard = 0, maxIter = all ? 40 : 1, failMsg = "";  // 40 = generous backstop; lastEvoRemoved is the real stop
@@ -3532,6 +3764,9 @@
     }
     setLoad("Refreshing…");
     refreshClub();
+    // A fully-reverted card leaves the club evo list altogether, so drop any fresh-card
+    // override we were holding for it - the club's own answer is the right one from here.
+    if (cardLeftClub) forgetFresh(id);
     // Prefer the reverted card the response handed back (data.updatedItem) - reliable, no
     // dependence on a club re-search. Fall back to reloading + polling only if we got nothing.
     var have = currentPlayStyles(it).length;
@@ -3669,12 +3904,7 @@
     banner.innerHTML = "<span class='tick'>✓</span><span>Batch: <b>" + totalOk + "</b> added across " + sections.length + (sections.length === 1 ? " player" : " players") +
       (totalFail ? ", " + totalFail + " failed" : "") + (state.abort ? " (stopped)" : "") + "</span>";
     applyBox.insertBefore(banner, applyBox.firstChild);
-    // Back-to-players button - mobile only (desktop always shows the list in the left pane).
-    if (currentMode() === "mobile") {
-      var backBtn = document.createElement("button"); backBtn.className = "ap-back"; backBtn.textContent = "← Back to players";
-      backBtn.addEventListener("click", function () { renderPlayers(); goStep(1); });
-      applyBox.appendChild(backBtn);
-    }
+    // (The mobile-only "← Back to players" button was dropped here too - see renderApplySummary.)
     refreshClub();
     // The apply responses handed back each player's freshly-graded card (data.updatedItem),
     // already carrying the new PlayStyles - plant them straight into our snapshot so the list
@@ -3687,7 +3917,12 @@
       for (var att = 0; att < 4; att++) {
         try { await loadFullClub(); } catch (e) {}
         var grew = false;
-        for (var ti = 0; ti < targets.length; ti++) { var fr = findPlayerById(targets[ti].id); if (fr && currentPlayStyles(fr).length > (prevCounts[targets[ti].id] || 0)) { grew = true; break; } }
+        // Pin EVERY player whose grant is now visible (not just the first), so a later club
+        // load can't lose any of them - then stop retrying as soon as at least one landed.
+        for (var ti = 0; ti < targets.length; ti++) {
+          var fr = findPlayerById(targets[ti].id);
+          if (fr && currentPlayStyles(fr).length > (prevCounts[targets[ti].id] || 0)) { rememberFresh(fr); grew = true; }
+        }
         if (grew) break;
         if (att < 3) { status.textContent = "Waiting for grants to register..."; await sleep(700); }
       }
@@ -3773,7 +4008,10 @@
           var fresh = findPlayerById(itemId);
           if (fresh && currentPlayStyles(fresh).length >= currentPlayStyles(state.player || fresh).length) state.player = fresh;
           var nowCount = state.player ? currentPlayStyles(state.player).length : prevCount;
-          if (nowCount > prevCount) break;                    // grant is now visible - stop retrying
+          if (nowCount > prevCount) {                         // grant is now visible - stop retrying
+            rememberFresh(state.player);                      // pin it, so a later club load can't lose it again
+            break;
+          }
           if (att < 3) { status.textContent = "Waiting for the grant to register..."; await sleep(700); }
         }
       }
@@ -4046,8 +4284,6 @@
       "#fc26-panel .ap-chip.show{animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) forwards}" +
       "@keyframes fc26pop{to{opacity:1;transform:scale(1) translateY(0)}}" +
       "#fc26-panel .ap-fail{margin-top:9px;font-size:11px;color:#ff9e9e}" +
-      "#fc26-panel .ap-back{margin-top:12px;width:100%;padding:9px;border:1px solid var(--field-border);border-radius:8px;background:var(--tab);color:var(--ink);font-weight:700;font-size:12px;cursor:pointer}" +
-      "#fc26-panel .ap-back:hover{border-color:var(--accent);color:var(--accent)}" +
       // ---- batch apply: per-player sections + overall banner -------------------
       "#fc26-panel .bx-banner{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px;margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid var(--border)}" +
       "#fc26-panel .bx-banner .tick{width:20px;height:20px;border-radius:50%;background:var(--accent);color:#04241a;display:grid;place-items:center;font-size:12px;flex:none}" +
@@ -4094,6 +4330,20 @@
       // pane and the evo list is uncapped (the whole right pane scrolls as one).
       "#fc26-panel .fc26-plist{max-height:210px}" +
       // Mobile-only stub shown in place of the collapsed Lineup list (a tap-to-reveal button).
+      // Club-load feedback: the Reload button's own spinner + the Lineup status line under it.
+      // Both live in the Lineup module, so they're visible on a phone (where the main status
+      // line is only in the DOM on the Review step).
+      // The whole look is here (NOT inline) so .busy / .done can actually recolour it.
+      "#fc26-panel .fc26-reload{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px}" +
+      "#fc26-panel .fc26-reload.busy,#fc26-panel .fc26-reload.done{background:var(--sel);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);font-weight:700}" +
+      "#fc26-panel .fc26-reload:disabled{opacity:1;cursor:progress}" +
+      "#fc26-panel .fc26-btnspin{flex:none;width:10px;height:10px;display:inline-block;border:2px solid rgba(255,255,255,.22);border-top-color:var(--accent);border-radius:50%;animation:fc26spin .7s linear infinite}" +
+      "#fc26-panel .fc26-tick{flex:none;font-weight:800;color:var(--accent)}" +
+      // The status line under the button. It gets a chip background while it's live (busy /
+      // just-finished / failed) so it reads as something happening, not muted footnote text.
+      "#fc26-panel .fc26-clubstat{display:flex;align-items:center;gap:7px;min-height:15px;margin-top:6px;font-size:11px;color:var(--muted);border-radius:6px;transition:background .2s ease}" +
+      "#fc26-panel .fc26-clubstat.busy,#fc26-panel .fc26-clubstat.done{color:var(--accent);background:var(--sel);padding:5px 8px;font-weight:700;font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .fc26-clubstat.err{color:#ffc2c2;background:rgba(255,120,120,.10);padding:5px 8px;font-weight:700}" +
       "#fc26-panel .fc26-liststub{width:100%;text-align:left;margin-top:6px;padding:9px 11px;border-radius:8px;background:var(--tab);border:1px dashed var(--field-border);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer}" +
       "#fc26-panel .fc26-liststub:hover{border-color:var(--accent);color:var(--accent)}" +
       "#fc26-panel .fc26-elist{max-height:210px}" +
@@ -4123,44 +4373,23 @@
       "#fc26-panel .fc26-rz-ne{top:0;right:0;width:14px;height:14px;cursor:nesw-resize}" +
       "#fc26-panel .fc26-rz-nw{top:0;left:0;width:14px;height:14px;cursor:nwse-resize}" +
       "#fc26-panel .fc26-rz-sw{bottom:0;left:0;width:14px;height:14px;cursor:nesw-resize}" +
-      // Mobile channel tabs (Lineup / Style deck / Review) + the scrolling section body.
+      // Mobile channel tabs (Lineup / Build & Apply) + the scrolling section body.
+      // (A ".dis" dimmed-tab rule used to live here for the gated Review tab; there's no
+      // gated tab any more, so it went with it.)
       "#fc26-panel .fc26-chtabs{flex:none;display:flex;gap:6px;margin-bottom:10px}" +
       "#fc26-panel .fc26-chtab{flex:1;text-align:center;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:9px 4px;border-radius:8px;color:var(--muted);background:var(--tab);border:1px solid var(--field-border);cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
       "#fc26-panel .fc26-chtab.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}" +
-      "#fc26-panel .fc26-chtab.dis{opacity:.4;cursor:not-allowed}" +
       "#fc26-panel .fc26-stepbody{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto}" +
-      // Mobile guide button (Next: PlayStyle Deck / Review), disabled until the step is ready.
+      // Mobile guide button ("Next: Build & Apply"), disabled until a player is picked.
       "#fc26-panel .fc26-guidebtn{flex:none;width:100%;margin-top:10px;padding:11px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}" +
       "#fc26-panel .fc26-guidebtn.dis{opacity:.4;cursor:not-allowed}" +
-      "#fc26-panel .fc26-wizwho{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--card);border:1px solid var(--card-border);margin-bottom:11px;font-size:13px}" +
-      // Mobile Deck summary: a collapsible caps + face-stats bar atop the PlayStyle Deck step.
-      "#fc26-panel .fc26-decksum{margin-bottom:11px;border-radius:12px;background:var(--card);border:1px solid var(--card-border)}" +
-      "#fc26-panel .fc26-decksum.open{border-color:var(--accent)}" +
-      "#fc26-panel .ds-bar{display:flex;align-items:center;gap:10px;padding:9px 11px}" +
-      "#fc26-panel .ds-r{font-weight:800;font-size:22px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}" +
-      // ds-rwrap stacks the OVR number with the Justaino pill beneath it (the mobile echo of the
-      // desktop spotlight's OVR + .pv-jr). ds-jr is a compact version of .pv-jr sized for the slim bar.
-      "#fc26-panel .ds-rwrap{flex:none;display:flex;flex-direction:column;align-items:center;gap:3px}" +
-      "#fc26-panel .ds-jr{font-size:8.5px;font-weight:800;letter-spacing:.03em;color:var(--accent-ink);background:var(--accent);border-radius:999px;padding:1px 6px;line-height:1.2;white-space:nowrap}" +
-      "#fc26-panel .ds-w{flex:1 1 auto;min-width:0}" +
-      "#fc26-panel .ds-n{display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-      "#fc26-panel .ds-gk{flex:none;color:var(--accent);font-size:8px;border:1px solid var(--accent);border-radius:4px;padding:0 3px}" +
-      "#fc26-panel .ds-c{font-size:10px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-      "#fc26-panel .ds-toggle{flex:none;background:var(--btn);color:var(--accent);border:1px solid var(--field-border);border-radius:7px;padding:5px 9px;cursor:pointer;font-size:10px;font-weight:800;letter-spacing:.04em;white-space:nowrap}" +
-      "#fc26-panel .ds-body{padding:0 11px 11px;display:flex;flex-direction:column;gap:11px}" +
-      "#fc26-panel .ds-body .pv-faces{margin-top:0}" +
-      // Mobile Review summary: target line + the selected PlayStyle chips (what will be applied).
-      "#fc26-panel .fc26-revsum{margin-bottom:11px}" +
-      "#fc26-panel .rs-bar{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:12px;background:var(--card);border:1px solid var(--card-border);margin-bottom:12px}" +
-      "#fc26-panel .rs-r{flex:none;font-weight:800;font-size:22px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}" +
-      "#fc26-panel .rs-w{flex:1 1 auto;min-width:0}" +
-      "#fc26-panel .rs-n{display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-      "#fc26-panel .rs-c{font-size:10px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-      "#fc26-panel .rs-lead{font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}" +
-      "#fc26-panel .rs-none{font-size:11px;color:var(--muted);opacity:.85;line-height:1.4}" +
-      "#fc26-panel .rs-manage{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}" +
-      "#fc26-panel .rs-manage-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:6px 9px;cursor:pointer;font-size:11px;font-weight:600}" +
-      "#fc26-panel .rs-manage-body{margin-top:8px}" +
+      // The spotlight card's foldaway detail (mobile only - see renderPreview). Everything
+      // that used to be styled here (.fc26-wizwho, .fc26-decksum/.ds-*, .fc26-revsum/.rs-*)
+      // belonged to the old three-step wizard and went with it.
+      "#fc26-panel .pv-more{width:100%;margin-top:12px;text-align:left;background:var(--btn);color:var(--accent);border:1px solid var(--field-border);border-radius:7px;padding:8px 10px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:800;letter-spacing:.04em}" +
+      "#fc26-panel .pv-more:hover{border-color:var(--accent)}" +
+      "#fc26-panel .pv-detail{margin-top:2px}" +
+      "#fc26-panel .pv-detail .pv-metaline{margin-top:8px}" +
       // Pinned mobile mini-spotlight (rating + name + caps), always visible below the tabs.
       "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-launch-tx b{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:10.5px;color:var(--muted)}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:20px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-tabsel{width:100%;margin-top:7px;padding:5px 7px;font-size:11px;font-weight:700}" + "#fc26-panel .gt-mform{flex:none;display:flex;align-items:center;gap:8px;padding-bottom:8px}" + "#fc26-panel .gt-mform-lab{flex:none;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-mform-sel{flex:1;min-width:0}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" +
       // ---- Feature 5: Club Dashboard (display only) ----------------------------
@@ -4299,36 +4528,30 @@
       "#fc26-panel .ss-psdel{flex:none;width:24px;height:24px;margin-top:2px;border-radius:7px;cursor:pointer;background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.32);color:#ffc2c2;font-family:inherit;font-size:14px;font-weight:700;line-height:1;padding:0}" +
       "#fc26-panel .ss-psdel:hover{background:rgba(255,120,120,.22)}" +
       "@media (prefers-reduced-motion:reduce){#fc26-panel .ss-bar>i{transition:none}}" +
-      "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
+      "@media (prefers-reduced-motion:reduce){#fc26-panel .fc26-ec.applying::after{animation:none}#fc26-panel .fc26-btnspin{animation:none}#fc26-panel .ap-chip{opacity:1;transform:none;animation:none}}";
     document.head.appendChild(st);
   }
 
-  renderPlayers();     // show whatever's cached immediately (the squad)
-  populatePositions(); // fill the position/role dropdowns
-  renderEvos();        // show the "select a player" prompt in the evo area
-  // Only fetch the full club if we didn't inherit it from the previous click. If we
-  // did, it's shown instantly; hit "↻ Reload club" to pull a fresh copy.
-  if (state.clubItems && state.clubItems.length) {
-    status.textContent = "Club ready: " + getClubPlayers().length + " players (↻ Reload club to refresh).";
-  } else {
-    loadFullClub();    // first run: load the FULL club in the background and redraw
-  }
+  // NOTE: the first draw + club load USED to happen here as well as at the very bottom of
+  // this file - the same block twice, so every run kicked off two full club sweeps. The
+  // copy that lived here has been removed; the one at the end of the file does the job
+  // (it's a superset - it also calls updateBatchUI - and it runs after everything exists).
 
   // ----------------------------------------------------------------------------
   // RESPONSIVE LAYOUT
   // Every element above is kept EXACTLY as-is (so all render/apply logic keeps
   // working). We only PLACE those elements differently depending on screen width:
   //   - wide screens  -> "Split Console": squad on the LEFT, build + apply on RIGHT.
-  //   - phone/narrow  -> "Wizard": a bottom sheet with 3 steps (Player / PlayStyles / Apply).
+  //   - phone/narrow  -> a bottom sheet with 2 tabs (Lineup / Build & Apply), where the
+  //                      second tab is the SAME stack as the desktop right-hand pane.
   // Trick: group the elements into 4 reusable "modules" (wrapper divs), then move the
   // whole module around with one appendChild (which re-parents it) as the layout changes.
   // ----------------------------------------------------------------------------
 
   var mq = window.matchMedia("(max-width: 620px)");            // "am I on a phone-ish screen?"
-  // Defensive: the very first renderPlayers() above (line ~2560) runs before this
-  // line assigns mq, and it can reach currentMode() via updateLineupCollapse. Guard
-  // against mq still being undefined so that early call can't throw; it harmlessly
-  // reads "desktop" once, then behaves normally after mq exists.
+  // Defensive: currentMode() can be reached (via updateLineupCollapse) from a render that
+  // runs before this line assigns mq. Guard against mq still being undefined so such a call
+  // can't throw; it harmlessly reads "desktop" once, then behaves normally after mq exists.
   function currentMode() { return (mq && mq.matches) ? "mobile" : "desktop"; }
   state.wizStep = 1;                                            // which wizard step (mobile)
   state.minimized = false;                                      // is the panel minimized?
@@ -6383,7 +6606,7 @@
 
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(dashLaunch);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(clubStat); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(dashLaunch);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); buildMod.appendChild(ghSection);
@@ -6393,223 +6616,53 @@
   var applyMod = document.createElement("div");
   applyMod.appendChild(batchList); applyMod.appendChild(optRow); applyMod.appendChild(applyBox); applyMod.appendChild(status);
 
-  // Compact "selected player" header, shown atop the wizard's PlayStyles step.
-  var wizWho = document.createElement("div");
-  wizWho.className = "fc26-wizwho";
-  function updateWizWho() {
-    var it = state.player;
-    // With a batch of 2+, the styles apply to ALL of them, but the evo grid's owned/caps
-    // still reflect the previewed player - so say both ("N players · building from X").
-    if (state.batch.size > 1) {
-      wizWho.innerHTML = "<span style='color:var(--accent);font-weight:800'>👥 " + state.batch.size + " players</span>" +
-        (it ? " <span style='color:var(--muted)'>&middot; building from " + esc(playerName(it)) + "</span>" : "");
-      return;
-    }
-    wizWho.innerHTML = it
-      ? "<span style='color:var(--gold);font-weight:800'>" + (it.rating != null ? it.rating : "?") + "</span> <b>" + esc(playerName(it)) + "</b>"
-      : "<span style='color:var(--muted)'>No player selected</span>";
-    if (typeof renderDeckSummary === "function") renderDeckSummary();  // keep the mobile Deck summary bar in sync
-  }
+  // NOTE: three things used to live here and were removed when the mobile Deck and Review
+  // steps were merged into one "Build & Apply" step:
+  //   wizWho / updateWizWho - a compact "selected player" header that was never actually
+  //                           added to the DOM, so it had been dead code for a while.
+  //   deckSummary           - the slim rating/name/caps bar atop the old Deck step.
+  //   reviewSummary         - the "about to apply" target + chip list on the old Review step.
+  //   capMetersHTML         - only existed so deckSummary could reuse the preview's meters.
+  // Both summaries were mobile-only echoes of the desktop spotlight card. Now that the card
+  // itself (preview / renderPreview) is ON the mobile build step, they were showing the same
+  // data in a third and fourth shape, which is what made the phone flow feel scattered.
 
-  // capMetersHTML(it): the two capacity meters (PS+ / Basic) as segment bars, the same
-  // ones the preview card draws. Split out so the mobile Deck summary can show them too
-  // without duplicating the markup. Caps grow past 3/8 for a GH-4th card (Math.max), just
-  // like the preview.
-  function capMetersHTML(it) {
-    var np = numPlus(it), nb = numBasic(it);
-    var plusCap = Math.max(CAP_PLUS, np), basicCap = Math.max(CAP_BASIC, nb);
-    function meter(label, used, cap, kind) {
-      var segs = "";
-      for (var i = 0; i < cap; i++) segs += "<span class='pv-seg" + (i < used ? " on" : "") + "'></span>";
-      return "<div class='pv-meter " + kind + "'><div class='pv-mlab'><span>" + label + "</span><b>" + used + "/" + cap + "</b></div>" +
-        "<div class='pv-segrow'>" + segs + "</div></div>";
-    }
-    return "<div class='pv-meters' style='margin-top:0'>" + meter("PlayStyle+", np, plusCap, "plus") + meter("Basic", nb, basicCap, "basic") + "</div>";
-  }
-
-  // ---- FEATURE: mobile PlayStyle-Deck summary --------------------------------
-  // A slim bar pinned to the top of the mobile Deck step: rating + name + caps, with a
-  // "stats" toggle that expands to the capacity meters AND the six face stats (mirroring
-  // the Review card), so you can read the player without leaving the deck. Open/closed is
-  // remembered across players and sessions.
-  var DECK_STATS_KEY = "FC26_deckStatsOpen";
-  function loadDeckStatsOpen() { try { return window.localStorage.getItem(DECK_STATS_KEY) === "1"; } catch (e) { return false; } }
-  function saveDeckStatsOpen() { try { window.localStorage.setItem(DECK_STATS_KEY, state.deckStatsOpen ? "1" : "0"); } catch (e) {} }
-  state.deckStatsOpen = loadDeckStatsOpen();
-
-  var deckSummary = document.createElement("div");
-  deckSummary.className = "fc26-decksum";
-  // renderDeckSummary(): (re)draw the summary bar for the current player / batch. Stats
-  // always reflect the previewed player (state.player), which is also what the evo grid
-  // shows - so in a batch it reads "N players" but the stats are the card you're building
-  // from. Safe to call any time; it just rewrites the (possibly detached) element.
-  function renderDeckSummary() {
-    if (!deckSummary) return;
-    var it = state.player;
-    var many = state.batch.size > 1;
-    var open = !!state.deckStatsOpen;
-    var rEl, nameEl, capEl, gkBadge = "";
-    if (many) {                                        // batch: apply to all, stats from the building-from card
-      rEl = "👥";
-      nameEl = state.batch.size + " players";
-      capEl = it ? ("building from " + playerName(it)) : "batch apply";
-    } else if (it) {
-      rEl = (it.rating != null ? it.rating : "?");
-      nameEl = playerName(it);
-      gkBadge = isGKPlayer(it) ? "<span class='ds-gk'>GK</span>" : "";
-      capEl = "PS+ " + numPlus(it) + "/" + Math.max(CAP_PLUS, numPlus(it)) + " · BASIC " + numBasic(it) + "/" + Math.max(CAP_BASIC, numBasic(it));
-    } else {
-      rEl = "—"; nameEl = "No player selected"; capEl = "pick one from the Lineup tab";
-    }
-    var showToggle = !!it;                             // stats only make sense with a player in focus
-    // Justaino pill under the OVR, so a phone shows the same score the desktop spotlight does.
-    // Single-player only (a batch has no one "best" score). Same source as the desktop card: bestJustaino().
-    var jr = (!many && it) ? (function () { try { return bestJustaino(it); } catch (e) { return null; } })() : null;
-    var jrPill = jr ? "<span class='ds-jr'>" + scoreLabel().toUpperCase() + " " + jr.score.total.toFixed(1) + " · " + esc(jr.group) + "</span>" : "";
-    var bar = "<div class='ds-bar'>" +
-      "<div class='ds-rwrap'><span class='ds-r'>" + rEl + "</span>" + jrPill + "</div>" +
-      "<div class='ds-w'><div class='ds-n'>" + esc(nameEl) + gkBadge + "</div><div class='ds-c'>" + esc(capEl) + "</div></div>" +
-      (showToggle ? "<button type='button' class='ds-toggle'>" + (open ? "▴ hide" : "▾ stats") + "</button>" : "") +
-      "</div>";
-    var body = (open && it) ? ("<div class='ds-body'>" + capMetersHTML(it) + scoreByPositionHTML(it) + faceStatsHTML(it) + "</div>") : "";
-    deckSummary.className = "fc26-decksum" + (open && it ? " open" : "");
-    deckSummary.innerHTML = bar + body;
-    var tg = deckSummary.querySelector(".ds-toggle");
-    if (tg) tg.addEventListener("click", function () { state.deckStatsOpen = !state.deckStatsOpen; saveDeckStatsOpen(); renderDeckSummary(); });
-  }
-
-  // ---- FEATURE: mobile Review summary ---------------------------------------
-  // The Review step used to repeat the whole preview card, which now just echoes the
-  // Deck step's summary bar. Instead we show a tight "about to apply" list: who it targets
-  // plus the PlayStyles you ticked, split PS+ / Basic. When nothing is ticked it still shows
-  // (so you can reach Review to manage an existing card) - a "Manage this card" section folds
-  // out the eligibility toggle + remove/clear-evo buttons that used to live on the preview.
-  state.reviewManageOpen = false;
-  var reviewSummary = document.createElement("div");
-  reviewSummary.className = "fc26-revsum";
-  function renderReviewSummary() {
-    if (!reviewSummary) return;
-    var it = state.player;
-    var many = state.batch.size > 1;
-    if (!it && !many) { reviewSummary.style.display = "none"; reviewSummary.innerHTML = ""; return; }  // no target at all
-    reviewSummary.style.display = "";
-    // Collect the ticked evos, split into PS+ and Basic (via the slotId -> evo lookup).
-    var plus = [], basic = [];
-    Array.from(state.selected).forEach(function (sid) { var e = byId(sid); if (!e) return; (e.kind === "PS+" ? plus : basic).push(e); });
-    var total = plus.length + basic.length;
-    // Target line: a batch count, or the single player's rating + name + rarity.
-    var target;
-    if (many) {
-      target = "<span class='rs-r'>👥</span><div class='rs-w'><div class='rs-n'>" + state.batch.size + " players</div><div class='rs-c'>batch apply</div></div>";
-    } else {
-      // Justaino pill under the OVR here too (matches the Deck bar + desktop spotlight). Reuses .ds-rwrap/.ds-jr.
-      var rjr = (function () { try { return bestJustaino(it); } catch (e) { return null; } })();
-      var rjrPill = rjr ? "<span class='ds-jr'>JUSTAINO " + rjr.score.total.toFixed(1) + " · " + esc(rjr.group) + "</span>" : "";
-      target = "<div class='ds-rwrap'><span class='rs-r'>" + (it.rating != null ? it.rating : "?") + "</span>" + rjrPill + "</div>" +
-        "<div class='rs-w'><div class='rs-n'>" + esc(playerName(it)) + (isGKPlayer(it) ? "<span class='ds-gk'>GK</span>" : "") + "</div>" +
-        "<div class='rs-c'>" + esc(rarityName(it)) + "</div></div>";
-    }
-    // chipRow(list, isPlus): one PS+/Basic row of icon chips (reuses the preview's chip look).
-    function chipRow(list, isPlus) {
-      if (!list.length) return "";
-      var chips = list.map(function (e) {
-        return "<span class='pv-chip" + (isPlus ? " plus" : "") + "'>" +
-          "<i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + evoTrait(e) + "'></i>" +
-          esc(e.n.replace(/\+$/, "")) + "</span>";
-      }).join("");
-      return "<div class='pv-group'><div class='pv-gl'>" + (isPlus ? "PlayStyle+" : "Basic") + " (" + list.length + ")</div>" +
-        "<div class='pv-chips'>" + chips + "</div></div>";
-    }
-    // The queued list, or a muted note when nothing's ticked (you're here just to manage).
-    var queued = total
-      ? ("<div class='rs-lead'>Applying " + total + " PlayStyle" + (total === 1 ? "" : "s") + ":</div>" + chipRow(plus, true) + chipRow(basic, false))
-      : "<div class='rs-none'>No PlayStyles ticked to apply. Go back to the Deck to pick some, or manage the card below.</div>";
-
-    // "Manage this card" (single player only): the eligibility toggle + remove/clear-evo
-    // buttons that used to sit on the preview. Folded away by default.
-    var manage = "";
-    if (it && !many) {
-      var mOpen = !!state.reviewManageOpen;
-      var elig = isEligibleRarity(it);
-      var hasPS = currentPlayStyles(it).length > 0;
-      manage = "<div class='rs-manage'>" +
-        "<button type='button' class='rs-manage-toggle'>" + (mOpen ? "▾ " : "▸ ") + "Manage this card</button>" +
-        (mOpen
-          ? "<div class='rs-manage-body'>" +
-              "<div class='pv-elig'><span class='pv-elig-state " + (elig ? "on" : "off") + "'>" + (elig ? "✓ evo-eligible" : "not evo-eligible") + "</span>" +
-                "<button class='pv-elig-btn'>" + (elig ? "Remove" : "Mark eligible") + "</button></div>" +
-              (hasPS
-                ? "<div class='pv-reset'><button class='pv-rm-one'>Remove Latest Evo</button><button class='pv-rm-all'>Clear all evos</button></div>"
-                : "<div class='pv-none'>No PlayStyles on this card yet.</div>") +
-            "</div>"
-          : "") +
-        "</div>";
-    }
-
-    reviewSummary.innerHTML = "<div class='rs-bar'>" + target + "</div>" + queued + manage;
-
-    // Wire the manage controls (listeners, not inline - the app's CSP blocks inline handlers).
-    var mt = reviewSummary.querySelector(".rs-manage-toggle");
-    if (mt) mt.addEventListener("click", function () { state.reviewManageOpen = !state.reviewManageOpen; renderReviewSummary(); });
-    var eb = reviewSummary.querySelector(".pv-elig-btn");
-    if (eb) eb.addEventListener("click", function () { setRarityEligible(it.rareflag, !isEligibleRarity(it)); renderReviewSummary(); renderPlayers(); if (state.player) renderPreview(); });
-    var rmOne = reviewSummary.querySelector(".pv-rm-one");
-    if (rmOne) rmOne.addEventListener("click", function () { runRemove(false); });
-    var rmAll = reviewSummary.querySelector(".pv-rm-all");
-    if (rmAll) rmAll.addEventListener("click", function () { runRemove(true); });
-  }
-
-  // Mobile scaffolding: a broadcast "channel" layout. A fixed tab bar up top (Lineup /
-  // Style deck / Review) and the current section scrolling below it. (The old pinned
-  // mini-spotlight was removed - the Deck step's summary bar and the Review preview now
-  // show the same rating/name/caps, so it was pure duplication.)
+  // Mobile scaffolding: a tab bar up top and the current section scrolling below it.
+  //
+  // TWO steps, not three. It used to be Lineup / PlayStyle Deck / Review, which is what made
+  // the phone feel unlike the desktop dock: the deck and the Apply button were on separate
+  // screens, Review was gated behind reviewReady(), and each screen had its own bespoke
+  // summary bar. Desktop's right-hand pane is already "spotlight card, then deck, then
+  // apply" stacked vertically, which is exactly what a phone wants - so step 2 is now that
+  // same stack, using the same element instances. See renderWizStep below.
   var layoutHost = document.createElement("div");             // the one box we rebuild the layout into
   layoutHost.style.cssText = "flex:1;min-height:0;display:flex;flex-direction:column";
   var stepper = document.createElement("div"); stepper.className = "fc26-chtabs";      // the channel tab bar
   var stepBody = document.createElement("div"); stepBody.className = "fc26-stepbody";   // the scrolling section
-  var STEP_LABELS = ["Lineup", "PlayStyle Deck", "Review"];   // channel-tab labels (1 / 2 / 3)
+  var STEP_LABELS = ["Lineup", "Build & Apply"];              // channel-tab labels (1 / 2)
 
-  // Mobile "guide" button: walks the user Lineup -> PlayStyle Deck -> Review. It's gated:
-  // you can't leave Lineup without a player, and you can't reach Review without at least one
-  // PlayStyle picked (the Review tab is dimmed + blocked in the same case). updateGuide()
-  // keeps its label/enabled state live (called on every render and every evo change).
+  // Mobile "guide" button: the one hop from Lineup to Build & Apply. It only needs a player
+  // (or a batch) to be enabled - there's no second gate any more, because Apply now lives on
+  // the same step as the deck and is separately greyed out by updateApplyBtn until something
+  // is ticked. updateGuide() keeps its label/enabled state live.
   var guideBtn = document.createElement("button");
   guideBtn.className = "fc26-guidebtn";
   guideBtn.addEventListener("click", function () { goStep(state.wizStep + 1); });
-  var reviewTabEl = null;   // the Review tab element, so updateGuide can dim/undim it live
-  // reviewReady(): may we land on the Review step? Yes if you've ticked something to apply,
-  // OR the selected player already HAS PlayStyles (so you can go there just to review /
-  // remove them via "Manage this card"). Applying is separately gated by updateApplyBtn.
-  function reviewReady() {
-    if (state.selected.size >= 1) return true;
-    try { return !!(state.player && currentPlayStyles(state.player).length > 0); } catch (e) { return false; }
-  }
   function updateGuide() {
-    var ready = reviewReady();
-    if (reviewTabEl) reviewTabEl.classList.toggle("dis", !ready);
     if (!guideBtn) return;
-    if (state.wizStep >= 3) { guideBtn.style.display = "none"; return; }   // Review uses the Apply button
+    if (state.wizStep >= 2) { guideBtn.style.display = "none"; return; }   // Apply lives on this step
     guideBtn.style.display = "";
-    var can, label;
-    if (state.wizStep === 1) {
-      can = !!state.player || state.batch.size > 0;
-      label = can ? "Next: PlayStyle Deck →" : "Pick a player first";
-    } else {                                                   // step 2 (PlayStyle Deck)
-      can = ready;
-      label = can ? "Next: Review →" : "Pick a PlayStyle to continue";
-    }
-    guideBtn.textContent = label;
+    var can = !!state.player || state.batch.size > 0;
+    guideBtn.textContent = can ? "Next: Build & Apply →" : "Pick a player first";
     guideBtn.disabled = !can;
     guideBtn.classList.toggle("dis", !can);
   }
 
-  // goStep(n): change wizard step (clamped 1-3) and redraw, on mobile. Guarded: you can't
-  // land on Review (3) unless reviewReady() (something ticked, or the card already has
-  // PlayStyles to manage) - a no-op otherwise, so both the guide button and a direct
-  // Review-tab tap are blocked.
+  // goStep(n): change wizard step (clamped 1-2) and redraw, on mobile. No gate: tapping
+  // "Build & Apply" with nobody selected just shows the same "pick a player" prompt the
+  // desktop deck shows, rather than silently refusing the tap.
   function goStep(n) {
-    n = Math.max(1, Math.min(3, n));
-    if (n === 3 && !reviewReady()) return;                    // nothing to apply or manage -> stay put
+    n = Math.max(1, Math.min(2, n));
     state.wizStep = n;
     if (currentMode() === "mobile") renderWizStep();
   }
@@ -6617,27 +6670,28 @@
   // renderWizStep(): draw the stepper + show the current step's modules + set nav buttons.
   function renderWizStep() {
     stepper.innerHTML = "";
-    reviewTabEl = null;
-    for (var i = 1; i <= 3; i++) {
+    for (var i = 1; i <= 2; i++) {
       (function (n) {
         var s = document.createElement("div");
         s.className = "fc26-chtab" + (n === state.wizStep ? " on" : "");   // active channel highlighted
         s.textContent = STEP_LABELS[n - 1];
         s.addEventListener("click", function () { goStep(n); });
         stepper.appendChild(s);
-        if (n === 3) reviewTabEl = s;   // remembered so updateGuide can dim it until ready
       })(i);
     }
     stepBody.innerHTML = "";
     if (state.wizStep === 1) {                                 // Lineup: pick a player
       stepBody.appendChild(squadMod);
       updateLineupCollapse();                                  // re-evaluate the list/stub for mobile
-    } else if (state.wizStep === 2) {                          // PlayStyle Deck: choose PlayStyles
-      renderDeckSummary(); stepBody.appendChild(deckSummary); stepBody.appendChild(buildMod);
-    } else {                                                    // Review: preview + apply
-      renderReviewSummary(); stepBody.appendChild(reviewSummary); stepBody.appendChild(applyMod);
+    } else {
+      // Build & Apply: the SAME three modules, in the SAME order, as the desktop dock's
+      // right-hand pane (see buildDesktop's narrow "r2" branch). Not copies - the very same
+      // elements, re-parented, so every listener and all state carries over untouched.
+      renderPreview();                                         // redraw for this mode (it folds detail away on a phone)
+      stepBody.appendChild(preview); stepBody.appendChild(spotHint);
+      stepBody.appendChild(buildMod); stepBody.appendChild(applyMod);
     }
-    updateGuide();   // set the guide button label/enabled + Review-tab dim for this step
+    updateGuide();   // set the guide button label/enabled for this step
   }
 
   // NARROW_DESKTOP: below this PANEL width (px) the desktop dock drops from three columns
@@ -6724,7 +6778,7 @@
   // Only fetch the full club if we didn't inherit it from the previous click. If we
   // did, it's shown instantly; hit "↻ Reload club" to pull a fresh copy.
   if (state.clubItems && state.clubItems.length) {
-    status.textContent = "Club ready: " + getClubPlayers().length + " players (↻ Reload club to refresh).";
+    setClubStatus(clubReadyText());
   } else {
     loadFullClub();    // first run: load the FULL club in the background and redraw
   }

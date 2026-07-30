@@ -840,6 +840,99 @@ lede, step 3, FAQ), the footer link text in `meta-page.js` (then re-run `node me
 
 ---
 
+## 3s. New in v34 - pinned cards, a two-tab phone flow, and the BUILD ID
+
+### Pinned "fresh" cards (why applied PlayStyles used to vanish)
+
+**The bug.** You applied a PlayStyle, it worked, and then the card in the Lineup showed no sign of
+it. Intermittent, and on desktop as well as mobile.
+
+**The cause.** `services.Club.search` serves the club **from the app's own in-memory store**, and
+that store can keep handing back the pre-grant copy of a card. `loadFullClub()` used to finish with
+a flat `state.clubItems = all`, so those stale copies overwrote the freshly-graded card we had just
+planted. It was a race: the background club sweep that starts when the panel opens is slow, so
+whether it landed before or after your apply was down to timing.
+
+**The fix - `state.fresh`.** Whenever the server hands back an `updatedItem` in reply to one of our
+own `Academy` calls, `rememberFresh(item)` pins it. `mergeFresh(list, complete)` then overlays those
+pins on every club load, so a stale search can never undo a change we know happened.
+
+Rules worth knowing:
+- A pin **only ever replaces** an entry already in the list. It never adds one back, so a card you
+  sold or used in an SBC can't reappear as a ghost.
+- A pin **retires itself** when the loaded copy has an identical PlayStyle fingerprint (`psSig`),
+  meaning the store has caught up, or when a **complete** load (`retrievedAll`) doesn't contain the
+  card at all.
+- Pins **carry across a bookmarklet rebuild** (see `prevFresh` at the top of the file), so a reload
+  straight after a re-paste is safe.
+
+Console helpers:
+
+```js
+FC26.fresh()        // ["Mbappé (3 PlayStyles)", ...] - what's currently pinned
+FC26.clearFresh()   // forget them all and trust the next club load completely
+```
+
+**`loadFullClub()` is now a wrapper** around `sweepFullClub()` with an in-flight guard: a second
+call joins the running sweep and shares its promise instead of starting a rival that races to write
+`state.clubItems`. It also owns the Reload button's busy state. Note the panel used to run the
+whole "first draw + club load" block **twice** (once mid-file, once at the end), so every run kicked
+off two sweeps; the mid-file copy is gone.
+
+### The phone flow: two tabs, not three
+
+`STEP_LABELS` is now `["Lineup", "Build & Apply"]`. Step 2 of `renderWizStep()` appends
+`preview`, `spotHint`, `buildMod`, `applyMod` - **the same element instances** the desktop dock uses
+in its narrow `r2` pane, in the same order. They're re-parented, not cloned, so every listener and
+all state survives the move.
+
+Removed along with the third step (each has a note in the source where it used to live):
+`reviewReady()` and the gated Review tab, `deckSummary`, `reviewSummary`, `capMetersHTML`, the dead
+`wizWho`/`updateWizWho`, both "← Back to players" buttons, and the CSS for all of it.
+
+**Mobile-only difference:** the card sits directly above the grid now, so `renderPreview()` folds
+its heavier half (item line, score-by-position, face stats, current-PlayStyle chips) behind a
+`.pv-more` toggle, defaulting closed. Hero, eligibility row, capacity meters and the remove buttons
+stay visible. Desktop shows everything with no toggle. The preference reuses the old
+`FC26_deckStatsOpen` key so an existing choice carries over.
+
+### Club-load feedback
+
+The main `status` line lives in `applyMod`, which on mobile was only in the DOM on the old Review
+step - so "Loading full club… 320" was being written to a detached element and the Reload button
+looked dead. There's now a second line, `clubStat`, **inside the Lineup module**; `setClubStatus()`
+writes to both, so desktop is unchanged.
+
+Two timings in the source, both deliberate: `RELOAD_MIN_MS` (650) holds the spinner long enough to
+see, because a warm club comes back in one page in a couple of hundred milliseconds, and
+`RELOAD_DONE_MS` (2600) is how long the "✓ Club loaded" confirmation lingers. **Neither delays the
+data** - the list is already updated underneath.
+
+> **Gotcha worth remembering:** the Reload button's look lives in the **stylesheet**
+> (`.fc26-reload`), not in an inline `style.cssText` like most buttons in this file. An inline style
+> always beats a stylesheet rule, so while the colours were inline the `.busy` / `.done` classes
+> went on but nothing changed on screen.
+
+### The BUILD ID (stop testing stale code)
+
+`node minify.js` stamps `FC26_VERSION` with `dev-<6 hex>`, a fingerprint of the code, and prints it.
+The panel's **header badge shows the same id**, so you can tell at a glance which build is running.
+
+```
+node minify.js
+pbcopy < bookmarklet.txt      # copy the FILE, never the editor buffer
+```
+
+Copying out of the editor is what caused a wasted round of testing: the editor served a cached copy
+and the badge said `dev` either way. `release.js` overwrites the same slot with the real `vN` when
+you cut a version, and blanks it before comparing builds, so its "no change" check is unaffected.
+
+`FC26.diag()` returns the running build plus whether the status line and Reload button are actually
+on screen and what size they are. It **returns** the object rather than logging it, because a bare
+`console.log` evaluates to `undefined`, which is all some mobile consoles show you.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
