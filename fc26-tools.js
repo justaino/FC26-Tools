@@ -425,7 +425,6 @@
   // The one place we remember what the user has picked. Reused by later steps.
   //   player   = the selected club item (or null)
   //   selected = a Set of ticked evo slotIds
-  //   tab      = which evolution tab is showing ("PS+" or "PS")
   //   running  = true while an apply run is in progress
   //   abort    = set true by the Stop button to end the run early
   //   clubItems = the FULL club loaded via search (null until we load it); when
@@ -442,7 +441,7 @@
   //              OVERRIDES" further down (near loadFullClub) for why this exists.
   //   applied  = id -> [{traitId,isIcon}] we APPLIED and the server said OK to, this
   //              session. Our own receipts. See "APPLIED RECEIPTS" just below.
-  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme(), rarityDefs: loadRarityDefs(), fresh: prevFresh || new Map(), applied: prevApplied || new Map() };
+  var state = { player: null, selected: new Set(), running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme(), rarityDefs: loadRarityDefs(), fresh: prevFresh || new Map(), applied: prevApplied || new Map() };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
@@ -1229,18 +1228,6 @@
     { c: "Physical",     gk: 0, ps: ["Quick Step", "Relentless", "Long Throw", "Bruiser", "Enforcer"] },
     { c: "Goalkeeping",  gk: 1, ps: ["Far Throw", "Footwork", "Cross Claimer", "1v1 Close Down", "Far Reach", "Deflector"] }
   ];
-
-  // BOARD_SHORT: shorter labels for the names that won't fit under a diamond (the board
-  // is 4 across in a 286px pane). Anything not listed here uses its full name; the label
-  // also ellipsis-clips in CSS, so a missing entry is untidy, never broken.
-  var BOARD_SHORT = {
-    "Finesse Shot": "Finesse", "Chip Shot": "Chip", "Power Shot": "Power",
-    "Precision Header": "Header", "Low Driven Shot": "Low Driven", "Gamechanger": "Gamechngr",
-    "Incisive Pass": "Incisive", "Pinged Pass": "Pinged", "Long Ball Pass": "Long Ball",
-    "Whipped Pass": "Whipped", "Slide Tackle": "Slide", "Aerial Fortress": "Aerial",
-    "First Touch": "First Tch", "Press Proven": "Press Prvn",
-    "Cross Claimer": "Cross Clm", "1v1 Close Down": "1v1 Close"
-  };
 
   // window.FC26.checkBoard() -> proves the table above still covers the catalog exactly.
   // Returns { ok, total, missing, unknown, duplicated }. ok:true and total:36 is correct.
@@ -2914,7 +2901,7 @@
     // limited "GH 4th PlayStyle+" evo could still end up past that. So the DISPLAYED cap
     // grows to whatever the player actually holds: a normal card shows 4/4 + 8/8, and a
     // card carrying an extra PS+ shows 5/5 instead of an overflowing 5/4. (Our SELECTION
-    // caps read the same CAP_PLUS/CAP_BASIC - see toggleEvo/renderEvos.)
+    // caps read the same CAP_PLUS/CAP_BASIC - see tileRing/renderEvos.)
     var plusCap = Math.max(CAP_PLUS, pUsed);
     var basicCap = Math.max(CAP_BASIC, bUsed);
 
@@ -3181,12 +3168,6 @@
     var rs = (pos && ROLES[pos]) ? Object.keys(ROLES[pos]) : [];
     roleSelect.innerHTML = '<option value="">role...</option>' + rs.map(function (r) { return "<option>" + esc(r) + "</option>"; }).join("");
   }
-  // idxTab(): after suggesting, show whichever tab holds more of the picks.
-  function idxTab() {
-    var arr = Array.from(state.selected);
-    var selPlus = arr.filter(function (s) { var e = byId(s); return e && e.kind === "PS+"; }).length;
-    return selPlus >= (arr.length - selPlus) ? "PS+" : "PS";
-  }
   // suggest(): pre-tick the recommended playstyles for the chosen position/role.
   //
   // How it works: each role has ONE ranked list (best pick first). We fill the
@@ -3271,7 +3252,11 @@
       if (noPlus && noBase) unavailable++;
     });
 
-    setTab(idxTab());                         // switches to the busier tab AND re-renders
+    // Suggest has never cared about tabs - it writes slot ids straight into state.selected,
+    // picking the "+" version in pass 1 and the basic in pass 2. It used to finish by
+    // flipping to the busier tab; with one board there's nothing to flip to, so it just
+    // redraws and every pick lights up at once.
+    renderEvos();
     status.textContent = "Suggested " + added + " for " + pos + " / " + role +
       (owned ? ", " + owned + " owned" : "") +
       (unavailable ? ", " + unavailable + " unavailable" : "") + ".";
@@ -3279,19 +3264,15 @@
   posSelect.addEventListener("change", populateRoles);
   suggestBtn.addEventListener("click", suggest);
 
-  // Two tabs: PlayStyle+ and basic PlayStyle.
+  // The PlayStyle+ / Basic tabs are GONE. One tile per PlayStyle now, and a tap cycles it:
+  //   nothing -> basic -> PlayStyle+ -> nothing
+  // skipping any step the card can't take (already owned, that cap full, GK-only). What's
+  // left here is a plain hint line in the same slot, so the gesture is written down on
+  // screen rather than being something you have to discover. `tabs` is kept as the element
+  // so the layout code that appends it doesn't need to change.
   var tabs = document.createElement("div");
-  tabs.style.cssText = "display:flex;margin-top:8px;border:1px solid var(--field-border);border-radius:7px;overflow:hidden";
-  function makeTab(label, kind) {
-    var b = document.createElement("button");
-    b.textContent = label;
-    b.style.cssText = "flex:1;padding:7px 4px;border:0;color:var(--muted);cursor:pointer;font-weight:700;font-size:10px;letter-spacing:.14em;text-transform:uppercase;background:transparent";
-    b.addEventListener("click", function () { setTab(kind); });
-    return b;
-  }
-  var tabPlus = makeTab("PlayStyle+", "PS+");
-  var tabBase = makeTab("Basic", "PS");
-  tabs.appendChild(tabPlus); tabs.appendChild(tabBase);
+  tabs.className = "fc26-cyclehint";
+  tabs.textContent = "Tap once to add the basic, twice for PlayStyle+";
 
   // Live count of what's ticked.
   var evoCount = document.createElement("div");
@@ -3316,61 +3297,67 @@
     if (typeof updateApplyBtn === "function") updateApplyBtn();   // enable/disable "Apply selected" by selection
   }
 
-  // setTab(kind): switch tab and redraw.
-  function setTab(kind) { state.tab = kind; renderEvos(); }
-
-  // toggleEvo(evo, on): tick/untick one evo, enforcing caps. SELECTION ONLY -
-  // nothing is applied to the club here.
-  function toggleEvo(evo, on) {
-    var it = state.player;
-    if (on && it) {
-      if (evo.kind === "PS+" && numPlus(it) + selectedCount("PS+") >= CAP_PLUS) { status.textContent = "PS+ cap reached (max " + CAP_PLUS + ")."; renderEvos(); return; }
-      if (evo.kind === "PS" && numBasic(it) + selectedCount("PS") >= CAP_BASIC) { status.textContent = "Basic cap reached (max " + CAP_BASIC + ")."; renderEvos(); return; }
-      state.selected.add(evo.s);
-    } else {
-      state.selected.delete(evo.s);
-    }
+  // cycleEvo(base, plus): ONE tap on a tile. The tile walks a little ring of states -
+  //     nothing -> basic -> PlayStyle+ -> nothing
+  // - and any step the card can't take is simply left out of the ring, so a tap never
+  // lands somewhere illegal. Examples: a card that already HAS the basic has a two-step
+  // ring (nothing -> PS+), and with the PS+ cap full it's (nothing -> basic).
+  // SELECTION ONLY - nothing is applied to the club here.
+  function cycleEvo(base, plus) {
+    var it = state.player; if (!it) return;
+    var ring = tileRing(it, base, plus);
+    if (ring.length < 2) return;                       // nothing this tile can add
+    var now = state.selected.has(plus.s) ? "plus" : state.selected.has(base.s) ? "basic" : "none";
+    var i = ring.indexOf(now);
+    var next = ring[(i < 0 ? 0 : i + 1) % ring.length];
+    state.selected.delete(base.s); state.selected.delete(plus.s);   // clear, then set the new step
+    if (next === "basic") state.selected.add(base.s);
+    if (next === "plus") state.selected.add(plus.s);
     renderEvos();
   }
 
-  // renderEvos(): (re)build THE BOARD - one diamond per PlayStyle, grouped under the six
-  // categories, fut.gg style. This replaced the old "one flat grid per tab" deck.
+  // tileRing(it, base, plus): which states this ONE tile can be in, in tap order. Always
+  // starts with "none". This is the single place the rules live, so the tap and the
+  // tooltip can never disagree.
+  //   - a style the card already has (in either form) can't be added again
+  //   - a GK-only style is out of scope for an outfielder
+  //   - a cap that's full blocks that kind - but NOT the slot this tile itself is using,
+  //     otherwise a tile you'd already queued couldn't be cycled off again
+  function tileRing(it, base, plus) {
+    var gk = isGKPlayer(it);
+    var hasPlus = hasEvo(it, plus), hasBase = hasEvo(it, base);
+    var selPlus = state.selected.has(plus.s), selBase = state.selected.has(base.s);
+    var wrongScope = !!base.g && !gk;
+    var usedPlus = numPlus(it) + selectedCount("PS+") - (selPlus ? 1 : 0);
+    var usedBase = numBasic(it) + selectedCount("PS") - (selBase ? 1 : 0);
+    var ring = ["none"];
+    // The basic is only addable if the card has NEITHER form: owning the "+" already
+    // covers it, and the game would reject adding the lesser version.
+    if (!wrongScope && !hasBase && !hasPlus && usedBase < CAP_BASIC) ring.push("basic");
+    if (!wrongScope && !hasPlus && usedPlus < CAP_PLUS) ring.push("plus");
+    return ring;
+  }
+
+  // renderEvos(): (re)build the deck - the original square icon tiles, now GROUPED under
+  // the six PlayStyle categories, with one tile per PlayStyle instead of two tabs.
   //
-  // THE IDEA IN ONE LINE: the board always shows the whole truth of the card; the
-  // PlayStyle+ / Basic switch above it no longer changes what you SEE, only what a tap ADDS.
+  // How to read a tile:
+  //   gold tile, ✓        - the card already has this as a PlayStyle+
+  //   plain tile, ✓       - the card already has the basic version
+  //   faint tile          - the card hasn't got it
+  //   accent ring + BASIC - you've queued it to be added as a basic
+  //   gold ring + PS+     - you've queued it to be added as a PlayStyle+
+  //   faded               - can't be added (that cap is full, or it's GK-only)
   //
-  // How to read a diamond (the rule is: solid fill = a FACT about the card, a ring =
-  // something you're ABOUT TO SPEND):
-  //   gold filled     - the card has this as a PlayStyle+
-  //   white filled    - the card has the basic version
-  //   white with a +  - has the basic, and the upgrade to + is still available
-  //   dim             - the card doesn't have it
-  //   gold ring       - you've queued it to be added as a PlayStyle+
-  //   cyan ring       - you've queued it to be added as a basic
-  //   dashed + faded  - can't be added right now (that cap is full, or it's GK-only)
-  //
-  // Why this is better than the old two tabs: the Basic tab used to HIDE which styles you
-  // already had as +, so it was easy to queue a basic you'd already upgraded past.
-  //
-  // All the rules are exactly as before - owned can't be re-added, GK-only evos are
-  // out of scope for outfielders, and each cap blocks further picks of that kind.
+  // A tap cycles the tile through whatever it's allowed to be (see tileRing), and the
+  // strip along the bottom of a queued tile spells out which one it's queued as, so the
+  // second tap never has to be guessed at. Nothing is spent until you press Apply.
   function renderEvos() {
-    // The switch is now "what does a tap add?", so it's tinted by cost: gold for the
-    // PlayStyle+ side, accent for Basic. Inactive stays a faint wash.
-    var plusMode = state.tab === "PS+";
-    tabPlus.style.background = plusMode ? "var(--gold)" : "transparent";
-    tabPlus.style.color = plusMode ? "#2a1e00" : "var(--muted)";
-    tabBase.style.background = plusMode ? "transparent" : "var(--accent)";
-    tabBase.style.color = plusMode ? "var(--muted)" : "var(--accent-ink)";
     evoList.innerHTML = "";
     var it = state.player;
     if (typeof updateGhVisibility === "function") { try { updateGhVisibility(); } catch (e) {} }   // show/hide the GH-4th section for this player
     if (!it) { evoList.innerHTML = "<div style='opacity:.7'>Select a player above to choose evolutions.</div>"; updateEvoCount(); return; }
     var gk = isGKPlayer(it);
-    // Both caps, worked out once: what the card holds PLUS what's already queued.
-    var plusFull = numPlus(it) + selectedCount("PS+") >= CAP_PLUS;
-    var baseFull = numBasic(it) + selectedCount("PS") >= CAP_BASIC;
-    var capReached = plusMode ? plusFull : baseFull;   // the cap that applies to a tap right now
     var hidGK = false;                                  // did we drop the Goalkeeping row?
 
     PS_CATEGORIES.forEach(function (cat) {
@@ -3381,9 +3368,9 @@
 
       var block = document.createElement("div");
       block.className = "ps-cat";
-      var board = document.createElement("div");
-      board.className = "ps-board";
-      var ownPlus = 0, ownBase = 0;                     // how much of this category the card already holds
+      var grid = document.createElement("div");
+      grid.className = "fc26-grid";                     // the original 3-column tile grid
+      var ownPlus = 0, ownBase = 0;                     // how much of this category the card holds
 
       cat.ps.forEach(function (name) {
         var base = psByName[name], plus = pspByName[name];
@@ -3393,53 +3380,50 @@
         var hasPlus = hasEvo(it, plus), hasBase = hasEvo(it, base);
         var selPlus = state.selected.has(plus.s), selBase = state.selected.has(base.s);
         if (hasPlus) ownPlus++; else if (hasBase) ownBase++;
+        var wrongScope = !!base.g && !gk;
+        var ring = tileRing(it, base, plus);
+        var canTap = ring.length > 1;
 
-        // What a tap would do, in the mode you're currently in.
-        var target = plusMode ? plus : base;
-        var targetOwned = plusMode ? hasPlus : hasBase;
-        var targetSel = plusMode ? selPlus : selBase;
-        var wrongScope = !!base.g && !gk;               // GK-only style on an outfielder
-        var blocked = wrongScope || (capReached && !targetSel);
-        var canTap = !targetOwned && !blocked;
+        // Classes, reusing the original tile look (.fc26-ec / .psp / .sel / .dis) so this
+        // is the deck you had before, just grouped. "dis" (faded) is only for a tile with
+        // nothing to show: a tile the card already OWNS stays solid and simply doesn't
+        // respond, because fading a fact would make the deck look dead at full caps.
+        var cls = "fc26-ec";
+        if (hasPlus) cls += " psp own-plus";            // gold tile: owned as a PlayStyle+
+        else if (hasBase) cls += " own-base";           // plain tile with a tick: owned as basic
+        if (selPlus) cls += " sel selp";                // gold ring: queued as PS+
+        else if (selBase) cls += " sel";                // accent ring: queued as basic
+        if (!canTap && !hasPlus && !hasBase) cls += " dis";
 
-        // Classes. Note "off" (dashed + faded) is only for a diamond with nothing to
-        // report: if the card already HAS the style, we keep it solid and simply don't
-        // let you tap it - fading a fact would make the board look dead at full caps.
-        var cls = "ps-item";
-        if (hasPlus) cls += " has-plus";
-        else if (hasBase) cls += " has-basic";
-        if (hasBase && !hasPlus && !plusFull) cls += " up";   // upgrade to + still available
-        if (selPlus) cls += " sel-plus";                       // gold ring wins if somehow both are queued
-        else if (selBase) cls += " sel-basic";
-        if (blocked && !hasPlus && !hasBase) cls += " off";
-        if (!canTap) cls += " nope";
-
-        // Plain-English tooltip: the fact first, then what a tap would do.
+        // Plain-English tooltip: the fact first, then exactly what the next tap does.
         var tip = name + " - " + (hasPlus ? "has the PlayStyle+" : hasBase ? "has the basic" : "not on this card");
-        if (selPlus && selBase) tip += "; queued as BOTH basic and PS+";
-        else if (selPlus) tip += "; queued as PS+";
+        if (selPlus) tip += "; queued as PlayStyle+";
         else if (selBase) tip += "; queued as basic";
-        else if (targetOwned) tip += "; already has the " + (plusMode ? "PS+" : "basic");
-        else if (wrongScope) tip += "; goalkeepers only";
-        else if (blocked) tip += "; " + (plusMode ? "PS+" : "basic") + " cap full";
-        else tip += "; tap to queue as " + (plusMode ? "PS+" : "basic");
+        if (!canTap) tip += wrongScope ? "; goalkeepers only" : (hasPlus ? "" : "; caps full");
+        else {
+          var now = selPlus ? "plus" : selBase ? "basic" : "none";
+          var nxt = ring[(ring.indexOf(now) + 1) % ring.length];
+          tip += "; tap to " + (nxt === "none" ? "clear" : "queue as " + (nxt === "plus" ? "PlayStyle+" : "basic"));
+        }
 
-        // The icon is the app's own PlayStyle pictogram - the "+" artwork when the diamond
-        // is showing a PlayStyle+, the plain one otherwise.
+        // The icon is the app's own pictogram: the "+" artwork whenever the tile is
+        // showing a PlayStyle+, the plain one otherwise.
         var asPlus = hasPlus || selPlus;
-        var item = document.createElement("div");
-        item.className = cls;
-        item.title = tip;
-        item.innerHTML =
-          "<div class='ps-dia'>" + psIco(evoTrait(base), asPlus) + "</div>" +
-          "<div class='ps-nm'>" + esc(BOARD_SHORT[name] || name) + "</div>";
-        if (canTap) { item.addEventListener("click", function () { toggleEvo(target, !state.selected.has(target.s)); }); }
-        board.appendChild(item);
+        var tile = document.createElement("div");
+        tile.className = cls;
+        tile.title = tip;
+        tile.innerHTML =
+          psIco(evoTrait(base), asPlus) +
+          "<div class='nm'>" + esc(name) + "</div>" +
+          (hasPlus || hasBase ? "<span class='own'>✓</span>" : "") +
+          (selPlus ? "<span class='qbar plus'>PS+</span>" : selBase ? "<span class='qbar'>Basic</span>" : "");
+        if (canTap) { tile.addEventListener("click", function () { cycleEvo(base, plus); }); }
+        grid.appendChild(tile);
       });
 
       // Label ABOVE the row (fut.gg puts it in a left gutter, but that needs ~140px and
-      // the deck pane is 286px). Right-hand figure = what the card holds here, e.g.
-      // "2+ 3" for two PlayStyle+ and three basics.
+      // the deck pane is 286px). Right-hand figure = what the card holds in this
+      // category, e.g. "2+ 3" for two PlayStyle+ and three basics.
       var tally = [];
       if (ownPlus) tally.push(ownPlus + "+");
       if (ownBase) tally.push(String(ownBase));
@@ -3447,7 +3431,7 @@
       lab.className = "ps-catlab";
       lab.innerHTML = "<span>" + esc(cat.c) + "</span><span class='ln'></span><i>" + (tally.join(" ") || "0") + "</i>";
 
-      block.appendChild(lab); block.appendChild(board);
+      block.appendChild(lab); block.appendChild(grid);
       evoList.appendChild(block);
     });
 
@@ -4526,51 +4510,33 @@
       "#fc26-panel .fc26-ec.psp .ico{color:var(--gold)}" +
       "#fc26-panel .fc26-ec .nm{font-size:9px;line-height:1.15;color:var(--ink);opacity:.85;word-break:break-word;text-transform:uppercase;letter-spacing:.03em}" +
       "#fc26-panel .fc26-ec .own{position:absolute;top:3px;right:4px;font-size:10px;color:#67e08a}" +
-      // ---- THE PLAYSTYLE BOARD (categorised diamonds) --------------------------
-      // See renderEvos() for how to read one. The rule the colours follow:
-      //   solid fill = a FACT about the card    ring = something you're ABOUT TO SPEND
-      // Category label sits ABOVE its row with a hairline and the owned tally.
-      "#fc26-panel .ps-cat{margin-bottom:11px}" +
+      // ---- THE CATEGORISED DECK ------------------------------------------------
+      // The tiles are the original .fc26-ec squares (see above) - the diamonds were tried
+      // in v36 and dropped. What's new here is the grouping: a category label ABOVE each
+      // row (fut.gg puts it in a left gutter, but that wants ~140px and the pane is 286px),
+      // plus the tile states that let ONE tile stand for both the basic and the "+".
+      "#fc26-panel .ps-cat{margin-bottom:12px}" +
       "#fc26-panel .ps-catlab{display:flex;align-items:center;gap:7px;font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}" +
       "#fc26-panel .ps-catlab .ln{flex:1;height:1px;background:var(--border)}" +
       "#fc26-panel .ps-catlab i{font-style:normal;color:var(--gold);opacity:.85;letter-spacing:.06em;font-variant-numeric:tabular-nums}" +
-      // 4 diamonds per row in the 286px desktop pane, 5 on a phone (more width there).
-      "#fc26-panel .ps-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}" +
-      "#fc26-panel.fc26-mobile .ps-board{grid-template-columns:repeat(5,minmax(0,1fr))}" +
-      "#fc26-panel .ps-item{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;cursor:pointer;user-select:none}" +
-      "#fc26-panel .ps-item.nope{cursor:default}" +
-      // The diamond itself: a rounded square rotated 45deg, with the icon spun back level.
-      // Sizing note: a square rotated 45deg only has room for a level square about 70% of
-      // its width (36 / 1.41 = 25px), so the icon is sized against THAT, not the 36px box.
-      // overflow:visible lets a wide glyph breathe past the rotated edge rather than clip.
-      "#fc26-panel .ps-dia{position:relative;overflow:visible;width:42px;height:42px;margin:10px 0 9px;transform:rotate(45deg);border-radius:9px;display:grid;place-items:center;background:var(--tile);border:1px solid var(--tile-border);transition:.1s}" +
-      "#fc26-panel .ps-item:hover .ps-dia{border-color:var(--accent)}" +
-      "#fc26-panel .ps-item.nope:hover .ps-dia{border-color:var(--tile-border)}" +
-      "#fc26-panel .ps-dia .ico{transform:rotate(-45deg);font-family:'UltimateTeam-Icons',sans-serif;font-style:normal;font-weight:400;font-size:30px;line-height:1;color:var(--icon);opacity:.9}" +
-      // A phone row is 5 across but each cell is wider there, so the diamonds go up a size.
-      "#fc26-panel.fc26-mobile .ps-dia{width:46px;height:46px}" +
-      "#fc26-panel.fc26-mobile .ps-dia .ico{font-size:33px}" +
-      "#fc26-panel .ps-nm{font-size:8px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}" +
-      // FACT: the card has the basic (white) / the PlayStyle+ (gold).
-      "#fc26-panel .ps-item.has-basic .ps-dia{background:var(--ink);border-color:var(--ink)}" +
-      "#fc26-panel .ps-item.has-basic .ps-dia .ico{color:var(--accent-ink);opacity:1}" +
-      "#fc26-panel .ps-item.has-basic .ps-nm{color:var(--ink)}" +
-      "#fc26-panel .ps-item.has-plus .ps-dia{background:var(--gold);border-color:var(--gold)}" +
-      "#fc26-panel .ps-item.has-plus .ps-dia .ico{color:#2a1e00;opacity:1}" +
-      "#fc26-panel .ps-item.has-plus .ps-nm{color:var(--gold)}" +
-      // ABOUT TO SPEND: queued as basic (accent ring) / queued as PlayStyle+ (gold ring).
-      "#fc26-panel .ps-item.sel-basic .ps-dia{background:var(--sel);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}" +
-      "#fc26-panel .ps-item.sel-basic .ps-dia .ico{color:var(--accent);opacity:1}" +
-      "#fc26-panel .ps-item.sel-basic .ps-nm{color:var(--accent)}" +
-      "#fc26-panel .ps-item.sel-plus .ps-dia{background:var(--tile-psp);border-color:var(--gold);box-shadow:0 0 0 2px var(--gold)}" +
-      "#fc26-panel .ps-item.sel-plus .ps-dia .ico{color:var(--gold);opacity:1}" +
-      "#fc26-panel .ps-item.sel-plus .ps-nm{color:var(--gold)}" +
-      // Has the basic, and the upgrade to + is still open: a small gold + on the corner.
-      "#fc26-panel .ps-item.up .ps-dia::after{content:'+';position:absolute;right:-14px;top:-14px;transform:rotate(-45deg);width:16px;height:16px;border-radius:50%;background:var(--gold);color:#2a1e00;font-size:12px;font-weight:800;display:grid;place-items:center;line-height:1}" +
-      // Can't be added right now (cap full / GK-only) AND the card hasn't got it either.
-      "#fc26-panel .ps-item.off{opacity:.32}" +
-      "#fc26-panel .ps-item.off .ps-dia{border-style:dashed}" +
+      "#fc26-panel .ps-cat .fc26-grid{margin-top:0}" +
       "#fc26-panel .ps-foot{font-size:9.5px;color:var(--muted);opacity:.75;margin-top:2px}" +
+      // The tap-cycle hint, sitting where the PS+/Basic tabs used to be.
+      "#fc26-panel .fc26-cyclehint{margin-top:8px;padding:6px 9px;border-radius:7px;background:var(--tab);border:1px dashed var(--field-border);color:var(--muted);font-size:10px;font-weight:600;letter-spacing:.02em;text-align:center}" +
+      // OWNED (a fact about the card): gold tile = has the PlayStyle+, plain tile with a
+      // tick = has the basic. Neither is faded - they stay readable at full caps.
+      "#fc26-panel .fc26-ec.own-plus{opacity:1}" +
+      "#fc26-panel .fc26-ec.own-plus .own{color:var(--gold)}" +
+      "#fc26-panel .fc26-ec.own-base{background:var(--sel);border-color:var(--card-border)}" +
+      "#fc26-panel .fc26-ec.own-plus,#fc26-panel .fc26-ec.own-base{cursor:pointer}" +
+      // QUEUED as a PlayStyle+ : the accent ring from .sel is overridden to gold, so the
+      // two kinds of pick can never be confused with each other.
+      "#fc26-panel .fc26-ec.selp{background:var(--tile-psp);border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}" +
+      "#fc26-panel .fc26-ec.selp .ico{color:var(--gold)}" +
+      // The strip along the bottom of a queued tile: says WHICH kind it's queued as, so the
+      // second tap is never a guess.
+      "#fc26-panel .fc26-ec .qbar{display:block;margin:4px -4px -7px;padding:2px 0;border-radius:0 0 8px 8px;font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;background:var(--accent);color:var(--accent-ink)}" +
+      "#fc26-panel .fc26-ec .qbar.plus{background:var(--gold);color:#2a1e00}" +
       // ---- apply progress (tiles spin -> tick) + result summary ----------------
       "#fc26-panel .fc26-ec .ap-badge{position:absolute;top:3px;right:4px;width:14px;height:14px;border-radius:50%;display:grid;place-items:center;font-size:9px;opacity:0;transform:scale(.4)}" +
       "#fc26-panel .fc26-ec.applying{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset,0 0 14px rgba(79,227,172,.45)}" +

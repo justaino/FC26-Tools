@@ -996,38 +996,55 @@ through EA's lag.
 
 ---
 
-## 3u. New in v36 - the categorised PlayStyle board
+## 3u. New in v36-v37 - the categorised deck and the tap cycle
 
-The deck used to be a flat A-to-Z grid of square tiles, shown one tab at a time. It's now a
-**board**: one diamond per PlayStyle, grouped under the six categories fut.gg uses.
+The deck used to be a flat A-to-Z grid, shown one tab at a time. It's now **grouped under six
+categories**, with **one tile per PlayStyle** instead of two tabs.
 
-### How to read a diamond
+> **A note on the history:** v36 shipped this as rotated **diamonds**. Peks called them ugly AF,
+> so v37 put the original square tiles back and kept everything else. If you ever fancy the
+> diamonds again, they're in git at tag-free commit `810a641`.
 
-The rule behind the colours, and the thing to remember:
-
-> **A solid fill is a fact about the card. A ring is something you're about to spend.**
+### How to read a tile
 
 | Look | Meaning |
 |---|---|
-| Gold, filled | The card has this as a **PlayStyle+** |
-| White, filled | The card has the **basic** version |
-| White with a small gold **+** on the corner | Has the basic, and the upgrade to + is still available |
-| Dim | The card hasn't got it |
-| **Gold ring** | You've queued it to be added as a PlayStyle+ |
-| **Cyan ring** | You've queued it to be added as a basic |
-| Dashed and faded | Can't be added right now: that cap is full, or it's GK-only and this is an outfielder |
+| Gold tile, ✓ | The card already has this as a **PlayStyle+** |
+| Tinted tile, ✓ | The card already has the **basic** version |
+| Faint tile | The card hasn't got it |
+| Accent ring + **BASIC** strip | You've queued it to be added as a basic |
+| Gold ring + **PS+** strip | You've queued it to be added as a PlayStyle+ |
+| Faded | Can't be added: that cap is full, or it's GK-only and this is an outfielder |
 
-A diamond the card **already owns stays solid and simply isn't tappable** - it doesn't fade.
-That's deliberate: fading facts would make the whole board look dead once a cap is full.
+A tile the card **already owns stays solid and simply doesn't respond** - it doesn't fade. That's
+deliberate: fading facts would make the whole deck look dead once a cap is full.
 
-### The PlayStyle+ / Basic switch
+### The tap cycle (v37)
 
-It's still there, but it no longer changes **what you see** - the board always shows the whole
-card. It decides only **what a tap adds**, so it's tinted by cost: gold on the PlayStyle+ side,
-cyan on Basic. Switching sides never clears what you've queued.
+The PlayStyle+ / Basic tabs are **gone**. One tap cycles a tile:
 
-This is the real win over the old two tabs: the Basic tab used to **hide** which styles you
-already had as a +, so it was easy to queue a basic you'd already upgraded past.
+```
+nothing  ->  basic  ->  PlayStyle+  ->  nothing
+```
+
+**Any step the card can't take is left out of the ring**, so a tap can never land somewhere the
+game would reject. A card that already has the basic cycles `nothing -> PS+ -> nothing`; with the
+PS+ cap full it's `nothing -> basic -> nothing`; with nothing available the tile doesn't respond.
+
+All of that lives in **one function, `tileRing(it, base, plus)`**, which returns the states this
+tile can be in, in tap order. `cycleEvo()` walks it and the tooltip reads from it, so the tap and
+the tooltip can never disagree. If you change a rule, change it there.
+
+Three things make the cycle safe, which was the worry when it was designed:
+
+1. Illegal steps are **removed**, not silently skipped.
+2. A queued tile **says which kind it is** on the strip along its bottom (`BASIC` / `PS+`), so the
+   second tap is never a guess. The hint line where the tabs used to be spells the gesture out.
+3. **Nothing is spent until you press Apply** - a mis-tap costs nothing, just tap again.
+
+One subtlety worth knowing if you touch the caps: `tileRing` subtracts the tile's **own** queued
+slot before comparing against the cap. Without that, a tile you'd already queued would count
+itself as full and couldn't be cycled back off.
 
 ### The category table
 
@@ -1042,11 +1059,8 @@ already had as a +, so it was easy to queue a basic you'd already upgraded past.
 - The Goalkeeping six are precisely our six `g:1` evos, so hiding the whole category for an
   outfielder needs no extra data. A goalkeeper still sees every category, because general evos
   apply to keepers too - same as the game.
-- fut.gg calls **1v1 Close Down** "Rush Out". We keep our name: it's what the game's own evo
+- Some sites call **1v1 Close Down** "Rush Out". We keep our name: it's what the game's own evo
   list shows, so it matches what you tap.
-- `BOARD_SHORT` just below holds shorter labels for names that won't fit under a diamond
-  (4 across in a 286px pane). A name that's missing from it is untidy, never broken - the label
-  ellipsis-clips in CSS.
 
 **After editing either table, run this in the Console:**
 
@@ -1059,8 +1073,8 @@ table still covers the catalog exactly. `unknown` catches a mistyped name.
 
 ### Category labels sit ABOVE the row
 
-fut.gg puts them in a left gutter, but that needs about 140px and the deck pane is 286px wide -
-a gutter would leave room for roughly two diamonds per row. So the label sits above its row with
+A left gutter would need about 140px and the deck pane is 286px wide, which would leave room for
+roughly two tiles per row. So the label sits above its row with
 a hairline rule, and the figure on the right is what the card holds in that category: `2+ 3`
 means two PlayStyle+ and three basics.
 
@@ -1096,11 +1110,10 @@ Expect one gap today: Intercept's basic, drawing `icon_icontrait16`.
 
 ### Sizing
 
-A square rotated 45° only has room for a level square about 70% of its width, so the icon is
-sized against **that**, not the box: a 42px diamond gives roughly 30px of usable space. Desktop is
-42px / 30px, a phone is 46px / 33px (5 across instead of 4, but wider cells). `overflow:visible`
-lets a wide glyph breathe past the rotated edge rather than clip. To go bigger than this, drop to
-3 diamonds per row rather than growing the diamond.
+Back to the original tile metrics: a 3-column grid (`.fc26-grid`) of `.fc26-ec` tiles with a 24px
+icon and a 9px wrapping name, so nothing needs abbreviating. The v37 state classes layer on top of
+that look rather than replacing it - `own-plus`, `own-base`, `selp` (the gold ring that overrides
+`.sel`'s accent one) and `.qbar` (the queued strip).
 
 ---
 

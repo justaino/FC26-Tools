@@ -5,6 +5,35 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v37 - 2026-07-30
+
+**Peks specifically said that the new icons are ugly AF, such a shame but ah well.**
+
+- The diamonds are gone and **the original square PlayStyle tiles are back**, exactly as they
+  were. The **categories stay**, so the deck is still grouped under the six headings with a tally
+  of what the card holds in each.
+
+**One tile per PlayStyle, and a tap cycles it.**
+
+- The PlayStyle+ / Basic tabs are **gone**. Tap a tile once to queue the **basic**, twice for the
+  **PlayStyle+**, a third time to clear it.
+- **A tap can never land somewhere the game would reject.** Any step the card can't take is left
+  out of the cycle: a card that already has the basic goes straight to PS+, and when a cap is full
+  that kind is skipped entirely.
+- **A queued tile says which kind it is** on a strip along its bottom - `BASIC` in cyan, `PS+` in
+  gold - so the second tap is never a guess. The line where the tabs used to be spells the gesture
+  out too.
+- **Nothing is spent until you press Apply**, so a mis-tap costs nothing. Tap again to clear it.
+- Reading a tile: a **gold tile with a tick** means the card already has the PlayStyle+, a
+  **tinted tile with a tick** means it has the basic, and a faint tile means it hasn't got it.
+  A tile you already own stays solid rather than fading, so the deck still reads properly when a
+  cap is full.
+- **Suggest is untouched.** It picks exactly what it did before - it never used the tabs, it
+  writes its choices straight in. The only difference is its picks now light up across the whole
+  deck at once instead of being split over two tabs.
+
+---
+
 ## v36 - 2026-07-30
 
 **The PlayStyle Deck is now a board, grouped like fut.gg.**
