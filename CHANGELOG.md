@@ -5,6 +5,38 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v35 - 2026-07-30
+
+**Applied PlayStyles now show up instantly, every time.**
+
+- The bug: you applied a PlayStyle, it worked, and the little capacity meters on the card didn't
+  move. It came and went, and it hit players from deep in the club list most.
+- **What was actually going on, and it wasn't our code.** EA run Evolutions and your club as two
+  separate services. The PlayStyle is granted immediately, but the club side publishes it **when it
+  feels like it**, sometimes minutes later. The panel used to ask "what does this card have now?"
+  and draw whatever came back, so if it asked before EA had caught up, you got the old numbers.
+  Whether it worked was down to timing, which is why it felt random.
+- **What happens now: the panel keeps its own receipts.** When an apply call comes back successful,
+  we already know exactly which PlayStyle just landed, so there's nothing to ask anyone. The panel
+  notes it down and shows it straight away. The meters, the chips, the PS+ icons in the Lineup, the
+  ✓ on the tile you just used, the caps and your Justaino Score all read the same combined picture:
+  what the game says, plus what we know we did.
+- Receipts look after themselves. One tears itself up the moment the game's own copy of the card
+  finally shows that PlayStyle, so nothing is ever counted twice. Reverting a card's evos throws its
+  receipts away, because that card has gone backwards.
+- Receipts survive a **Reload club** and a bookmarklet update, so a refresh can't lose them.
+- **Applying is quicker too.** The old "Waiting for the grant to register..." step, which re-loaded
+  your whole club up to four times after every apply, is gone - it never actually reached the
+  servers, and the receipts make it pointless.
+- One safety net kept: if the game replies with a copy of the card carrying **fewer** PlayStyles than
+  it had before (their data lagging), the panel refuses it rather than accepting a card that just
+  lost PlayStyles.
+- Console, if you're ever curious: `FC26.applied()` lists PlayStyles the game hasn't caught up with
+  yet, `FC26.clearApplied()` forgets them and shows only what the game itself reports. Seeing entries
+  in `FC26.applied()` is normal and healthy.
+
+---
+
 ## v34 - 2026-07-30
 
 **Applied PlayStyles no longer disappear from the Lineup.**

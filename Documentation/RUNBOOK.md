@@ -933,6 +933,69 @@ on screen and what size they are. It **returns** the object rather than logging 
 
 ---
 
+## 3t. New in v35 - applied receipts (the count always moves now)
+
+**The bug.** You applied a PlayStyle, the call succeeded, and the meters on the card didn't move.
+Intermittent, and more likely on players from deep in the club list.
+
+**The cause - and it isn't ours.** EA runs Evolutions and the club on two different services. The
+grant happens immediately, but the club service publishes it **on its own schedule**, sometimes
+minutes later. Proven live: `Academy.addItemToSlot` returns a success whose own `updatedItem`
+reports **zero** PlayStyles, and a genuine `POST /ut/game/fc26/club` moments later says the same.
+So every version up to v34 was asking a question nobody could answer yet, and drawing the old
+numbers when the answer came back stale. Pure timing, which is why it came and went.
+
+**The fix - stop asking.** When our own apply call comes back successful, we already know exactly
+which PlayStyle landed. So we write ourselves a **receipt** and show it. No polling, no extra club
+reads, no waiting on EA.
+
+How it works in the code (all in `fc26-tools.js`):
+
+| Piece | What it does |
+|---|---|
+| `state.applied` | A Map of `itemId -> [{traitId, isIcon}]` - the PlayStyles we applied this session that the game's own card data hasn't published yet. |
+| `noteApplied(itemId, traitId, isPlus)` | Files a receipt. Called at the exact point each apply succeeds, in all three apply paths (single, batch, GH 4th). |
+| `effectivePlayStyles(it)` | **The one function everything visible should use.** Returns the app's own PlayStyle list **plus** any receipt still missing from it. |
+| `forgetApplied(id)` | Tears up a card's receipts. Called after a remove/clear, because the card just went backwards. |
+
+`effectivePlayStyles` is **self-cleaning**: every time it runs it drops any receipt the app's own
+copy now shows, so a PlayStyle can never be counted twice and a receipt can't linger forever.
+
+What reads it: the capacity meters and chips on the spotlight card, the PS+ icons in the Lineup and
+the Rankings list, the "already owned ✓" ticks in the deck, the cap arithmetic (`hasEvo`,
+`numBasic`, `numPlus`) and the Justaino Score. `currentPlayStyles(it)` still exists and is still the
+raw, unvarnished answer from the app - use it only where you deliberately want that (e.g. `psSig`,
+which compares a club copy against a pinned one).
+
+Receipts **survive**: they're keyed by player id, so a Reload club can't lose them, and they're
+carried across a bookmarklet rebuild alongside the club (`prevApplied`).
+
+Two things this replaced:
+
+- The 4-attempt **"Waiting for the grant to register..."** retry polls in single apply, batch apply
+  and GH 4th are **gone**. They re-loaded your club up to four times per apply and never actually
+  hit the network anyway (`services.Club.search` is answered from memory), so they were slow *and*
+  useless. Applying is noticeably quicker now.
+- One guard was kept: if EA returns an updated card carrying **fewer** PlayStyles than the card
+  started with, we refuse it rather than adopt it, so a laggy reply can't wipe PlayStyles the
+  player already had.
+
+Console escape hatches:
+
+```js
+FC26.applied()        // ["Vinicius Jr: Rapid+", ...] - receipts the game hasn't caught up with yet
+FC26.clearApplied()   // tear them all up and show only what the app itself reports
+```
+
+`FC26.applied()` returning receipts is **healthy** - it means a grant landed and EA hasn't published
+it yet. It returning "No pending receipts" just means the game has caught up. Both are fine.
+
+This sits alongside the v34 pinned-card system (`FC26.fresh()`), it doesn't replace it: pinning
+keeps the freshest **card** through a club load, receipts keep the freshest **PlayStyle list**
+through EA's lag.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

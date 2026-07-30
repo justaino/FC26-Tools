@@ -22,9 +22,12 @@
   // We also carry over the "fresh-card overrides" (cards we've evo'd this session, see
   // FRESH-CARD OVERRIDES further down), so a Reload club straight after a rebuild can't
   // serve you a stale pre-evo copy of a player you just changed.
-  var prevClub = null, prevFresh = null;
+  // We also carry over the "applied this session" receipts (see APPLIED RECEIPTS further
+  // down), so a rebuild can't lose the PlayStyles you already know landed.
+  var prevClub = null, prevFresh = null, prevApplied = null;
   try { if (window.FC26 && window.FC26.state && window.FC26.state.clubItems) prevClub = window.FC26.state.clubItems; } catch (e) {}
   try { if (window.FC26 && window.FC26.state && window.FC26.state.fresh && window.FC26.state.fresh.size) prevFresh = window.FC26.state.fresh; } catch (e) {}
+  try { if (window.FC26 && window.FC26.state && window.FC26.state.applied && window.FC26.state.applied.size) prevApplied = window.FC26.state.applied; } catch (e) {}
   var oldPanel = document.getElementById("fc26-panel"); if (oldPanel) oldPanel.remove();
   var oldStyle = document.getElementById("fc26-style"); if (oldStyle) oldStyle.remove();
 
@@ -437,7 +440,9 @@
   //   fresh    = id -> the freshest copy of a card we've seen, taken straight from the
   //              server's own reply to one of OUR applies/removals. See "FRESH-CARD
   //              OVERRIDES" further down (near loadFullClub) for why this exists.
-  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme(), rarityDefs: loadRarityDefs(), fresh: prevFresh || new Map() };
+  //   applied  = id -> [{traitId,isIcon}] we APPLIED and the server said OK to, this
+  //              session. Our own receipts. See "APPLIED RECEIPTS" just below.
+  var state = { player: null, selected: new Set(), tab: "PS+", running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme(), rarityDefs: loadRarityDefs(), fresh: prevFresh || new Map(), applied: prevApplied || new Map() };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
@@ -490,7 +495,61 @@
 
   // currentPlayStyles(it): the player's existing playstyles as {traitId, isIcon}.
   // isIcon === true means it's the "+" (PlayStyle+) version.
+  // NOTE: this is the RAW answer from the app's own copy of the card, which can lag behind
+  // reality (EA's club service is slow to publish a grant). For anything the user SEES, use
+  // effectivePlayStyles() below instead.
   function currentPlayStyles(it) { try { return it.getPlayStyles() || []; } catch (e) { return []; } }
+
+  // ---- APPLIED RECEIPTS ------------------------------------------------------
+  // THE PROBLEM: you apply a PlayStyle, the call succeeds, and the meters/chips still show
+  // the old count. It's intermittent because it isn't our bug: EA's Evolutions service does
+  // the grant, but their CLUB service can keep serving the pre-grant copy of the card for a
+  // while (we proved this - even the server's own "updatedItem" sometimes comes back with
+  // zero PlayStyles). No client call can hurry that up.
+  //
+  // THE SIMPLE FIX: stop asking. When OUR apply call returns success, we know exactly which
+  // PlayStyle just landed - so we write ourselves a receipt (state.applied) and DISPLAY the
+  // card as "whatever the app says, PLUS our receipts". No polling, no extra club reads.
+  // A receipt tears itself up the moment the app's own copy finally shows that PlayStyle,
+  // so it can never linger or double-count.
+
+  // psKey(p): "317" for a basic PlayStyle, "317+" for the PlayStyle+ version. One short
+  // string per PlayStyle, so "does this list already contain it" is a plain lookup.
+  function psKey(p) { return p.traitId + (p.isIcon ? "+" : ""); }
+
+  // noteApplied(itemId, traitId, isPlus): file a receipt - "this card got this PlayStyle,
+  // the server said OK". Called from every apply path, right where the call succeeds.
+  function noteApplied(itemId, traitId, isPlus) {
+    if (itemId == null || traitId == null) return;
+    var entry = { traitId: traitId, isIcon: !!isPlus };
+    var list = state.applied.get(itemId) || [];
+    for (var i = 0; i < list.length; i++) { if (psKey(list[i]) === psKey(entry)) return; }  // already filed
+    list.push(entry);
+    state.applied.set(itemId, list);
+  }
+
+  // forgetApplied(itemId): tear up every receipt for this card (used when we revert its
+  // evos - the card is going backwards, so our "it has these" notes are meaningless).
+  function forgetApplied(itemId) { try { state.applied["delete"](itemId); } catch (e) {} }
+
+  // effectivePlayStyles(it): what this card REALLY has right now =
+  //   the app's own list  +  any receipt the app hasn't caught up with yet.
+  // This is the list every visible thing should use (meters, chips, list icons, caps,
+  // "already owned" ticks, scoring). Self-cleaning: a receipt is dropped as soon as the
+  // app's own copy shows that PlayStyle.
+  function effectivePlayStyles(it) {
+    var real = currentPlayStyles(it);
+    if (!it || it.id == null || !state.applied.size) return real;
+    var pend = state.applied.get(it.id);
+    if (!pend || !pend.length) return real;
+    var have = {};
+    for (var i = 0; i < real.length; i++) have[psKey(real[i])] = 1;
+    var still = pend.filter(function (e) { return !have[psKey(e)]; });   // keep only what's still missing
+    if (still.length !== pend.length) {                                  // the app caught up on some/all
+      if (still.length) state.applied.set(it.id, still); else forgetApplied(it.id);
+    }
+    return still.length ? real.concat(still) : real;
+  }
 
   // tiny HTML-escaper so odd characters in a name can't break the markup.
   function esc(s) {
@@ -518,6 +577,22 @@
     });
   };
   window.FC26.clearFresh = function () { state.fresh = new Map(); return "Cleared. Hit Reload club for a clean pull."; };
+
+  // Applied-receipt helpers (see APPLIED RECEIPTS above):
+  //   window.FC26.applied()      -> ["Mbappe: Rapid+, Finesse Shot", ...] PlayStyles we applied
+  //                                 that EA's club copy of the card still hasn't caught up with
+  //   window.FC26.clearApplied() -> tear up all receipts (show only what the app itself reports)
+  window.FC26.applied = function () {
+    var out = [];
+    state.applied.forEach(function (list, id) {
+      var it = null; try { it = findPlayerById(id); } catch (e) {}
+      out.push((it ? playerName(it) : ("id " + id)) + ": " + list.map(function (p) {
+        return (traitName[p.traitId] || ("trait " + p.traitId)) + (p.isIcon ? "+" : "");
+      }).join(", "));
+    });
+    return out.length ? out : "No pending receipts - the app's own card data is up to date.";
+  };
+  window.FC26.clearApplied = function () { state.applied = new Map(); try { renderPreview(); renderEvos(); renderPlayers(); } catch (e) {} return "Receipts cleared."; };
 
   // window.FC26.diag() -> a plain object describing what's actually on screen right now.
   // It RETURNS the object (rather than console.log-ing it) so the Console prints it as the
@@ -1369,7 +1444,7 @@
     //     offers (ROLES), take the role that scores highest. Falls back to the blunt per-group
     //     PLAYSTYLE_WEIGHTS table only if the group has no ROLES entry. PS+ counts double. ---
     var owned = [];
-    currentPlayStyles(it).forEach(function (p) {
+    effectivePlayStyles(it).forEach(function (p) {   // includes PlayStyles we applied this session
       var name = traitName[p.traitId];        // base name (traitName has no "+")
       if (name) owned.push({ name: name, isIcon: !!p.isIcon });
     });
@@ -2711,15 +2786,18 @@
     var np = (function () { try { return it.getNumPlusPlayStyles(); } catch (e) { return null; } })();
 
     // Split the player's current PlayStyles into PS+ (isIcon) and basic, keeping
-    // each one's traitId (for its icon) and readable name.
+    // each one's traitId (for its icon) and readable name. effectivePlayStyles adds
+    // anything we applied this session that EA's card data hasn't published yet.
     var plus = [], basic = [];
-    currentPlayStyles(it).forEach(function (p) {
+    effectivePlayStyles(it).forEach(function (p) {
       var entry = { traitId: p.traitId, name: traitName[p.traitId] || ("trait " + p.traitId) };
       (p.isIcon ? plus : basic).push(entry);
     });
-    // Use the app's count when we have it, else fall back to how many we found.
-    var pUsed = (np != null) ? np : plus.length;
-    var bUsed = (nb != null) ? nb : basic.length;
+    // Meters: take the HIGHER of the app's official count and what we can actually see
+    // (chips + receipts). The app's count lags after an apply; ours never undercounts,
+    // so the meter can't sit at 3/4 while a 4th chip is showing right underneath it.
+    var pUsed = Math.max(plus.length, (np != null) ? np : 0);
+    var bUsed = Math.max(basic.length, (nb != null) ? nb : 0);
 
     // FEATURE 4a - dynamic cap DISPLAY. The item exposes no "max PlayStyles" (discovered
     // live - there's no getMaxPlusPlayStyles), so we can't read a real cap. Normal cards
@@ -2895,7 +2973,7 @@
       row.className = "pl-row" + (selected ? " on" : "");   // styling lives in CSS (.pl-row / .pl-row.on)
       // The PlayStyle+ icons the player already has (isIcon = the "+" version), so you
       // can see a card's PS+ at a glance without opening it. Uses the game icon font.
-      var psPlus = currentPlayStyles(it).filter(function (p) { return p.isIcon; });
+      var psPlus = effectivePlayStyles(it).filter(function (p) { return p.isIcon; });
       var psHTML = psPlus.length
         ? "<span class='pl-ps'>" + psPlus.map(function (p) { return "<i class='ico icon_icontrait" + p.traitId + "'></i>"; }).join("") + "</span>"
         : "";
@@ -2941,13 +3019,23 @@
   // evoTrait(evo): the player-side traitId for this evo (rewardId - 301).
   function evoTrait(evo) { return evo.r - TRAIT_OFFSET; }
   // hasEvo(it, evo): does the player already have this exact PlayStyle (base vs +)?
+  // Counts our own receipts too, so an evo we JUST applied shows as owned (✓, greyed out)
+  // even while EA's card data still says otherwise - you can't accidentally re-apply it.
   function hasEvo(it, evo) {
-    try { return evo.kind === "PS+" ? !!it.hasPlusPlayStyle(evoTrait(evo)) : !!it.hasBasePlayStyle(evoTrait(evo)); }
-    catch (e) { return false; }
+    var want = evoTrait(evo), plus = evo.kind === "PS+";
+    try { if (plus ? !!it.hasPlusPlayStyle(want) : !!it.hasBasePlayStyle(want)) return true; } catch (e) {}
+    return effectivePlayStyles(it).some(function (p) { return p.traitId === want && !!p.isIcon === plus; });
   }
-  // How many PlayStyles the player ALREADY has, per kind.
-  function numBasic(it) { try { return it.getNumBasicPlayStyles() || 0; } catch (e) { return 0; } }
-  function numPlus(it) { try { return it.getNumPlusPlayStyles() || 0; } catch (e) { return 0; } }
+  // How many PlayStyles the player ALREADY has, per kind. Again the higher of the app's
+  // own count and what we can see (its list + our receipts), so the caps stay honest.
+  function numBasic(it) {
+    var n = 0; try { n = it.getNumBasicPlayStyles() || 0; } catch (e) { n = 0; }
+    return Math.max(n, effectivePlayStyles(it).filter(function (p) { return !p.isIcon; }).length);
+  }
+  function numPlus(it) {
+    var n = 0; try { n = it.getNumPlusPlayStyles() || 0; } catch (e) { n = 0; }
+    return Math.max(n, effectivePlayStyles(it).filter(function (p) { return !!p.isIcon; }).length);
+  }
   // How many of each kind the user has currently TICKED.
   function selectedCount(kind) { var n = 0; state.selected.forEach(function (s) { var e = byId(s); if (e && e.kind === kind) n++; }); return n; }
 
@@ -3289,17 +3377,12 @@
     catch (e) { failMsg = errMsg(e); }
     refreshClub();
     if (!failMsg) {
-      // Same retry-poll the single-apply flow uses: the grant can lag the call, so re-pull
-      // the club until this player's PlayStyle count grows (or we run out of tries).
-      for (var att = 0; att < 4; att++) {
-        try { await loadFullClub(); } catch (e) {}
-        var fresh = findPlayerById(itemId); if (fresh) state.player = fresh;
-        if (state.player && currentPlayStyles(state.player).length > prevCount) {
-          rememberFresh(state.player);   // the grant is visible - pin it so a later club load can't lose it
-          break;
-        }
-        if (att < 3) { status.textContent = "Waiting for the grant to register..."; await sleep(700); }
-      }
+      // Success means the 4th PS+ landed, so file the receipt (see APPLIED RECEIPTS) - the
+      // card shows it straight away instead of us re-pulling the club hoping EA has caught up.
+      var ghTrait = evo.psp ? (evo.psp.r - TRAIT_OFFSET) : null;
+      if (ghTrait != null) noteApplied(itemId, ghTrait, true);
+      var fresh = findPlayerById(itemId);
+      if (fresh && currentPlayStyles(fresh).length >= prevCount) state.player = fresh;
     }
     renderPreview(); renderEvos(); renderPlayers();
     if (currentMode() === "mobile") renderWizStep();
@@ -3719,7 +3802,7 @@
     if (state.running) return;
     var it = state.player;
     if (!it) { status.textContent = "Select a player first."; return; }
-    if (!currentPlayStyles(it).length) { status.textContent = "This player has no PlayStyles to remove."; return; }
+    if (!effectivePlayStyles(it).length) { status.textContent = "This player has no PlayStyles to remove."; return; }
     // IMPORTANT wording: the game removes evo UPGRADES (newest first), which may be a
     // stat/skill boost, NOT necessarily a PlayStyle - and we can't target or peek. So we
     // always confirm and say "evo", not "PlayStyle".
@@ -3764,6 +3847,10 @@
     }
     setLoad("Refreshing…");
     refreshClub();
+    // The card just went BACKWARDS, so our "it has these PlayStyles" receipts are void -
+    // tear them all up for this card and believe the app's own data from here (see APPLIED
+    // RECEIPTS). Otherwise a PlayStyle you just removed would still show in the meters.
+    if (removed > 0) forgetApplied(id);
     // A fully-reverted card leaves the club evo list altogether, so drop any fresh-card
     // override we were holding for it - the club's own answer is the right one from here.
     if (cardLeftClub) forgetFresh(id);
@@ -3868,7 +3955,7 @@
     var targets = Array.from(state.batch.values());
     if (!targets.length) { status.textContent = "No players ticked."; return; }
     state.running = true; state.abort = false; setRunning(true);
-    var prevCounts = {};                                   // PlayStyle counts before, per player (to detect the grants landing)
+    var prevCounts = {};                                   // PlayStyle counts before, per player (so we can reject a returned card that went backwards)
     targets.forEach(function (t) { prevCounts[t.id] = currentPlayStyles(t).length; });
     var freshById = {};                                    // freshest card per player from the apply responses (data.updatedItem)
     var sections = buildBatchUI(targets, slotIds);
@@ -3887,6 +3974,7 @@
           if (bui && bui.id === it.id) freshById[it.id] = bui;        // keep the latest for this player
           try { await claimEvo(row.slotId); } catch (ce) { console.warn("[FC26] claim skipped", ce); }
           okC++; totalOk++;
+          noteApplied(it.id, evoTrait(row.evo), row.evo.kind === "PS+");   // receipt: this one landed
           if (tile) { tile.classList.remove("applying"); tile.classList.add("done"); var b = tile.querySelector(".ap-badge"); if (b) b.textContent = "✓"; }
         } catch (e) {
           failC++; totalFail++;
@@ -3906,31 +3994,19 @@
     applyBox.insertBefore(banner, applyBox.firstChild);
     // (The mobile-only "← Back to players" button was dropped here too - see renderApplySummary.)
     refreshClub();
-    // The apply responses handed back each player's freshly-graded card (data.updatedItem),
-    // already carrying the new PlayStyles - plant them straight into our snapshot so the list
-    // and roll-call update WITHOUT depending on a club re-search (which caches the whole club
-    // and can keep serving pre-grant copies). Only if NO response gave us a usable fresh item
-    // do we fall back to the old reload-until-a-count-grows poll.
-    var haveFresh = false;
-    targets.forEach(function (t) { var f = freshById[t.id]; if (f) { upsertClubItem(f); haveFresh = true; } });
-    if (totalOk > 0 && !haveFresh) {
-      for (var att = 0; att < 4; att++) {
-        try { await loadFullClub(); } catch (e) {}
-        var grew = false;
-        // Pin EVERY player whose grant is now visible (not just the first), so a later club
-        // load can't lose any of them - then stop retrying as soon as at least one landed.
-        for (var ti = 0; ti < targets.length; ti++) {
-          var fr = findPlayerById(targets[ti].id);
-          if (fr && currentPlayStyles(fr).length > (prevCounts[targets[ti].id] || 0)) { rememberFresh(fr); grew = true; }
-        }
-        if (grew) break;
-        if (att < 3) { status.textContent = "Waiting for grants to register..."; await sleep(700); }
-      }
+    // Plant each player's returned card (data.updatedItem) into our snapshot - unless it comes
+    // back with FEWER PlayStyles than the player started with, which means EA's own data is
+    // lagging and accepting it would lose PlayStyles the card already had. No polling here
+    // either: our receipts (see APPLIED RECEIPTS) already make every grant visible.
+    function usable(id) {
+      var f = freshById[id];
+      return (f && currentPlayStyles(f).length >= (prevCounts[id] || 0)) ? f : null;
     }
+    targets.forEach(function (t) { var f = usable(t.id); if (f) upsertClubItem(f); });
     // Re-point active player + batch entries to the fresh club items (prefer the response's copy).
-    if (state.player) { var fp = freshById[state.player.id] || findPlayerById(state.player.id); if (fp) state.player = fp; }
+    if (state.player) { var fp = usable(state.player.id) || findPlayerById(state.player.id); if (fp) state.player = fp; }
     var newBatch = new Map();
-    targets.forEach(function (t) { var f = freshById[t.id] || findPlayerById(t.id) || t; newBatch.set(f.id, f); });
+    targets.forEach(function (t) { var f = usable(t.id) || findPlayerById(t.id) || t; newBatch.set(f.id, f); });
     state.batch = newBatch;
     state.selected = new Set();                                       // applied ones are now owned
     renderPreview(); renderEvos(); renderPlayers(); updateBatchUI();
@@ -3950,7 +4026,7 @@
     if (!slotIds.length) { status.textContent = "Nothing selected."; return; }
     state.running = true; state.abort = false; setRunning(true);
     var itemId = it.id, rareflag = it.rareflag, ok = 0, fail = 0;
-    var prevCount = currentPlayStyles(it).length;   // PlayStyles before this run (to detect the grant landing)
+    var prevCount = currentPlayStyles(it).length;   // PlayStyles before this run (so we can reject a returned card that went backwards)
     var tiles = buildApplyTiles(slotIds);   // the animated queue under the buttons
     var okList = [];                         // evos that succeeded (for the summary)
     var freshItem = null;                    // the freshest card the apply responses hand back (data.updatedItem)
@@ -3972,6 +4048,9 @@
         try { await claimEvo(slotId); }
         catch (ce) { console.warn("[FC26] claim skipped (usually fine for PlayStyle evos)", label, ce); }
         ok++; if (evo) okList.push(evo);                       // remember for the summary
+        // The call succeeded, so we KNOW this PlayStyle landed - file the receipt. From here
+        // the meters/chips/list show it immediately, whether or not EA's card data agrees yet.
+        if (evo) noteApplied(itemId, evoTrait(evo), evo.kind === "PS+");
         if (tile) { tile.classList.remove("applying"); tile.classList.add("done"); var b = tile.querySelector(".ap-badge"); if (b) b.textContent = "✓"; }
         status.textContent = "OK " + label;
         console.log("[FC26] applied", label);
@@ -3992,29 +4071,17 @@
     // add it to the evo-eligible list (persisted). Grows the list over time.
     if (ok > 0) { setRarityEligible(rareflag, true); }
     refreshClub();                                            // also nudge the app's own views
-    // The apply call HANDS BACK the freshly-graded card (data.updatedItem), already carrying
-    // the new PlayStyles - so we trust that directly and plant it in our snapshot. This is the
-    // reliable path: it does NOT depend on a club re-search returning fresh data (that search
-    // caches the whole club in memory and can keep serving the pre-grant copy, which was the
-    // bug where applied evos didn't show up in the list). Only if the response somehow gave us
-    // no usable item do we fall back to the old poll-a-fresh-pull-until-it-grows loop.
-    if (ok > 0) {
-      if (freshItem && currentPlayStyles(freshItem).length > prevCount) {
-        upsertClubItem(freshItem); state.player = freshItem;  // list + preview now reflect the grant, no reload needed
-      } else {
-        for (var att = 0; att < 4; att++) {
-          try { await loadFullClub(); } catch (e) {}          // fresh pull (also redraws the list)
-          if (freshItem) { upsertClubItem(freshItem); state.player = freshItem; }
-          var fresh = findPlayerById(itemId);
-          if (fresh && currentPlayStyles(fresh).length >= currentPlayStyles(state.player || fresh).length) state.player = fresh;
-          var nowCount = state.player ? currentPlayStyles(state.player).length : prevCount;
-          if (nowCount > prevCount) {                         // grant is now visible - stop retrying
-            rememberFresh(state.player);                      // pin it, so a later club load can't lose it again
-            break;
-          }
-          if (att < 3) { status.textContent = "Waiting for the grant to register..."; await sleep(700); }
-        }
-      }
+    // Take the freshest copy of the card we have and move on. The apply call usually hands
+    // one back (data.updatedItem) so we plant that; if it didn't, we keep whatever the club
+    // already has. Either way we do NOT sit here re-loading the club waiting for EA to
+    // publish the grant (that wait was the old "sometimes it updates, sometimes it doesn't"
+    // lottery, and it made every apply feel slow). Our receipts already guarantee the panel
+    // shows the new PlayStyles - see APPLIED RECEIPTS.
+    // One sanity check on that returned card: EA sometimes replies with a copy that has FEWER
+    // PlayStyles than the card we started with (their own data lagging). We never accept a
+    // card that goes backwards - we'd be throwing away PlayStyles the player already had.
+    if (ok > 0 && freshItem && currentPlayStyles(freshItem).length >= prevCount) {
+      upsertClubItem(freshItem); state.player = freshItem;    // list + preview both point at the newest card
     } else {
       try { var f0 = findPlayerById(itemId); if (f0) state.player = f0; } catch (e) {}
     }
@@ -5002,7 +5069,7 @@
 
     // Current PlayStyles, split PS+ / Basic (same chip markup as the spotlight card).
     var plus = [], basic = [];
-    currentPlayStyles(it).forEach(function (p) { (p.isIcon ? plus : basic).push({ traitId: p.traitId, name: traitName[p.traitId] || ("trait " + p.traitId) }); });
+    effectivePlayStyles(it).forEach(function (p) { (p.isIcon ? plus : basic).push({ traitId: p.traitId, name: traitName[p.traitId] || ("trait " + p.traitId) }); });
     function groupHTML(label, list, isPlus) {
       if (!list.length) return "";
       var chips = list.map(function (e) { return "<span class='pv-chip" + (isPlus ? " plus" : "") + "'><i class='ico " + (isPlus ? "icon_icontrait" : "icon_basetrait") + e.traitId + "'></i>" + esc(e.name) + "</span>"; }).join("");
@@ -5188,7 +5255,7 @@
       row.className = "meta-row" + (state.player && state.player.id === it.id ? " on" : "");
       // strip of the player's actual PlayStyle+ icons only (same as the lineup list),
       // so it honestly shows how many PS+ they have - NOT every owned meta PlayStyle.
-      var psPlus = currentPlayStyles(it).filter(function (p) { return p.isIcon; });
+      var psPlus = effectivePlayStyles(it).filter(function (p) { return p.isIcon; });
       var psHTML = psPlus.map(function (p) { return "<i class='ico icon_icontrait" + p.traitId + "'></i>"; }).join("");
       row.innerHTML =
         "<span class='meta-rank'>" + r.rank + "</span>" +
@@ -5885,7 +5952,7 @@
     var totalPlus = 0, zeroPlus = 0, byTrait = {}, mostKitted = null;
     players.forEach(function (it) {
       var plusCount = 0;
-      currentPlayStyles(it).forEach(function (p) {
+      effectivePlayStyles(it).forEach(function (p) {
         if (p.isIcon) { plusCount++; totalPlus++; byTrait[p.traitId] = (byTrait[p.traitId] || 0) + 1; }
       });
       if (plusCount === 0) zeroPlus++;
