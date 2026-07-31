@@ -933,7 +933,7 @@ on screen and what size they are. It **returns** the object rather than logging 
 
 ---
 
-## 3t. New in v35 - applied receipts (the count always moves now)
+## 3t. New in v35 (+v38) - applied receipts (the count always moves now)
 
 **The bug.** You applied a PlayStyle, the call succeeded, and the meters on the card didn't move.
 Intermittent, and more likely on players from deep in the club list.
@@ -957,9 +957,32 @@ How it works in the code (all in `fc26-tools.js`):
 | `noteApplied(itemId, traitId, isPlus)` | Files a receipt. Called at the exact point each apply succeeds, in all three apply paths (single, batch, GH 4th). |
 | `effectivePlayStyles(it)` | **The one function everything visible should use.** Returns the app's own PlayStyle list **plus** any receipt still missing from it. |
 | `forgetApplied(id)` | Tears up a card's receipts. Called after a remove/clear, because the card just went backwards. |
+| `oneEach(list)` | **v38.** Enforces one entry per PlayStyle - see below. |
 
 `effectivePlayStyles` is **self-cleaning**: every time it runs it drops any receipt the app's own
 copy now shows, so a PlayStyle can never be counted twice and a receipt can't linger forever.
+
+### One PlayStyle, one slot (v38)
+
+**A card holds each PlayStyle once - either as the basic or as the "+", never both.** Applying the
+"+" to a style you already had **upgrades that slot** and hands the basic back. So a card with
+Finesse and Power Shot as basics, given Finesse+, holds 1 PS+ and 1 basic - not 1 and 2.
+
+Two things got that wrong before v38, and both are worth remembering if you touch this code:
+
+1. A receipt says "Finesse+ landed" while the app's card data still lists "Finesse basic", so the
+   merged list held both. `oneEach()` now drops the basic whenever the same trait is present as a
+   "+". **The "+" always wins** - it's the upgrade.
+2. `numPlus` / `numBasic` used to return `Math.max(the app's count, ours)`. That was built for the
+   app lagging **low** after an apply - but on an upgrade it lags **high**, still counting the
+   basic it gave back, and the max kept the stale number. They now believe **our** count while
+   receipts are pending for that card (`pendingFor(it)`), and fall back to the max once there are
+   none, where the app's own data is authoritative again.
+
+`hasEvo` follows the same rule: it reads the effective list first, and because a trait appears
+there only once, that entry settles it outright - a style held as a "+" is no longer held as a
+basic. `renderPreview` calls `numPlus` / `numBasic` rather than doing its own sums, so the meters
+can never disagree with the chips underneath them or with the caps the deck enforces.
 
 What reads it: the capacity meters and chips on the spotlight card, the PS+ icons in the Lineup and
 the Rankings list, the "already owned ✓" ticks in the deck, the cap arithmetic (`hasEvo`,

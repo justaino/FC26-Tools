@@ -538,16 +538,38 @@
   // app's own copy shows that PlayStyle.
   function effectivePlayStyles(it) {
     var real = currentPlayStyles(it);
-    if (!it || it.id == null || !state.applied.size) return real;
-    var pend = state.applied.get(it.id);
-    if (!pend || !pend.length) return real;
-    var have = {};
-    for (var i = 0; i < real.length; i++) have[psKey(real[i])] = 1;
-    var still = pend.filter(function (e) { return !have[psKey(e)]; });   // keep only what's still missing
-    if (still.length !== pend.length) {                                  // the app caught up on some/all
-      if (still.length) state.applied.set(it.id, still); else forgetApplied(it.id);
+    var merged = real;
+    if (it && it.id != null && state.applied.size) {
+      var pend = state.applied.get(it.id);
+      if (pend && pend.length) {
+        var have = {};
+        for (var i = 0; i < real.length; i++) have[psKey(real[i])] = 1;
+        var still = pend.filter(function (e) { return !have[psKey(e)]; });   // keep only what's still missing
+        if (still.length !== pend.length) {                                  // the app caught up on some/all
+          if (still.length) state.applied.set(it.id, still); else forgetApplied(it.id);
+        }
+        if (still.length) merged = real.concat(still);
+      }
     }
-    return still.length ? real.concat(still) : real;
+    return oneEach(merged);
+  }
+
+  // oneEach(list): a card holds each PlayStyle ONCE - either as the basic or as the "+".
+  // Applying the "+" to a style you already had UPGRADES that slot, it doesn't add a second
+  // one, so the basic is given back. Our receipts can briefly show both (the app still lists
+  // the basic while we know the "+" landed), which read as 1 PS+ AND 2 basics on a card that
+  // really holds 1 and 1. So: if a trait is present as a "+", the basic of that same trait
+  // drops out. The "+" always wins - it's the upgrade.
+  function oneEach(list) {
+    if (!list || list.length < 2) return list;
+    var plusTraits = {}, i;
+    for (i = 0; i < list.length; i++) if (list[i].isIcon) plusTraits[list[i].traitId] = 1;
+    var out = [], dropped = false;
+    for (i = 0; i < list.length; i++) {
+      if (!list[i].isIcon && plusTraits[list[i].traitId]) { dropped = true; continue; }
+      out.push(list[i]);
+    }
+    return dropped ? out : list;
   }
 
   // tiny HTML-escaper so odd characters in a name can't break the markup.
@@ -2877,10 +2899,6 @@
     if (!it) { preview.style.display = "none"; preview.innerHTML = ""; return; }
     preview.style.display = "block";
 
-    // The app's official "slots used" counts (null if it can't tell us).
-    var nb = (function () { try { return it.getNumBasicPlayStyles(); } catch (e) { return null; } })();
-    var np = (function () { try { return it.getNumPlusPlayStyles(); } catch (e) { return null; } })();
-
     // Split the player's current PlayStyles into PS+ (isIcon) and basic, keeping
     // each one's traitId (for its icon) and readable name. effectivePlayStyles adds
     // anything we applied this session that EA's card data hasn't published yet.
@@ -2889,11 +2907,12 @@
       var entry = { traitId: p.traitId, name: traitName[p.traitId] || ("trait " + p.traitId) };
       (p.isIcon ? plus : basic).push(entry);
     });
-    // Meters: take the HIGHER of the app's official count and what we can actually see
-    // (chips + receipts). The app's count lags after an apply; ours never undercounts,
-    // so the meter can't sit at 3/4 while a 4th chip is showing right underneath it.
-    var pUsed = Math.max(plus.length, (np != null) ? np : 0);
-    var bUsed = Math.max(basic.length, (nb != null) ? nb : 0);
+    // Meters: numPlus/numBasic are the single place that decides which count to believe
+    // (see them for why - the app's numbers lag in both directions). Using them here means
+    // the meter can never disagree with the chips drawn right underneath it, nor with the
+    // caps the deck enforces.
+    var pUsed = numPlus(it);
+    var bUsed = numBasic(it);
 
     // FEATURE 4a - dynamic cap DISPLAY. The item exposes no "max PlayStyles" (discovered
     // live - there's no getMaxPlusPlayStyles), so we can't read a real cap. Normal cards
@@ -3119,18 +3138,37 @@
   // even while EA's card data still says otherwise - you can't accidentally re-apply it.
   function hasEvo(it, evo) {
     var want = evoTrait(evo), plus = evo.kind === "PS+";
-    try { if (plus ? !!it.hasPlusPlayStyle(want) : !!it.hasBasePlayStyle(want)) return true; } catch (e) {}
-    return effectivePlayStyles(it).some(function (p) { return p.traitId === want && !!p.isIcon === plus; });
+    // The effective list holds each trait ONCE (see oneEach), so if it's in there its entry
+    // settles the question outright: a style held as a "+" is no longer held as a basic.
+    var hit = effectivePlayStyles(it).filter(function (p) { return p.traitId === want; })[0];
+    if (hit) return !!hit.isIcon === plus;
+    // Not listed at all - fall back to the app's own predicates.
+    try { return plus ? !!it.hasPlusPlayStyle(want) : !!it.hasBasePlayStyle(want); } catch (e) { return false; }
   }
-  // How many PlayStyles the player ALREADY has, per kind. Again the higher of the app's
-  // own count and what we can see (its list + our receipts), so the caps stay honest.
+  // How many PlayStyles the player ALREADY has, per kind.
+  //
+  // Which number to believe: while we're holding receipts for this card, OURS is the better
+  // answer, because the app's counts lag in BOTH directions - too low for a PlayStyle just
+  // added, and too HIGH for a basic that a "+" has just upgraded (it still counts the basic
+  // it gave back). With no receipts pending, the app's own data is authoritative again and
+  // we take the higher of the two, which is the belt-and-braces the receipts were built on.
+  function pendingFor(it) {
+    try { return !!(it && it.id != null && state.applied.size && state.applied.get(it.id)); } catch (e) { return false; }
+  }
+  function countKind(it, wantPlus) {
+    return effectivePlayStyles(it).filter(function (p) { return !!p.isIcon === wantPlus; }).length;
+  }
   function numBasic(it) {
+    var counted = countKind(it, false);                  // NB: runs first, so receipts self-clean
+    if (pendingFor(it)) return counted;
     var n = 0; try { n = it.getNumBasicPlayStyles() || 0; } catch (e) { n = 0; }
-    return Math.max(n, effectivePlayStyles(it).filter(function (p) { return !p.isIcon; }).length);
+    return Math.max(n, counted);
   }
   function numPlus(it) {
+    var counted = countKind(it, true);
+    if (pendingFor(it)) return counted;
     var n = 0; try { n = it.getNumPlusPlayStyles() || 0; } catch (e) { n = 0; }
-    return Math.max(n, effectivePlayStyles(it).filter(function (p) { return !!p.isIcon; }).length);
+    return Math.max(n, counted);
   }
   // How many of each kind the user has currently TICKED.
   function selectedCount(kind) { var n = 0; state.selected.forEach(function (s) { var e = byId(s); if (e && e.kind === kind) n++; }); return n; }

@@ -5,6 +5,26 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v38 - 2026-07-31
+
+**Fixed: the slot counts when you upgrade a PlayStyle the card already had.**
+
+- If a card held **Finesse** and **Power Shot** as basics and you applied **Finesse+**, the card
+  read as **1 PlayStyle+ and 2 basics**. It should be **1 and 1**: applying the + upgrades that
+  slot rather than adding a second one, so the basic comes back to you.
+- **What was wrong.** Two things, both from the same wrong assumption - that a card can hold a
+  PlayStyle as a basic *and* as a +. It can't. The panel briefly held both (it knew the + had
+  landed while the game still listed the basic), and the meters took whichever count was higher,
+  which kept the stale one.
+- **What happens now.** A PlayStyle is held **once**, as either the basic or the +, and the +
+  always wins because it's the upgrade. While the panel is holding receipts for a card it trusts
+  its own count rather than the game's, because the game's numbers lag in **both** directions
+  after an upgrade - too low for what you just added, too high for the basic it gave back.
+- **The deck agrees too.** That tile flips straight to gold with a tick, and the basic slot the
+  upgrade freed is available again immediately, so you can spend it on something else.
+
+---
+
 ## v37 - 2026-07-30
 
 **Peks specifically said that the new icons are ugly AF, such a shame but ah well.**
