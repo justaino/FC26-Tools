@@ -5,6 +5,32 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## Install change - 2026-07-31 (applies from v39 onwards)
+
+**The tool now installs on Android.** No new tool version, nothing in the panel changed -
+this is purely about how you get it.
+
+- **What was wrong:** the bookmark held the entire tool, about **270,000 characters** of
+  code. Desktop and iPhone cope with a bookmark that big. **Android Chrome flatly does
+  not** - its bookmark URL field gives up long before that, so the Android instructions on
+  the install page were describing something that couldn't actually work.
+- **What changed:** the thing you paste is now a **271-character loader**. Its only job is
+  to fetch the real tool from the site and run it. Same three install tabs, same steps, just
+  a short string instead of an enormous one.
+- **You never re-install again.** The loader always pulls the newest published build, so
+  from now on a new version reaches you the next time you tap the bookmark. No more copying
+  a fresh bookmarklet every time something changes.
+- **The install page got much faster on a phone** - the file behind it went from **852 KB to
+  under 5 KB**, because it now stores a short loader per version instead of a full copy of
+  the tool three times over.
+- **It needs a connection to launch.** You're on the FC web app when you use it, so in
+  practice this costs you nothing.
+- **Already installed?** Your existing bookmark keeps working exactly as it does today - it's
+  a complete self-contained copy of that version. It just won't pick up new versions. Grab
+  the new one from the install page whenever you fancy, and that's the last time.
+
+---
+
 ## v39 - 2026-07-31
 
 **Suggest now picks the PlayStyles that actually raise your score.**

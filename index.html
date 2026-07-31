@@ -461,12 +461,13 @@
     </div>
     <div class="step">
       <div class="step-num">4</div>
-      <div class="step-text"><strong>Clear the URL field</strong> and paste the copied code in its place. Save.</div>
+      <div class="step-text"><strong>Clear the URL field</strong> and paste the copied code in its place. Rename it to something short and easy to type, like <strong>fchub</strong>. Save.</div>
     </div>
     <div class="step">
       <div class="step-num">5</div>
-      <div class="step-text">Open the <strong>FC 26 Web App</strong>, tap the address bar, type the bookmark name to find it, and tap it to run the tool</div>
+      <div class="step-text">Open the <strong>FC 26 Web App</strong>, tap the address bar, type <strong>fchub</strong>, and tap the bookmark in the suggestions to run the tool</div>
     </div>
+    <p class="note" style="margin:1.25rem 0 0">The code you paste is short on purpose - it fetches the tool from this site each time it runs, so you install it once and always get the newest version.</p>
   </div>
 </div>
 
@@ -504,11 +505,21 @@
   <div class="vlist" id="vlist"></div>
 </section>
 
-<p class="note">Runs entirely in your browser · No data leaves your device</p>
+<p class="note">Loads the tool from this site, then runs entirely in your browser · No club or account data leaves your device</p>
 
 <script src="versions.js"></script>
 <script>
-  const CODE = (window.FC26_VERSIONS && window.FC26_VERSIONS[0] && window.FC26_VERSIONS[0].code) || "";
+  // What the Copy buttons put on the clipboard, and what the drag-link installs.
+  // This is a ~270 character LOADER, not the tool itself: it fetches the newest
+  // published build from releases/latest.js and runs it. Two reasons:
+  //   1. the real build is ~270,000 characters, which Android Chrome flatly refuses
+  //      to store in a bookmark, so the tool was desktop/iOS only before this;
+  //   2. installing once is enough forever - every new version is picked up on the
+  //      next run, with no re-install.
+  // The per-version Copy buttons in "Previous versions" hand out PINNED loaders
+  // (releases/v39.js and so on) for when you want one exact build.
+  const CODE = window.FC26_LATEST ||
+    (window.FC26_VERSIONS && window.FC26_VERSIONS[0] && window.FC26_VERSIONS[0].code) || "";
 
   function switchTab(id) {
     document.querySelectorAll('.tab').forEach((t, i) => {
@@ -589,7 +600,7 @@
     const latest = VS[0];
     if (latest) {
       const link = document.getElementById("bm-link");
-      if (link) link.href = latest.code;
+      if (link) link.href = CODE;
       const stamp = document.getElementById("vstamp");
       if (stamp) stamp.innerHTML =
         'Installing <span class="vname">MGFC_Justaino_v' + latest.v + '</span>' +

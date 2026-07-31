@@ -1360,6 +1360,52 @@ install, and keeps every **previous** version listed underneath ("Previous
 versions"), each one copyable. Versions are labelled `MGFC_Justaino_v1`, `_v2`,
 `_v3`… and are stored in `versions.js`.
 
+### What you install is a LOADER, not the tool (read this once)
+
+Up to v39 the bookmark held the whole tool: about **270,000 characters** of code in
+a single bookmark URL. Desktop browsers accept that. **Android Chrome does not** -
+its bookmark URL field gives up long before that size, so the tool was impossible to
+install on Android and the site's Android instructions were quietly wrong.
+
+The fix: the bookmark no longer holds the tool. It holds a **271-character loader**
+that fetches the tool from the site and runs it:
+
+```
+javascript:(function(){fetch('https://justaino.com/releases/latest.js?t='+Date.now())
+.then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()})
+.then(function(c){(0,eval)(c)})
+.catch(function(e){alert('Justaino FC Hub could not load: '+e.message)})})();
+```
+
+(That's shown on three lines to be readable - the real thing is one line.)
+
+**Why `fetch` + `eval` and not the usual `<script src="…">` trick.** The FC web app
+sends a Content-Security-Policy that only permits scripts from EA's own domains, so a
+`<script>` tag pointing at justaino.com is **blocked outright** - tested, it fails with
+"Loading the script … violates the following Content Security Policy directive". The
+same policy allows `'unsafe-eval'` and puts no restriction on `connect-src`, so
+*fetching* the file as text and `eval`ing it is permitted. That's the only route in,
+and it's confirmed working on the live app.
+
+**What this changes for you:**
+- **Android works.** Same install steps as before, just a short string to paste.
+- **Nobody re-installs, ever.** The loader always fetches the newest published build,
+  so a friend who installed once gets every future version automatically. You ship by
+  merging to `main`, not by asking people to re-copy anything.
+- **`versions.js` went from 852 KB to under 5 KB**, because it stores a 271-character
+  loader per version instead of a full 270 KB build. The install page loads far faster
+  on a phone.
+- **It needs an internet connection to launch.** You're on the FC web app, so this is
+  free in practice.
+- **The published builds live in `releases/`** - `releases/latest.js` (what everyone
+  runs) plus one pinned `releases/vN.js` per version on the page. `release.js` writes
+  and prunes these for you; don't hand-edit them.
+- **The site serves from the `main` branch.** Cutting a version on `dev` publishes
+  nothing. Friends only get it when `dev` is merged to `main`.
+- **Old installs still work.** A bookmark someone installed before this change holds a
+  complete, self-contained copy of that version - it keeps running as it always did,
+  it just never updates. Re-installing from the page moves them onto the loader.
+
 ### ⭐ THE RULE - do this EVERY time before you commit a bookmarklet change
 
 > **Changed `fc26-tools.js`? Before you `git commit`, run:**
@@ -1386,22 +1432,27 @@ need to run `node minify.js` first; `release.js` does it for you.
 **What `node release.js "…"` does, step by step:**
 1. rebuilds `bookmarklet.txt` from `fc26-tools.js` (and syntax-checks it - if the
    source is broken it stops and cuts **no** version, so you can't ship a broken one);
-2. stamps that fresh build as the **next** version number in `versions.js`, then
+2. **publishes the build to `releases/vN.js`** and repoints `releases/latest.js` at
+   it. This is the file everyone's loader actually fetches, so this step is what
+   "shipping" now means;
+3. records that version in `versions.js` as a short **pinned loader**, then
    **prunes old entries so only the newest version plus the 2 most recent older ones
-   are kept** (3 in total). This stops `versions.js` growing forever - each entry
-   stores the full bookmarklet (~160 KB), so an untrimmed file was making the install
-   page slow to load. Pruned versions are still in git history if you ever need one
-   back. To keep a different number, change `MAX_OLDER_VERSIONS` at the top of
-   `release.js`;
-3. **stamps that version number into the tool itself** (the `FC26_VERSION` value), so
+   are kept** (3 in total), deleting the pruned `releases/vN.js` files too so the repo
+   doesn't collect 270 KB builds forever. Pruned versions are still in git history if
+   you ever need one back. To keep a different number, change `MAX_OLDER_VERSIONS` at
+   the top of `release.js`;
+4. **stamps that version number into the tool itself** (the `FC26_VERSION` value), so
    the panel's header badge shows the right number, e.g. `v4`. In the source it stays
    `dev`; only the released build gets the real number, so a build you paste straight
    from the source for testing correctly reads `dev`;
-4. if nothing actually changed since the last version (ignoring that version stamp), it
-   says so and does nothing (safe to run anytime).
+5. if nothing actually changed since the last version (ignoring that version stamp), it
+   says so and does nothing (safe to run anytime). It compares against
+   `releases/latest.js`, the last thing actually published.
 
-Then commit `versions.js` (and `bookmarklet.txt`) and push. The install page updates
-itself from `versions.js` - you never hand-edit `index.html`.
+Then commit `versions.js`, `bookmarklet.txt` **and the `releases/` folder**, and push.
+The install page updates itself from `versions.js` - you never hand-edit `index.html`.
+Remember the site serves `main`: the release isn't live for anyone until `dev` is
+merged.
 
 ### Skip it when the bookmarklet DIDN'T change
 
@@ -1420,14 +1471,17 @@ node release.js help          # reminder of all commands
 ```
 
 Use `list` first to find the number, then `remove N`. Notes:
-- Removing a version only changes what the **page** offers - it does **not** touch
-  `bookmarklet.txt` or your bookmark.
-- If you remove the **latest**, the page's main install falls back to the next
-  newest automatically (handy for rolling back a bad release on the page).
-- After a `remove`, commit `versions.js` and push.
+- Removing a version drops it from the page **and deletes its `releases/vN.js`**, so
+  the site stops serving it. It does **not** touch `bookmarklet.txt`.
+- If you remove the **latest**, the page's main install falls back to the next newest
+  **and `releases/latest.js` is repointed at it too** - which means everyone running
+  the loader rolls back on their next launch. That's the proper way to pull a bad
+  release now that people auto-update.
+- After a `remove`, commit `versions.js` and `releases/` and push (then merge to
+  `main`, or nothing changes for anyone).
 
-`versions.js` grows a little with each version (each one holds a full copy of the
-bookmarklet). If it ever feels big, prune a few old ones with `remove`.
+`versions.js` stays tiny now (a few KB) because it holds loaders, not builds. The
+weight is in `releases/`, which `release.js` prunes automatically.
 
 ---
 

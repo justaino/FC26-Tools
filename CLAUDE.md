@@ -146,12 +146,20 @@ artifact (four themes → Emerald frosted glass chosen) before touching code:
 - **REQUIRED before any commit that changed the bookmarklet:** whenever
   `fc26-tools.js` (or `bookmarklet.txt`) has changed and the user asks to commit /
   push, FIRST run `node release.js "<concise note of what changed>"` to cut a new
-  `MGFC_Justaino_vN` on the install page, then `git add versions.js bookmarklet.txt`
-  and include them in that same commit. Derive the note from the actual change (ask
+  `MGFC_Justaino_vN` on the install page, then `git add versions.js bookmarklet.txt releases/`
+  and include them in that same commit. (`releases/` holds the published builds the
+  installed loader fetches - see the next bullet.) Derive the note from the actual change (ask
   the user if it isn't obvious). `release.js` no-ops if nothing changed, so it's safe
   to run; only skip it for commits that don't touch the bookmarklet (e.g. docs-only,
   or `index.html`/`release.js` changes). This keeps the install page's version
   history in lock-step with every shipped bookmarklet change. See RUNBOOK §7a.
+- **The installed bookmark is a 271-char LOADER, not the tool.** The build is ~270k
+  chars, which Android Chrome refuses to store in a bookmark, so the bookmark now just
+  fetches `justaino.com/releases/latest.js` and `eval`s it. It must be fetch+eval, not
+  a `<script src>` tag: the FC web app's CSP blocks foreign script tags but allows
+  `'unsafe-eval'` and doesn't restrict `connect-src` (tested live). `release.js` writes
+  `releases/vN.js` + `releases/latest.js`; `versions.js` stores loaders, not builds.
+  **GitHub Pages serves `main`**, so a release on `dev` is live for nobody until merged.
 
 **Next up:** revisit **eligible-player filtering** for the picker (only show players a
 selected evo can actually apply to). This was cut in Phase 1 because `canApplyTo(slot)`

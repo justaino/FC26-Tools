@@ -20,6 +20,23 @@
 //
 // The install page (index.html) reads versions.js and always shows the newest one
 // as the main install, with the rest listed under "Previous versions".
+//
+// LOADERS - why the installed bookmark is tiny
+// --------------------------------------------
+// The full build is ~270,000 characters. Desktop browsers cope with that in a
+// bookmark, but Android Chrome does NOT - its bookmark URL field gives up long
+// before then, so the tool was impossible to install on Android.
+//
+// So we don't put the build in the bookmark any more. We publish the build as a
+// normal file on the site (releases/vN.js) and the bookmark holds a ~300-character
+// "loader": fetch that file, then run it. That works everywhere and means a friend
+// never has to re-install to get an update.
+//
+// Why fetch-then-run instead of the usual <script src="..."> trick: the FC web app
+// sends a Content-Security-Policy that refuses to load scripts from other sites, so
+// a script tag is blocked outright. The same policy allows 'unsafe-eval' and does
+// not restrict connect-src, so fetching the text and eval'ing it is permitted. That
+// is exactly what the loader does. (Verified against the live app.)
 
 const fs = require("fs");
 const path = require("path");
@@ -28,6 +45,42 @@ const { execSync } = require("child_process");
 const ROOT = __dirname;
 const VERSIONS_JS = path.join(ROOT, "versions.js");
 const BOOKMARKLET = path.join(ROOT, "bookmarklet.txt");
+
+// Where the published builds live. RELEASES_DIR is the folder in this repo;
+// SITE is the public address GitHub Pages serves it from (see CNAME).
+const RELEASES_DIR = path.join(ROOT, "releases");
+const SITE = "https://justaino.com";
+
+// Build the tiny loader bookmarklet for a given published file.
+//   file = "latest.js"  -> always runs the newest release (what the page installs)
+//   file = "v39.js"     -> pinned to that exact version (the "Previous versions" list)
+// The ?t= cache-buster stops the browser serving yesterday's copy, which is the same
+// stale-code trap the BUILD ID in minify.js protects against.
+function loaderFor(file) {
+  return (
+    "javascript:(function(){fetch('" + SITE + "/releases/" + file + "?t='+Date.now())" +
+    ".then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()})" +
+    ".then(function(c){(0,eval)(c)})" +
+    ".catch(function(e){alert('Justaino FC Hub could not load: '+e.message)})})();"
+  );
+}
+
+// The bookmarklet is "javascript:" + the actual code. A published release file holds
+// just the code (no "javascript:" prefix), because the loader eval's it as plain JS.
+function toPayload(bookmarklet) { return bookmarklet.replace(/^javascript:/, ""); }
+
+// Write releases/vN.js and point releases/latest.js at the same content.
+function publishRelease(v, payload) {
+  if (!fs.existsSync(RELEASES_DIR)) fs.mkdirSync(RELEASES_DIR);
+  fs.writeFileSync(path.join(RELEASES_DIR, "v" + v + ".js"), payload + "\n");
+  fs.writeFileSync(path.join(RELEASES_DIR, "latest.js"), payload + "\n");
+}
+
+// Read a published release back (returns "" if it isn't there).
+function readRelease(file) {
+  const p = path.join(RELEASES_DIR, file);
+  return fs.existsSync(p) ? fs.readFileSync(p, "utf8").trim() : "";
+}
 
 // How many OLDER versions to keep alongside the latest. The install page (and this
 // file) therefore holds at most MAX_OLDER_VERSIONS + 1 entries; anything beyond that
@@ -43,12 +96,16 @@ function capVersions(versions) {
 }
 
 // ---- read / write the versions list ---------------------------------------
-// versions.js is written by THIS script as:  window.FC26_VERSIONS = [ ...json... ];
-// so we read it back by stripping that wrapper and JSON-parsing the array.
+// versions.js is written by THIS script as two globals:
+//   window.FC26_LATEST   = "<loader for releases/latest.js>";   (the main install)
+//   window.FC26_VERSIONS = [ ...json... ];                      (newest first)
+// so we read it back by finding the array and JSON-parsing it.
 function readVersions() {
   if (!fs.existsSync(VERSIONS_JS)) return [];
   const text = fs.readFileSync(VERSIONS_JS, "utf8");
-  const json = text.replace(/^﻿?\s*window\.FC26_VERSIONS\s*=\s*/, "").replace(/;\s*$/, "");
+  const at = text.indexOf("window.FC26_VERSIONS");
+  if (at === -1) return [];
+  const json = text.slice(at).replace(/^window\.FC26_VERSIONS\s*=\s*/, "").replace(/;\s*$/, "");
   try {
     return JSON.parse(json);
   } catch (e) {
@@ -57,7 +114,11 @@ function readVersions() {
   }
 }
 function writeVersions(versions) {
-  fs.writeFileSync(VERSIONS_JS, "window.FC26_VERSIONS = " + JSON.stringify(versions, null, 2) + ";\n");
+  fs.writeFileSync(
+    VERSIONS_JS,
+    'window.FC26_LATEST = ' + JSON.stringify(loaderFor("latest.js")) + ";\n" +
+    "window.FC26_VERSIONS = " + JSON.stringify(versions, null, 2) + ";\n"
+  );
 }
 function label(x) { return "MGFC_Justaino_v" + x.v; }
 
@@ -91,11 +152,26 @@ if (cmd === "remove" || cmd === "rm" || cmd === "delete") {
   const wasLatest = versions[0] && versions[0].v === n;
   const kept = versions.filter(function (x) { return x.v !== n; });
   writeVersions(kept);
-  console.log("Removed " + label(target) + " (" + target.date + ").");
+  // Drop the published file too, so the site stops serving a version the page no
+  // longer lists. Anyone who already installed that exact pin will get the loader's
+  // "could not load" alert, which is the correct outcome for a withdrawn version.
+  const deadFile = path.join(RELEASES_DIR, "v" + n + ".js");
+  if (fs.existsSync(deadFile)) fs.unlinkSync(deadFile);
+  console.log("Removed " + label(target) + " (" + target.date + ") and its releases/v" + n + ".js.");
   if (!kept.length) {
     console.log("versions.js is now EMPTY - the install page will show no bookmarklet until you cut one.");
   } else if (wasLatest) {
-    console.log("Heads up: v" + n + " was the LATEST, so the page's main install is now " + label(kept[0]) + ".");
+    // Everyone on the main install follows releases/latest.js, so it must fall back
+    // to the newest surviving version rather than keep serving the withdrawn one.
+    const fallback = readRelease("v" + kept[0].v + ".js");
+    if (fallback) {
+      fs.writeFileSync(path.join(RELEASES_DIR, "latest.js"), fallback + "\n");
+      console.log("Heads up: v" + n + " was the LATEST, so the page's main install AND");
+      console.log("releases/latest.js now both point at " + label(kept[0]) + ".");
+    } else {
+      console.log("Heads up: v" + n + " was the LATEST, so the page's main install is now " + label(kept[0]) + ",");
+      console.log("but releases/v" + kept[0].v + ".js is missing - re-run `node release.js` to republish latest.js.");
+    }
     console.log("(This does NOT change bookmarklet.txt - it only changes what the page offers.)");
   }
   console.log("Then commit versions.js and push.");
@@ -129,9 +205,12 @@ if (!code.startsWith("javascript:")) {
 // 3) Load existing versions.
 const versions = readVersions();
 
-// 4) Skip a pointless release: newest stored version identical to what we just built
-//    (ignoring the version stamp, which always differs since the source says "dev").
-if (versions.length && stripVersion(versions[0].code) === stripVersion(code)) {
+// 4) Skip a pointless release: the last PUBLISHED build is identical to what we just
+//    built (ignoring the version stamp, which always differs since the source says
+//    "dev"). We compare against releases/latest.js, because versions.js now stores
+//    the short loader rather than the build itself.
+const lastPublished = readRelease("latest.js");
+if (versions.length && lastPublished && stripVersion(lastPublished) === stripVersion(toPayload(code))) {
   console.log("No change since " + label(versions[0]) + " - nothing to release.");
   process.exit(0);
 }
@@ -151,19 +230,34 @@ if (!VERSION_RE.test(code)) {
 const stampedCode = code.replace(VERSION_RE, "$1v" + nextV + "$2");
 fs.writeFileSync(BOOKMARKLET, stampedCode + "\n");
 
-// 7) Prepend the new version (newest first), then prune to the latest +
+// 7) Publish the build as a real file on the site: releases/vN.js, and repoint
+//    releases/latest.js at it. This is what the installed bookmark actually fetches.
+publishRelease(nextV, toPayload(stampedCode));
+
+// 8) Prepend the new version (newest first), then prune to the latest +
 //    MAX_OLDER_VERSIONS older ones so the file stays small, and write it back out.
-versions.unshift({ v: nextV, date: date, note: note, code: stampedCode });
+//    The stored `code` is the tiny PINNED loader for this version, not the build.
+versions.unshift({ v: nextV, date: date, note: note, code: loaderFor("v" + nextV + ".js") });
 const { kept, dropped } = capVersions(versions);
 writeVersions(kept);
+
+// Pruned versions are gone from the page, so their published files are dead weight -
+// delete them too. (The code is still in git history if it's ever needed again.)
+dropped.forEach(function (x) {
+  const p = path.join(RELEASES_DIR, "v" + x.v + ".js");
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+});
 
 console.log(
   "Released MGFC_Justaino_v" + nextV + "  (" + date + ")" +
   (note ? '  - "' + note + '"' : "") +
   "  ·  " + kept.length + " version(s) on the page now."
 );
+console.log("Published releases/v" + nextV + ".js and releases/latest.js  (" +
+  toPayload(stampedCode).length + " chars).");
 if (dropped.length) {
   console.log("Pruned " + dropped.length + " old version(s) to keep only the latest + " +
     MAX_OLDER_VERSIONS + " older: " + dropped.map(label).join(", ") + " (still in git history).");
 }
-console.log("Next: commit versions.js (and bookmarklet.txt) and push to dev.");
+console.log("Next: commit versions.js, bookmarklet.txt and releases/ and push to dev.");
+console.log("NOTE: the site serves from `main`, so friends only get this once dev is merged to main.");
