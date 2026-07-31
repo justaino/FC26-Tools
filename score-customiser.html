@@ -215,6 +215,7 @@
       <li><a href="#draft">Squad Builder draft</a></li>
       <li><a href="#recipes">Worked examples</a></li>
       <li><a href="#elsewhere">What changes elsewhere</a></li>
+      <li><a href="#suggest">How Suggest uses this</a></li>
       <li><a href="#gotchas">Things to watch</a></li>
       <li><a href="#faq">FAQ</a></li>
     </ol>
@@ -641,6 +642,97 @@
         mine, so you can tell which ruleset built them. Remove still catches both kinds.</li>
       <li><b>The Club Dashboard's</b> top-score record follows too.</li>
     </ul>
+  </section>
+
+  <!-- ───────────────────────── SUGGEST ───────────────────────── -->
+  <section id="suggest">
+    <div class="eyebrow">New in v39</div>
+    <h2 class="sec-title">How Suggest uses this</h2>
+    <p class="sec-sub">Suggest used to read off a fixed list I'd written for each role. It now works out which
+      PlayStyles actually raise <em>your</em> score on <em>this</em> card - so if you've re-weighted a position, Suggest
+      re-weights with you.</p>
+
+    <p class="body">The old version had a real gap in it: you could re-rank your entire club by your own weighting,
+      then hit Suggest and get my picks anyway. The two halves of the tool disagreed with each other. They don't now.</p>
+
+    <div class="card">
+      <div class="card-h">Which weights it follows <span class="tag">In order</span></div>
+      <ol class="steps">
+        <li><b>Switch off?</b> My baseline, same as everywhere else in the hub. Your settings are ignored until the
+          switch is on - that's not special to Suggest.</li>
+        <li><b>Your own PlayStyle list for that position?</b> <b>Yours wins outright.</b> It replaces the role
+          system entirely, so the role dropdown is ignored and the status line reads
+          <b>"for CDM / your list"</b>.</li>
+        <li><b>No list for that position?</b> My role lists supply the PlayStyle rankings - but <b>your dials still
+          change the answer</b>, see below.</li>
+      </ol>
+      <p>It's decided per position. Take CDM over and leave ST alone, and CDM follows you while ST follows me.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-h">The dials that move the picks</div>
+      <ul class="dot">
+        <li><b>PlayStyle+ multiplier</b> - decides whether upgrading a good PlayStyle the card already has beats
+          adding a new one.</li>
+        <li><b>Full marks needs</b> - sets the ceiling, so it decides <b>when Suggest stops</b>. Raise it and it
+          keeps finding picks worth making; lower it and it finishes sooner.</li>
+        <li><b>Balance</b> - scales how much a PlayStyle moves the total. Push the slider hard towards stats and
+          Suggest will offer less, which is the honest answer to "PlayStyles barely matter to me".</li>
+      </ul>
+    </div>
+
+    <h3 style="font-family:'Rajdhani',sans-serif;font-size:1.15rem;font-weight:700;margin:2rem 0 0.5rem">What it actually does</h3>
+    <p class="body muted">The trick is that it never estimates. To price a PlayStyle it builds the card you'd have
+      if you took it, then scores that card by your own rules and sees what the number did. A suggestion isn't a
+      guess about your score - it <em>is</em> your score.</p>
+
+    <ol class="steps">
+      <li><b>Works out which weights to use</b> - your list, else the role you picked.</li>
+      <li><b>Takes stock of the card</b>: what it already holds, and how many PlayStyle+ and basic slots are free.</li>
+      <li><b>Prices every option.</b> Every PlayStyle the card could still take, in both forms, scored as the card
+        it would become.</li>
+      <li><b>Takes the best one</b> and adds it to the working card.</li>
+      <li><b>Goes back to step 2.</b> Prices change, because what a PlayStyle is worth depends on what's already
+        there.</li>
+      <li><b>Stops</b> when the slots are full, or when nothing left would move the number.</li>
+    </ol>
+
+    <p class="body" style="margin-top:1.4rem">Here's a bare CDM, built as a Holding midfielder:</p>
+
+    <div class="ui">
+      <div class="ui-lab">Suggest · CDM / Holding</div>
+      <div class="ui-row top"><span class="ui-rank">1</span><span class="ui-nm">Intercept · PS+</span><span class="ui-sc">+13.7</span></div>
+      <div class="ui-row top"><span class="ui-rank">2</span><span class="ui-nm">Pinged Pass · PS+</span><span class="ui-sc">+13.8</span></div>
+      <div class="ui-row top"><span class="ui-rank">3</span><span class="ui-nm">Tiki Taka · PS+</span><span class="ui-sc">+10.3</span></div>
+      <div class="ui-row top"><span class="ui-rank">4</span><span class="ui-nm">Bruiser · PS+</span><span class="ui-sc">+10.2</span></div>
+      <div class="ui-row"><span class="ui-rank">5</span><span class="ui-nm">Jockey · basic</span><span class="ui-sc">+1.5</span></div>
+      <div style="margin-top:0.7rem;font-size:0.72rem;color:rgba(160,200,255,0.72)">Stopped with 3 basic slots free · score 40.2 → 89.7</div>
+    </div>
+
+    <p class="body" style="margin-top:1.2rem">The four best go in the four PlayStyle+ slots. The fifth pick is worth
+      <b>+1.5</b> and the sixth is worth nothing at all, so it stops - with slots to spare.</p>
+
+    <p class="body">Now give that same card a <b>basic Tiki Taka</b> to start with. The fourth pick becomes
+      <b>upgrade Tiki Taka to Tiki Taka+</b> at <b>+7.3</b>, rather than adding another new style - and because an
+      upgrade hands the basic slot back to you, it can spend that too.</p>
+
+    <div class="warn" style="margin-top:1.5rem">
+      <b>Fewer picks than free slots is the right answer, not a bug.</b> The PlayStyle score is measured against a
+      ceiling, so past a point extra PlayStyles are worth literally nothing. Suggest would rather tell you the score
+      is already maxed than spend your evos on decoration. If you want it to keep going, that's the
+      <b>Full marks needs</b> dial.
+    </div>
+
+    <div class="warn">
+      <b>It builds for the role you picked</b>, not whichever role flatters the card. The Rankings page is free to
+      score a card as whatever role suits it best - Suggest isn't, because you asked a specific question. That's why
+      changing the role genuinely changes the answer, and why the status line quotes the score
+      <b>as that role</b>.
+    </div>
+
+    <p class="body" style="margin-top:1.5rem">One last thing worth saying plainly. Suggest and the score now share a
+      single piece of maths, so they cannot drift apart. Which means <b>a suggestion you disagree with is a weighting
+      you disagree with</b> - and this page is where you go and win that argument.</p>
   </section>
 
   <!-- ───────────────────────── GOTCHAS ───────────────────────── -->
