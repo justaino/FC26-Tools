@@ -1535,7 +1535,49 @@
   //   hits      = which owned PlayStyles scored, for display
   //   statsUsed = the named stats + values that fed the stat part (self-checks order)
   //   role      = the BEST-fitting role we scored the PlayStyles against (null for a fallback group)
-  function scorePlayer(it, group) {
+  // ownedNames(list): a PlayStyle list as [{name, isIcon}] - the shape the scoring maths wants.
+  // Anything the catalog has no name for is dropped (it can't be weighted anyway).
+  function ownedNames(list) {
+    var out = [];
+    (list || []).forEach(function (p) {
+      var name = traitName[p.traitId];        // base name (traitName has no "+")
+      if (name) out.push({ name: name, isIcon: !!p.isIcon });
+    });
+    return out;
+  }
+
+  // psAgainst(owned, weights): the PlayStyle half of the score, measured against ONE weights
+  // table. Returns { raw, score (0-100), hits }.
+  //
+  // This is THE single implementation of "how much are these PlayStyles worth". scorePlayer
+  // runs it once per candidate role and keeps the best; Suggest runs it on hypothetical cards
+  // to decide what to recommend. Sharing it means the thing Suggest optimises is, by
+  // construction, exactly the thing the Justaino Score measures - they can't drift apart.
+  function psAgainst(owned, weights) {
+    var raw = 0, h = [];
+    owned.forEach(function (o) {
+      var base = weights[o.name] || 0;
+      if (!base) return;
+      var val = o.isIcon ? base * CFG.psPlusMult : base;   // a PlayStyle+ counts psPlusMult x a basic
+      raw += val;
+      h.push({ name: o.name, isIcon: o.isIcon, val: val });
+    });
+    return { raw: raw, score: Math.min(1, raw / psMaxForWeights(weights)) * 100, hits: h };
+  }
+
+  // weightsFor(group, roleName): the weights Suggest should optimise against, and what to call
+  // them. Mirrors scorePlayer's own precedence exactly: YOUR Peks Lab list for this position
+  // wins outright if you've made one (it replaces the role system), then the chosen role, then
+  // the blunt per-group fallback table.
+  function weightsFor(group, roleName) {
+    var own = CFG.psWeights && CFG.psWeights[group];
+    if (own && Object.keys(own).length) return { role: "your list", weights: own, custom: true };
+    var rt = ROLES[group];
+    if (rt && rt[roleName]) return { role: roleName, weights: roleWeightsFromList(rt[roleName]), custom: false };
+    return { role: null, weights: PLAYSTYLE_WEIGHTS[group] || {}, custom: false };
+  }
+
+  function scorePlayer(it, group, psOverride, fixedWeights) {
     var sw = CFG.statWeights[group];
     if (!sw) return { stat: 0, playstyle: 0, psScore: 0, statPart: 0, psPart: 0, total: 0, hits: [], statsUsed: {}, group: group, role: null };
 
@@ -1561,18 +1603,22 @@
     // --- playstyle part: ROLE-AWARE. Score the owned PlayStyles against every role this group
     //     offers (ROLES), take the role that scores highest. Falls back to the blunt per-group
     //     PLAYSTYLE_WEIGHTS table only if the group has no ROLES entry. PS+ counts double. ---
-    var owned = [];
-    effectivePlayStyles(it).forEach(function (p) {   // includes PlayStyles we applied this session
-      var name = traitName[p.traitId];        // base name (traitName has no "+")
-      if (name) owned.push({ name: name, isIcon: !!p.isIcon });
-    });
+    // psOverride lets a caller ask "what would this card score IF it held this instead?"
+    // Suggest uses it to measure a PlayStyle before proposing it. Everything else passes
+    // nothing and gets the card as it really is.
+    var owned = ownedNames(psOverride || effectivePlayStyles(it));
     // A user-defined PlayStyle table for this position REPLACES the role system for it: you've
     // said which PlayStyles matter here and by how much, so there's nothing left to fit a role
     // against. Every other position keeps scoring by best-fitting role as normal.
     var roleTable = ROLES[group];
     var cands = [];
     var ownTable = CFG.psWeights && CFG.psWeights[group];
-    if (ownTable && Object.keys(ownTable).length) {
+    // fixedWeights pins the scoring to ONE weights table instead of trying every role and
+    // keeping the best. Suggest passes the role you actually chose, so it optimises the job
+    // you asked for rather than whichever role happens to flatter the card.
+    if (fixedWeights) {
+      cands.push({ role: fixedWeights.role, weights: fixedWeights.weights });
+    } else if (ownTable && Object.keys(ownTable).length) {
       cands.push({ role: "Your list", weights: ownTable });
     } else if (roleTable) {
       Object.keys(roleTable).forEach(function (rn) { cands.push({ role: rn, weights: roleWeightsFromList(roleTable[rn]) }); });
@@ -1580,16 +1626,8 @@
     if (!cands.length) cands.push({ role: null, weights: PLAYSTYLE_WEIGHTS[group] || {} });
     var bestRole = null, psScore = 0, psRaw = 0, hits = [];
     cands.forEach(function (c) {
-      var raw = 0, h = [];
-      owned.forEach(function (o) {
-        var base = c.weights[o.name] || 0;
-        if (!base) return;
-        var val = o.isIcon ? base * CFG.psPlusMult : base;   // a PlayStyle+ counts psPlusMult x a basic
-        raw += val;
-        h.push({ name: o.name, isIcon: o.isIcon, val: val });
-      });
-      var score = Math.min(1, raw / psMaxForWeights(c.weights)) * 100;
-      if (bestRole === null || score > psScore) { bestRole = c.role; psScore = score; psRaw = raw; hits = h; }
+      var m = psAgainst(owned, c.weights);
+      if (bestRole === null || m.score > psScore) { bestRole = c.role; psScore = m.score; psRaw = m.raw; hits = m.hits; }
     });
 
     // --- blend the two 0-100 halves, then pull toward the card's OVR (quality floor, mix up top) ---
@@ -3206,99 +3244,131 @@
     var rs = (pos && ROLES[pos]) ? Object.keys(ROLES[pos]) : [];
     roleSelect.innerHTML = '<option value="">role...</option>' + rs.map(function (r) { return "<option>" + esc(r) + "</option>"; }).join("");
   }
-  // suggest(): pre-tick the recommended playstyles for the chosen position/role.
+  // suggest(): pre-tick the PlayStyles that raise this card's score the most.
   //
-  // How it works: each role has ONE ranked list (best pick first). We fill the
-  // player's OPEN slots in two passes down that same list:
-  //   Pass 1 - PlayStyle+ : fill the free PS+ slots with the best picks the player
-  //            doesn't already have. If a top pick is owned (or is GK-only for a
-  //            non-GK), we "fall through" to the next-best pick instead of leaving
-  //            the slot empty - so an owned top pick no longer wastes a PS+ slot.
-  //   Pass 2 - Basic      : keep walking the SAME list and fill the free basic slots
-  //            with the next picks the player doesn't own and that we didn't already
-  //            tick as a "+" in pass 1.
-  // Selection only - nothing is applied. Never re-ticks a style the player owns.
+  // WHAT CHANGED IN v39: it used to walk a hand-written ranked list per role and fill the
+  // free slots from the top down. It now optimises THE ACTUAL SCORE - the same Justaino
+  // Score the rest of the hub shows, or your own weighting if you've tuned one in Peks Lab.
+  // That matters because a Peks Lab PlayStyle list REPLACES the role system when scoring
+  // (see weightsFor), so before this the tool could rank your club by your own weights while
+  // Suggest still handed you mine.
+  //
+  // HOW IT PICKS: one slot at a time, always taking the biggest gain, re-measuring after
+  // every pick.
+  //   - It measures a candidate by building the card it WOULD be and scoring that
+  //     (scorePlayer's psOverride), so a suggestion is never a guess about the score - it
+  //     is the score.
+  //   - Re-measuring each round matters because the value of a PlayStyle depends on what's
+  //     already there: the score saturates at a ceiling, so the fifth good pick is worth
+  //     less than the first.
+  //   - It stops the moment nothing left would move the number, rather than filling slots
+  //     for the sake of it.
+  //   - It will spend a PlayStyle+ UPGRADING something the card already has when that beats
+  //     adding a new one (a "+" is worth psPlusMult basics), and the upgrade hands the basic
+  //     slot back for it to refill.
+  // Selection only - nothing is applied to the club here.
   function suggest() {
     if (state.batch.size > 1) { status.textContent = "Suggest works on one player at a time - uncheck extras first."; return; }
     var it = state.player;
     if (!it) { status.textContent = "Select a player first."; return; }
     var pos = posSelect.value, role = roleSelect.value;
-    if (!pos || !role || !ROLES[pos] || !ROLES[pos][role]) { status.textContent = "Pick a position and role."; return; }
+    if (!pos || !ROLES[pos]) { status.textContent = "Pick a position."; return; }
+    var W = weightsFor(pos, role);
+    // A role is only needed when we're falling back to MY lists. If you've set your own
+    // PlayStyle weights for this position, they replace the role entirely.
+    if (!W.custom && (!role || !ROLES[pos][role])) { status.textContent = "Pick a position and role."; return; }
 
-    var gk = isGKPlayer(it);          // is this player a goalkeeper?
+    var gk = isGKPlayer(it);
 
-    // Build the ONE ranked list we fill from: the role's curated picks FIRST, then
-    // the position group's general fallback order for anything still open. We drop
-    // duplicates (keeping the first, higher-priority appearance) so no playstyle is
-    // ever considered - or ticked - twice.
-    var ranked = [];
-    var seenName = {};
-    ROLES[pos][role].concat(POS_TAIL[pos] || []).forEach(function (name) {
-      if (seenName[name]) return;     // already in the list higher up - skip the repeat
-      seenName[name] = true;
-      ranked.push(name);
-    });
+    // The working card: what it holds now, as {traitId, isIcon}. Every candidate is measured
+    // against a COPY of this with one change made, and the winner is folded back in.
+    var have = effectivePlayStyles(it).map(function (p) { return { traitId: p.traitId, isIcon: !!p.isIcon }; });
+    var startScore = scorePlayer(it, pos, have, W).total;   // measured against the role YOU chose
 
-    // owns(name): does the player ALREADY have this playstyle, in EITHER form
-    // (basic OR plus)? Base and plus share the same underlying trait, so we must
-    // check both - otherwise a player who owns "Bruiser+" could be re-suggested a
-    // basic "Bruiser". If they own it either way, we skip it entirely.
-    function owns(name) {
-      var b = psByName[name], p = pspByName[name];
-      return (b && hasEvo(it, b)) || (p && hasEvo(it, p));
+    // withStyle(list, traitId, isPlus): the card as it WOULD be with this PlayStyle on it.
+    // oneEach does the real work on an upgrade - the basic of that trait drops out, which is
+    // exactly what the game does, so the freed basic slot shows up in the counts for free.
+    function withStyle(list, traitId, isPlus) {
+      var out = list.filter(function (p) { return p.traitId !== traitId; });
+      out.push({ traitId: traitId, isIcon: !!isPlus });
+      return oneEach(out);
+    }
+    function countOf(list, wantPlus) {
+      return list.filter(function (p) { return !!p.isIcon === wantPlus; }).length;
     }
 
-    // Suggest replaces whatever was ticked - start from a clean selection.
+    var picks = [];                 // [{ evo, name, kind, upgrade, gain }]
+    var pickedBasic = {};           // names taken as a basic this run - see the guard below
+    var guard = 0;
+
+    while (guard++ < CAP_PLUS + CAP_BASIC) {
+      var usedPlus = countOf(have, true), usedBase = countOf(have, false);
+      if (usedPlus >= CAP_PLUS && usedBase >= CAP_BASIC) break;      // both caps full
+      var nowScore = scorePlayer(it, pos, have, W).total;
+      var best = null;
+
+      PS.forEach(function (base) {
+        var name = base.n, trait = base.r - TRAIT_OFFSET;
+        var plus = pspByName[name];
+        if (!plus) return;
+        if (base.g && !gk) return;                                    // GK-only style, outfielder
+        var entry = have.filter(function (p) { return p.traitId === trait; })[0];
+        var hasPlus = !!(entry && entry.isIcon), hasBase = !!(entry && !entry.isIcon);
+
+        // ---- as a basic: only if the card holds neither form, and a basic slot is free.
+        if (!hasBase && !hasPlus && usedBase < CAP_BASIC) {
+          consider(withStyle(have, trait, false), psByName[name], name, "PS", false);
+        }
+        // ---- as a PlayStyle+: any style it doesn't already have as a "+", if a PS+ slot is
+        // free. When the card has the basic, this IS the upgrade.
+        // The guard: never take a style as a basic and then upgrade it in the same run - that
+        // spends two evos to reach a state one evo would have reached.
+        if (!hasPlus && usedPlus < CAP_PLUS && !pickedBasic[name]) {
+          consider(withStyle(have, trait, true), plus, name, "PS+", hasBase);
+        }
+
+        function consider(hypo, evo, nm, kind, isUpgrade) {
+          var gain = scorePlayer(it, pos, hypo, W).total - nowScore;
+          if (gain <= 0.001) return;                                  // moves nothing - not worth an evo
+          // Tie-break, in order: bigger gain, then the cheaper option (a basic over a "+"),
+          // then adding over upgrading. Keeps the answer stable and the spend low.
+          if (best && !(gain > best.gain + 0.001 ||
+                       (Math.abs(gain - best.gain) <= 0.001 && best.kind === "PS+" && kind === "PS") ||
+                       (Math.abs(gain - best.gain) <= 0.001 && best.upgrade && !isUpgrade))) return;
+          best = { hypo: hypo, evo: evo, name: nm, kind: kind, upgrade: isUpgrade, gain: gain };
+        }
+      });
+
+      if (!best) break;                                               // nothing left that pays
+      have = best.hypo;
+      if (best.kind === "PS") pickedBasic[best.name] = true;
+      picks.push(best);
+    }
+
+    // Hand the picks to the deck as ticked evos.
     state.selected = new Set();
-
-    // How many slots of each kind are still OPEN on this player right now.
-    var plusOpen = CAP_PLUS - numPlus(it);    // free PlayStyle+ slots
-    var baseOpen = CAP_BASIC - numBasic(it);  // free basic slots
-    var added = 0;                            // how many we tick in total
-
-    // ---- Pass 1: PlayStyle+ ----
-    ranked.forEach(function (name) {
-      if (plusOpen <= 0) return;              // no PS+ slots left -> stop ticking "+"
-      var evo = pspByName[name];              // the "+" version of this playstyle
-      if (!evo) return;                       // no PS+ exists for this name (shouldn't happen)
-      if (evo.g && !gk) return;               // GK-only evo, player isn't a GK -> fall through
-      if (owns(name)) return;                 // already has it -> fall through (don't re-tick)
-      state.selected.add(evo.s); plusOpen--; added++;   // tick this PS+
-    });
-
-    // ---- Pass 2: basic PlayStyles ----
-    ranked.forEach(function (name) {
-      if (baseOpen <= 0) return;              // no basic slots left -> stop
-      var evo = psByName[name];               // the basic version of this playstyle
-      if (!evo) return;
-      if (evo.g && !gk) return;               // GK-only evo, player isn't a GK -> fall through
-      if (owns(name)) return;                 // already has it -> skip
-      var plusEvo = pspByName[name];          // was this name already ticked as a "+" above?
-      if (plusEvo && state.selected.has(plusEvo.s)) return;   // yes -> don't also tick basic
-      state.selected.add(evo.s); baseOpen--; added++;         // tick this basic
-    });
-
-    // For the status line only: count how many list picks were skipped because the
-    // player already owns them, and how many have no usable evo (e.g. a GK-only
-    // style for a non-GK). These are informational - they don't change the ticks.
-    var owned = 0, unavailable = 0;
-    ranked.forEach(function (name) {
-      if (owns(name)) { owned++; return; }
-      var b = psByName[name], p = pspByName[name];
-      var noPlus = !p || (p.g && !gk);        // no PS+ we could ever use for this player
-      var noBase = !b || (b.g && !gk);        // no basic we could ever use for this player
-      if (noPlus && noBase) unavailable++;
-    });
-
-    // Suggest has never cared about tabs - it writes slot ids straight into state.selected,
-    // picking the "+" version in pass 1 and the basic in pass 2. It used to finish by
-    // flipping to the busier tab; with one board there's nothing to flip to, so it just
-    // redraws and every pick lights up at once.
+    picks.forEach(function (p) { state.selected.add(p.evo.s); });
     renderEvos();
-    status.textContent = "Suggested " + added + " for " + pos + " / " + role +
-      (owned ? ", " + owned + " owned" : "") +
-      (unavailable ? ", " + unavailable + " unavailable" : "") + ".";
+
+    // Report it in the terms the decision was made in: what it picked, and what that does
+    // to the number on the card.
+    var endScore = picks.length ? scorePlayer(it, pos, have, W).total : startScore;
+    var nPlus = picks.filter(function (p) { return p.kind === "PS+"; }).length;
+    var nUp = picks.filter(function (p) { return p.upgrade; }).length;
+    var against = W.custom ? pos + " / your list" : pos + " / " + role;
+    if (!picks.length) {
+      var full = countOf(have, true) >= CAP_PLUS && countOf(have, false) >= CAP_BASIC;
+      status.textContent = full
+        ? playerName(it) + " has no slots left."
+        : "Nothing left to add for " + against + " - the PlayStyle score is already maxed at " + startScore.toFixed(1) + ".";
+    } else {
+      status.textContent = "Suggested " + picks.length + " for " + against + ": " +
+        nPlus + " PS+, " + (picks.length - nPlus) + " basic" +
+        (nUp ? " (" + nUp + " upgrade" + (nUp === 1 ? "" : "s") + ")" : "") +
+        " - score as " + against + " " + startScore.toFixed(1) + " -> " + endScore.toFixed(1) + ".";
+    }
   }
+
   posSelect.addEventListener("change", populateRoles);
   suggestBtn.addEventListener("click", suggest);
 

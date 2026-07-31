@@ -135,6 +135,10 @@ a spinner + live count under the buttons while working.
 
 ## 3b. New in v3 - smarter Suggest (fall-through)
 
+> **Superseded by v39 - see §3v.** Suggest no longer reads off these ranked lists; it
+> optimises the score directly. `ROLES` and the tail tables described below are still very
+> much alive, but now as the **scorer's** weights rather than Suggest's running order.
+
 **Suggest now always fills what it can.** Before, if a player already owned one of a
 role's top picks, that slot was just skipped and left empty (so an owned top pick meant
 one fewer suggestion). Now it **falls through** to the next-best pick instead:
@@ -1137,6 +1141,69 @@ Back to the original tile metrics: a 3-column grid (`.fc26-grid`) of `.fc26-ec` 
 icon and a 9px wrapping name, so nothing needs abbreviating. The v37 state classes layer on top of
 that look rather than replacing it - `own-plus`, `own-base`, `selp` (the gold ring that overrides
 `.sel`'s accent one) and `.qbar` (the queued strip).
+
+---
+
+## 3v. New in v39 - Suggest optimises the score
+
+Suggest used to walk a hand-written ranked list per role and fill the free slots top-down.
+It now **optimises the actual score** - the Justaino Score, or your own weighting if you've
+tuned one in Peks Lab.
+
+### Why it had to change
+
+A Peks Lab PlayStyle list **replaces** the role system when scoring (`CFG.psWeights[group]`
+wins over `ROLES` - see `weightsFor`). So before v39 you could rank your entire club by your
+own weighting, and Suggest would still hand you mine. The two halves of the tool disagreed.
+
+### How it picks
+
+One slot at a time, always taking the biggest gain, re-measuring after every pick:
+
+1. For every PlayStyle the card could still take, in both forms, it **builds the card that
+   would result** and scores it (`scorePlayer(it, group, psOverride, fixedWeights)`).
+2. It takes whichever gains the most, folds that into the working card, and goes again.
+3. It stops the moment nothing left would move the number.
+
+Three consequences worth understanding, because they look like bugs if you don't:
+
+- **It often picks fewer than the free slots.** The PlayStyle score saturates at a ceiling
+  (`psMaxForWeights`), so past a point extra PlayStyles are worth literally nothing. Stopping
+  is the correct answer - the status line says so explicitly.
+- **The picks are not a fixed ranking.** What a PlayStyle is worth depends on what's already
+  on the card, which is why it re-scores each round rather than sorting once.
+- **It will spend a PlayStyle+ upgrading a basic the card already has** when that beats adding
+  something new (a "+" is worth `psPlusMult` basics). Since v38 the upgrade hands the basic
+  slot back, which it can then refill. The status line counts these as "(1 upgrade)".
+
+One guard: it never takes a style as a basic and then upgrades it in the same run, which would
+spend two evos to reach a state one evo reaches.
+
+### The pieces
+
+| Piece | What it does |
+|---|---|
+| `psAgainst(owned, weights)` | **The single implementation** of "what are these PlayStyles worth". `scorePlayer` runs it once per candidate role and keeps the best; Suggest runs it on hypothetical cards. Sharing it means what Suggest optimises IS what the score measures. |
+| `ownedNames(list)` | A PlayStyle list as `[{name, isIcon}]`, the shape the maths wants. |
+| `weightsFor(group, role)` | Which weights to optimise against, mirroring `scorePlayer`'s precedence: your Peks Lab list, else the chosen role, else the per-group fallback. |
+| `scorePlayer(it, group, psOverride, fixedWeights)` | Two new optional arguments. `psOverride` scores a **hypothetical** PlayStyle list instead of the card's real one. `fixedWeights` pins scoring to ONE weights table instead of trying every role. |
+
+### The role dropdown still matters
+
+`scorePlayer` normally tries every role the position offers and keeps the best. Suggest passes
+`fixedWeights`, pinning it to **the role you chose**, so it builds for the job you asked for
+rather than whichever role flatters the card. That's also why the status line reports the score
+*as that role* - it's the number the decision was made on, and it can differ from the headline
+score on the Justaino Score page, which is free to pick a better-fitting role.
+
+If you've set your own list for that position, the role dropdown is ignored and the status line
+says `for CDM / your list`.
+
+### If the picks look wrong
+
+The algorithm can only be as good as the weights. Suggest is now a mirror of the score, so a
+suggestion you disagree with is a **weighting** you disagree with - argue with it in Peks Lab
+(§3q) or in `ROLES` (§7b), not here.
 
 ---
 

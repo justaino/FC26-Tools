@@ -5,6 +5,34 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v39 - 2026-07-31
+
+**Suggest now picks the PlayStyles that actually raise your score.**
+
+- It used to read off a fixed list I'd written for each role. It now works out, for this
+  particular card, which PlayStyles move the number most - and it judges each one by
+  **building the card you'd have and scoring that**. A suggestion isn't a guess about your
+  score any more, it *is* your score.
+- **The big one: if you've set your own PlayStyle weights for a position in Peks Lab, Suggest
+  now follows yours.** Before this you could rank your entire club by your own weighting and
+  Suggest would still hand you mine.
+- **It re-thinks after every pick**, because what a PlayStyle is worth depends on what's
+  already on the card. The fifth good PlayStyle is worth less than the first, and it prices
+  that in.
+- **It stops when nothing left would help.** If it picks 5 and leaves 3 basic slots free,
+  that's not it giving up - those slots genuinely add nothing, and it'll tell you the score is
+  already maxed rather than spending evos for show.
+- **It'll upgrade instead of adding.** When a PlayStyle+ on something the card already has
+  beats adding a new style, it takes the upgrade - and since v38 that hands the basic slot
+  back, which it can then refill. The status line counts those as "(1 upgrade)".
+- **It builds for the role you picked**, not whichever role happens to flatter the card, so
+  changing the role genuinely changes the answer. The status line shows what it chose and what
+  your score does: `4 PS+, 1 basic - score as CDM / Holding 40.2 -> 89.7`.
+- If a suggestion looks wrong to you, that's now a **weighting** you disagree with rather than
+  a list I forgot to update - Peks Lab is where to argue with it.
+
+---
+
 ## v38 - 2026-07-31
 
 **Fixed: the slot counts when you upgrade a PlayStyle the card already had.**
