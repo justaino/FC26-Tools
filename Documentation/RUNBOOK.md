@@ -1622,6 +1622,88 @@ Each release has a permalink: `changelog.html#v29` opens v29 and scrolls to it.
 
 ---
 
+## 7d. Counting how many people use the tool (v40)
+
+There are **two different numbers**, and they're measured in two different places.
+
+| Number | What it means | Where to look |
+|---|---|---|
+| Site visitors | People who opened justaino.com | Cloudflare dashboard → **Analytics & Logs → Web Analytics** |
+| Tool runs | People who actually opened the panel in the FC web app | `justaino.goatcounter.com` |
+
+They're not the same thing, which is the whole reason both exist. Someone can visit the
+install page once and never use it, or use it daily and never revisit the page.
+
+### Site visitors (the install page)
+
+A small Cloudflare Web Analytics script sits just before `</head>` in each of the five
+pages: `index.html`, `features.html`, `changelog.html`, `meta-rating.html` and
+`score-customiser.html`. No cookies, so no consent banner needed.
+
+If you ever add a **new page** to the site, copy that script block into it or that page
+won't be counted. Search any existing page for `cloudflareinsights` to find it.
+
+Note that this only counts **page views**. It cannot see the loader fetching
+`releases/latest.js`, because that's not a page view. That's what the second number is for.
+
+### Tool runs (the panel)
+
+In `fc26-tools.js`, look for the **USAGE PING** block near the top (just under
+`window.FC26.version`). It's about 20 lines and heavily commented.
+
+How it works:
+
+- On startup, `pingUsage()` sends one `fetch` to `https://justaino.goatcounter.com/count`.
+- The **only** thing in that message is the version, sent as a label like `/tool-run/v40`.
+  No player, club or account data. It cannot leak anything, because nothing else is put in.
+- It's called **last**, after the panel is on screen, and it's never awaited. It can't
+  delay or block the tool.
+- The whole thing is wrapped in `try/catch` with a `.catch()` on the fetch, so a failure
+  is silent. Worst case a run goes uncounted.
+- It counts **once per browser tab session** (a flag in `sessionStorage`), so rebuilding
+  the panel repeatedly while testing reads as one use.
+
+### Why `fetch` and not an image pixel
+
+The FC web app sets a Content Security Policy. Testing showed it **doesn't restrict
+`connect-src`** (which is also why the loader bookmarklet works at all), but `img-src`
+may well be locked down. So a `fetch` is the reliable choice here. If EA ever tightens
+their CSP, the ping goes silent on its own without breaking anything.
+
+### Checking it works
+
+Two Console commands in the FC web app:
+
+```js
+FC26.diag().usageCounted     // "yes" once this tab's run has been counted
+FC26.ping(true)              // force an extra count, ignoring the once-per-session rule
+```
+
+`FC26.ping()` without `true` returns `"already counted this session"` on a second run.
+That's correct behaviour, not a fault.
+
+To test the CSP directly, without involving the tool:
+
+```js
+await fetch("https://justaino.goatcounter.com/count?p=/csp-test",{mode:"no-cors"}).then(function(){return "ALLOWED"}).catch(function(e){return "BLOCKED: "+e.message})
+```
+
+### Reading the dashboard
+
+Dev builds report as `/tool-run/dev`, released builds as `/tool-run/v40`, `/tool-run/v41`
+and so on. So you can filter your own testing out, and see at a glance which versions
+people are still running, which tells you when everyone has picked up a new release.
+
+### Why we didn't proxy through Cloudflare
+
+The alternative was turning on Cloudflare's orange cloud so the `releases/latest.js`
+fetches showed up in Cloudflare's own analytics. Rejected, because it would have meant
+edge caching in front of the loader (a genuine risk of serving stale builds, the exact
+problem the BUILD ID exists to catch), plus Bot Fight Mode potentially challenging the
+loader fetch. The in-tool ping gets the same number with no DNS changes and no cache risk.
+
+---
+
 ## 8. Troubleshooting
 
 | Symptom | Fix |
@@ -1633,6 +1715,7 @@ Each release has a permalink: `changelog.html#v29` opens v29 and scrolls to it.
 | An apply fails with `460 ineligible` | That card can't take that PlayStyle (already has it, capped, or rarity/OVR not allowed). Normal for non-eligible cards. |
 | Eligible filter shows a card that won't evo | Select it → **Remove** on its card (the seed was a guess). |
 | Console prints `undefined` | That's just the Console echoing "no return value" - look at the lines above it. |
+| Tool runs aren't appearing in GoatCounter | Check `FC26.diag().usageCounted` says `yes`, then run the CSP test in §7d. A blocked CSP means the ping is being dropped - nothing else is affected. |
 
 ---
 

@@ -167,6 +167,54 @@
   window.FC26.version = FC26_VERSION;   // check with: window.FC26.version
 
   // ----------------------------------------------------------------------------
+  // USAGE PING - "how many people actually use this?"
+  //
+  // The install page (justaino.com) counts visitors, but visiting the install page
+  // isn't the same as USING the tool. So on startup we fire one tiny request at
+  // GoatCounter (a free, cookie-free hit counter) that just says "the tool ran, on
+  // version X". Nothing about you, your club or your players is ever sent - the
+  // whole message is the version string.
+  //
+  // Why fetch() and not an <img> pixel: the FC web app sets a Content Security
+  // Policy. It doesn't restrict connect-src (which is why the loader bookmarklet
+  // works), but img-src may well be locked down, so a fetch is the safe choice.
+  //
+  // "no-cors" means we send the request but don't ask to READ the reply. We don't
+  // care what it says, only that it arrived, and that avoids any CORS complaints.
+  // ----------------------------------------------------------------------------
+  var GOATCOUNTER_URL = "https://justaino.goatcounter.com/count";
+
+  // force = true skips the once-per-session rule (used by FC26.ping() when testing).
+  function pingUsage(force) {
+    try {
+      // Count once per browser TAB SESSION, not once per click. Rebuilding the panel
+      // ten times while testing should read as one use, not ten. sessionStorage clears
+      // itself when the tab closes, so a genuine new session counts again.
+      if (!force) {
+        if (sessionStorage.getItem("fc26-counted")) return "already counted this session";
+        sessionStorage.setItem("fc26-counted", "1");
+      }
+
+      // p = the label shown in the dashboard. Dev builds report as "/tool-run/dev",
+      // released builds as "/tool-run/v40" etc, so your own testing is easy to filter
+      // out and you can see which versions people are still running.
+      var url = GOATCOUNTER_URL +
+        "?p=" + encodeURIComponent("/tool-run/" + FC26_VERSION) +
+        "&t=" + encodeURIComponent("Tool run " + FC26_VERSION) +
+        "&r=" + encodeURIComponent(location.hostname);
+
+      // Fire and forget: we never await this, and .catch swallows any failure, so a
+      // blocked or offline request can never slow down or break the tool.
+      fetch(url, { mode: "no-cors", cache: "no-store", keepalive: true }).catch(function () {});
+      return "counted " + FC26_VERSION;
+    } catch (e) {
+      return "skipped: " + (e && e.message);   // never let counting break anything
+    }
+  }
+
+  window.FC26.ping = pingUsage;   // test by hand with: window.FC26.ping(true)
+
+  // ----------------------------------------------------------------------------
   // THEMES - "Broadcast" colourways (frosted glass)
   // The panel stays frosted glass; a THEME is just a set of colour tokens. We apply
   // the chosen theme by setting each token as an INLINE custom property on the panel
@@ -690,7 +738,9 @@
       buttonText: btn ? btn.textContent : null,
       buttonClass: btn ? btn.className : null,
       buttonSize: box(btn),
-      clubPlayers: getClubPlayers().length
+      clubPlayers: getClubPlayers().length,
+      // "yes" once this tab's run has been counted (see USAGE PING).
+      usageCounted: (function () { try { return sessionStorage.getItem("fc26-counted") ? "yes" : "no"; } catch (e) { return "n/a"; } })()
     };
   };
 
@@ -7170,4 +7220,8 @@
   panel.appendChild(header);
   panel.appendChild(body);
   document.body.appendChild(panel);
+
+  // Panel is up and usable - now quietly log that the tool ran (see USAGE PING above).
+  // Deliberately last, so counting can never delay or interfere with the tool loading.
+  pingUsage();
 })();
