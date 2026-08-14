@@ -5,6 +5,57 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v41 - 2026-08-14
+
+**The FUTTIES 5th PlayStyle+, a filter that hides full cards, and Suggest finally fills
+the last slot.**
+
+- **FUTTIES 5th PlayStyle+ (one-off).** EA now hands out limited evos that add a **5th**
+  PlayStyle+ to a FUTTIES card, on top of the normal cap of 4. Pick a FUTTIES player that
+  already has 4 PlayStyle+ and a new gold bar appears under the PlayStyle grid listing the
+  ones you own. Tap one, confirm, done.
+- It works exactly like the **GH 4th** section that was already there, and both now live
+  side by side: GH 4th shows for a Glory Hunters card on 3 PlayStyle+, FUTTIES 5th for a
+  FUTTIES card on 4. The section stays completely hidden unless the player you've picked
+  can actually use it, so it's never in the way.
+- Same safety rules as before, deliberately: **one player at a time, always behind a
+  confirm, never part of batch apply and never picked by Suggest.** These are one-offs, so
+  spending one should take a deliberate tap. The game still has the final say, and if it
+  refuses you get the reason.
+- The card now reads **5/5** rather than an overflowing 5/4 once the extra one lands.
+- **FUTTIES Icon cards are NOT evo-eligible.** They briefly were during testing. They
+  aren't, they're out, and the tool no longer offers them anything. Their rarity is still
+  spelled out properly as "FUTTIES Icon" instead of "Rarity 139".
+- **New "with room left" filter on the player list.** Tick it (next to "Only evo-eligible")
+  and any card that's already full - 4 PlayStyle+ **and** 8 basic - drops out of the list.
+  A card that's maxed one kind but not the other still shows, because there's genuinely
+  something left to give it.
+- It's a narrowing of "Only evo-eligible" rather than a filter of its own, so it greys out
+  until that one is ticked. Both settings are remembered.
+- The list keeps itself honest: fill a card's last slot and it disappears from the list on
+  its own, without waiting for the game to catch up.
+- **Suggest now fills all 12 slots instead of stopping at 11.** This was a real bug and it
+  had been there the whole time.
+- **Why it happened:** each role has a list of PlayStyles that count for it, and anything
+  not on that list is worth nothing. Suggest stops as soon as the next pick would add
+  nothing - which is usually the right behaviour, but it meant the list length was a hard
+  ceiling. 36 of the 37 role lists held exactly **11** names, so 11 was all you could ever
+  get, no matter how empty the card was.
+- **The fix** is the lists, not the code: every role now has **12**, matching the 4 + 8 you
+  can actually hold.
+- The new lists come from **fut.gg's "Best PlayStyles by Role"**, read at its 4-PlayStyle+
+  / 8-base setting, which is exactly our caps. Their roles line up with ours one for one,
+  all 37 of them.
+- **Nothing was taken away from any role.** Every one of the 37 only gained. 24 of them had
+  the important end of the list reshuffled to match fut.gg's priority order.
+- Goalkeepers were updated from the same source rather than my guesswork, and all three
+  keeper roles gained Incisive Pass.
+- One knock-on: because each role now values one more PlayStyle, "full marks" is slightly
+  harder, so scores drop by about **1.5%** across the board. It's the same drop for
+  everyone, so your rankings and Best XI stay put - the numbers just read a touch lower.
+
+---
+
 ## v40 - 2026-08-14
 
 **I can finally see how many people actually use this.**

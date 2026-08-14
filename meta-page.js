@@ -350,6 +350,13 @@ const html = `<!DOCTYPE html>
     .pos-cols { flex-direction:column; gap:1rem; }
   }
 </style>
+
+<!-- Cloudflare Web Analytics (visitor counts, no cookies) -->
+<!-- MUST stay here: every .html page on the site carries this, and a page without it goes
+     uncounted with no error to warn you. This file is GENERATED, so the block has to live in
+     the generator - editing meta-rating.html by hand is wiped on the next meta-page.js run.
+     See RUNBOOK section 7d. -->
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "2c04c4cb873a4098bebaf3250bb78484"}'></script>
 </head>
 <body>
 <div class="wrap">
