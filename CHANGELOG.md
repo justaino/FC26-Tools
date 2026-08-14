@@ -5,6 +5,32 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v40 - 2026-08-14
+
+**I can finally see how many people actually use this.**
+
+- Nothing in the panel looks or behaves any differently. This one is entirely behind the
+  scenes, so if you don't care how the sausage is made, there's nothing here for you.
+- **The problem:** the install page counts visitors, but visiting the install page isn't
+  the same as using the tool. Someone can look once and never come back, or use it every
+  day for a month and never visit the page again. I had no way of telling those apart.
+- **What now happens:** when the panel opens, it sends one tiny message to a free,
+  cookie-free counter (GoatCounter) saying nothing except **which version just ran**.
+  That's the entire message.
+- **What is never sent:** anything about you, your club, your players, your account, or
+  what you do in the tool. It can't be, because the message only ever contains a version
+  number.
+- **It can't slow anything down or break anything.** It's the last thing that happens,
+  after the panel is already on screen, it's never waited for, and if it fails it fails
+  silently. Worst case, a use doesn't get counted.
+- **It counts once per browser tab session, not once per click.** Clicking the bookmark
+  five times in a row while you fiddle with something reads as one use, which is the more
+  honest number.
+- My own test builds report separately from real released ones, so me developing the
+  thing doesn't inflate the count.
+
+---
+
 ## Install change - 2026-07-31 (applies from v39 onwards)
 
 **The tool now installs on Android.** No new tool version, nothing in the panel changed -
