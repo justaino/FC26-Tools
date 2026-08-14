@@ -60,6 +60,13 @@ comment every block. Don't assume front-end knowledge.
   `CHANGELOG.md` in the same change** - `RUNBOOK.md` with how to use/maintain it,
   `CHANGELOG.md` with a plain-English entry under the current install-page version
   (`node release.js`). Not optional; do it as part of shipping the feature.
+- **Usage is counted in two places, and both are easy to break silently.** Tool runs are
+  counted by the USAGE PING in `fc26-tools.js` (a `fetch` to GoatCounter carrying only the
+  version); site visits by a Cloudflare Web Analytics script before `</head>` in every
+  `.html` page. **Any NEW page added to the site must get that script block too** - copy it
+  from an existing page (search for `cloudflareinsights`) or the page goes uncounted with no
+  error to warn you. Never put club, player or account data in the ping. Full detail,
+  including the Console checks, in `RUNBOOK.md` §7d.
 
 ## Files in this folder
 - `CLAUDE.md` - this file (standing context).

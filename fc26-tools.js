@@ -366,6 +366,7 @@
     "131": "Festival of Football: Greats of the Game ICON",
     "132": "TOTY HM Evolution",
     "135": "Fantasy FC Hero",
+    "139": "FUTTIES Icon",
     "147": "FUT Birthday EVO",
     "148": "FUT Birthday Hero",
     "149": "FUT Birthday ICON",
@@ -397,7 +398,11 @@
   // It's saved in the browser (localStorage) so it survives page reloads.
   var ELIG_KEY = "FC26_eligibleRarities";   // localStorage key: the rarity list
   var ELIG_ONLY_KEY = "FC26_onlyEligible";  // localStorage key: is the filter on?
+  var ROOM_ONLY_KEY = "FC26_roomOnly";      // localStorage key: is the "with room left" narrowing on?
   var ELIG_SEED = [16, 30, 94, 98, 103, 109];        // starter guess (from reference-evo.js) - edit freely. 16 = FUTTIES
+  // NB: 139 (FUTTIES Icon) is deliberately NOT here - confirmed in-game that those cards
+  // can't take evos, even though plain FUTTIES (16) can. Its NAME stays in RARITIES so the
+  // cards still read "FUTTIES Icon" instead of "Rarity 139".
   // ELIG_MERGE_ONCE: rarities added to the eligible list AFTER first release. Each is force-added
   // to an EXISTING saved list exactly once (tracked in ELIG_MERGED_KEY), so a newly-eligible
   // rarity like FUTTIES(16) turns on for current installs too - without re-adding anything the
@@ -421,13 +426,17 @@
     } catch (e) {}
     return set;
   }
-  // loadOnlyEligible(): the saved on/off state of the filter (default off).
+  // loadOnlyEligible() / loadRoomOnly(): the saved on/off state of the two filters (default off).
   function loadOnlyEligible() {
     try { return window.localStorage.getItem(ELIG_ONLY_KEY) === "1"; } catch (e) { return false; }
   }
-  // saveEligible() / saveOnlyEligible(): write the current values back to storage.
+  function loadRoomOnly() {
+    try { return window.localStorage.getItem(ROOM_ONLY_KEY) === "1"; } catch (e) { return false; }
+  }
+  // saveEligible() / saveOnlyEligible() / saveRoomOnly(): write the current values back to storage.
   function saveEligible() { try { window.localStorage.setItem(ELIG_KEY, JSON.stringify(Array.from(state.eligible))); } catch (e) {} }
   function saveOnlyEligible() { try { window.localStorage.setItem(ELIG_ONLY_KEY, state.onlyEligible ? "1" : "0"); } catch (e) {} }
+  function saveRoomOnly() { try { window.localStorage.setItem(ROOM_ONLY_KEY, state.roomOnly ? "1" : "0"); } catch (e) {} }
   // isEligibleRarity(it): is this player's rarity in our eligible list?
   function isEligibleRarity(it) { try { return state.eligible.has(it.rareflag); } catch (e) { return false; } }
   // setRarityEligible(rf, on): add/remove one rareflag, then persist.
@@ -479,6 +488,8 @@
   //               present the picker uses this instead of the app's partial cache
   //   eligible = Set of evo-eligible rareflags (see EVO-ELIGIBLE RARITIES above)
   //   onlyEligible = true when the picker is filtered to eligible rarities only
+  //   roomOnly = true when that filter is NARROWED further to cards with a free slot
+  //              (see hasRoom); only has an effect while onlyEligible is on
   //   batch    = a Map of id -> club item: the players TICKED for batch apply. The
   //              active player (state.player) is NOT auto-added; when the batch is
   //              empty, Apply targets just the active player (unchanged single flow).
@@ -489,7 +500,7 @@
   //              OVERRIDES" further down (near loadFullClub) for why this exists.
   //   applied  = id -> [{traitId,isIcon}] we APPLIED and the server said OK to, this
   //              session. Our own receipts. See "APPLIED RECEIPTS" just below.
-  var state = { player: null, selected: new Set(), running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), batch: new Map(), theme: loadTheme(), rarityDefs: loadRarityDefs(), fresh: prevFresh || new Map(), applied: prevApplied || new Map() };
+  var state = { player: null, selected: new Set(), running: false, abort: false, clubItems: prevClub, eligible: loadEligible(), onlyEligible: loadOnlyEligible(), roomOnly: loadRoomOnly(), batch: new Map(), theme: loadTheme(), rarityDefs: loadRarityDefs(), fresh: prevFresh || new Map(), applied: prevApplied || new Map() };
 
   // getClubPlayers(): same read we proved in discovery - pull the club's items
   // collection, turn it into a list, keep only real players.
@@ -779,65 +790,84 @@
   var POS_SIDE = { 2: "R", 3: "R", 7: "L", 8: "L", 12: "R", 16: "L", 20: "R", 22: "L", 23: "R", 27: "L" };
   function posSide(id) { return POS_SIDE[id] || "C"; }
 
-  // Recommended playstyles per position/role, in priority order. The top 4 become
-  // PS+, the rest basic PlayStyles.
-  // Reads as: ROLES[position][role] = priority-ordered list (best pick first).
-  // suggest() ticks the top ones as PS+ (up to the PS+ cap), the rest as basic.
+  // Recommended playstyles per position/role, in priority order (best pick first).
+  // Reads as: ROLES[position][role] = priority-ordered list.
+  //
+  // EXACTLY 12 PER ROLE, AND THAT NUMBER MATTERS. A PlayStyle that isn't on a role's list
+  // gets weight 0 (see roleWeightsFromList), and Suggest stops as soon as the best remaining
+  // candidate would add nothing - so the list length is a hard ceiling on how many Suggest
+  // can pick. 12 = the caps (4 PS+ + 8 basic). When these were 11 long, Suggest could only
+  // ever fill 11 of the 12 slots. If you ever shorten a list, you shorten Suggest with it.
+  //
+  // Source: fut.gg's "Best PlayStyles by Role" (https://www.fut.gg/playstyles/best-by-role/)
+  // read at its 4-PlayStyles+ / 8-base setting, which is exactly our caps. Their role names
+  // and position groups match ours 1:1, all 37. Three of their names are spelled differently
+  // and were mapped: Game Changer -> Gamechanger, Long Ball -> Long Ball Pass, Rush Out ->
+  // 1v1 Close Down. Still offline curated data - no network call, edit freely if one looks
+  // wrong to you.
+  //
+  // Only the ORDER of the top 6 really matters: the rank curve is [4,3,2,1], so ranks 1-2
+  // weigh 4, ranks 3-4 weigh 3, ranks 5-6 weigh 2, and ranks 7-12 ALL weigh 1. Which six sit
+  // in the tail counts; their order among themselves doesn't.
+  //
+  // NB: Suggest does NOT simply take the top 4 as PS+. It picks whatever raises the score
+  // most, so a high-weight style the card already owns as a basic is usually upgraded first.
+  // This list sets priorities, not a fixed 4-and-8 split.
   var ROLES = {
     "ST": {
-      "Advanced Forward":     ["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Incisive Pass","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer"],
-      "Target Forward":       ["Finesse Shot","Enforcer","Precision Header","Low Driven Shot","Gamechanger","Incisive Pass","Rapid","First Touch","Tiki Taka","Press Proven","Pinged Pass"],
-      "Poacher":              ["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Incisive Pass","First Touch","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer"],
-      "False 9":              ["Finesse Shot","Incisive Pass","Low Driven Shot","Gamechanger","Rapid","Inventive","Tiki Taka","Technical","Pinged Pass","Quick Step","First Touch"]
+      "Advanced Forward":     ["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","Gamechanger","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer","Pinged Pass"],
+      "Target Forward":       ["Finesse Shot","Enforcer","Precision Header","Low Driven Shot","Incisive Pass","Rapid","First Touch","Gamechanger","Tiki Taka","Press Proven","Pinged Pass","Technical"],
+      "Poacher":              ["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","First Touch","Gamechanger","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer","Tiki Taka"],
+      "False 9":              ["Finesse Shot","Incisive Pass","Low Driven Shot","Technical","Gamechanger","Rapid","Tiki Taka","Pinged Pass","Quick Step","Inventive","First Touch","Press Proven"]
     },
     "RW / LW": {
-      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Quick Step","Inventive","Technical","Incisive Pass","Pinged Pass","Tiki Taka","First Touch"],
-      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Gamechanger","Inventive","Technical","Low Driven Shot","Incisive Pass","Tiki Taka","First Touch"],
-      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Rapid","Low Driven Shot","Press Proven","First Touch"]
+      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
+      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
+      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive","Quick Step"]
     },
     "CAM": {
-      "Shadow Striker":       ["Finesse Shot","Incisive Pass","Rapid","Gamechanger","Low Driven Shot","Inventive","Technical","Quick Step","Tiki Taka","First Touch","Pinged Pass"],
-      "Playmaker":            ["Finesse Shot","Incisive Pass","Low Driven Shot","Tiki Taka","Inventive","Gamechanger","Pinged Pass","Technical","First Touch","Press Proven","Quick Step"],
-      "Classic 10":           ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Low Driven Shot","First Touch","Press Proven","Quick Step"],
-      "Half Winger":          ["Incisive Pass","Rapid","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Quick Step","First Touch","Press Proven","Low Driven Shot"]
+      "Shadow Striker":       ["Finesse Shot","Incisive Pass","Rapid","Technical","Low Driven Shot","Quick Step","Tiki Taka","Gamechanger","First Touch","Pinged Pass","Inventive","Press Proven"],
+      "Playmaker":            ["Finesse Shot","Incisive Pass","Low Driven Shot","Technical","Tiki Taka","Pinged Pass","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid"],
+      "Classic 10":           ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid"],
+      "Half Winger":          ["Incisive Pass","Rapid","Technical","Finesse Shot","Tiki Taka","Pinged Pass","Gamechanger","Quick Step","First Touch","Press Proven","Inventive","Low Driven Shot"]
     },
     "CM": {
-      "Box to Box":           ["Incisive Pass","Pinged Pass","Intercept","Finesse Shot","Tiki Taka","Bruiser","Anticipate","Quick Step","Technical","Relentless","Press Proven"],
-      "Playmaker":            ["Incisive Pass","Pinged Pass","Finesse Shot","Tiki Taka","Inventive","Technical","Intercept","Low Driven Shot","Anticipate","First Touch","Quick Step"],
-      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Inventive","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],
-      "Holding":              ["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],
-      "Half Winger":          ["Pinged Pass","Intercept","Quick Step","Tiki Taka","Incisive Pass","Finesse Shot","Anticipate","Technical","Jockey","Bruiser","Rapid"]
+      "Box to Box":           ["Incisive Pass","Pinged Pass","Intercept","Finesse Shot","Tiki Taka","Bruiser","Anticipate","Quick Step","Technical","Relentless","Press Proven","First Touch"],
+      "Playmaker":            ["Incisive Pass","Pinged Pass","Finesse Shot","Tiki Taka","Technical","Intercept","Low Driven Shot","Anticipate","First Touch","Quick Step","Inventive","Press Proven"],
+      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Incisive Pass","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive"],
+      "Holding":              ["Intercept","Pinged Pass","Bruiser","Anticipate","Tiki Taka","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless"],
+      "Half Winger":          ["Pinged Pass","Intercept","Quick Step","Tiki Taka","Incisive Pass","Finesse Shot","Anticipate","Technical","Jockey","Bruiser","Rapid","Relentless"]
     },
     "RM / LM": {
-      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Gamechanger","Quick Step","Inventive","Technical","Incisive Pass","Pinged Pass","Tiki Taka","First Touch"],
-      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Gamechanger","Inventive","Technical","Low Driven Shot","Incisive Pass","Tiki Taka","First Touch"],
-      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Gamechanger","Inventive","Pinged Pass","Rapid","Low Driven Shot","Press Proven","First Touch"],
-      "Wide Midfielder":      ["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Whipped Pass","Jockey","Press Proven"]
+      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
+      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
+      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive","Quick Step"],
+      "Wide Midfielder":      ["Rapid","Quick Step","Pinged Pass","Intercept","Tiki Taka","Incisive Pass","Anticipate","Relentless","Whipped Pass","Jockey","Press Proven","Bruiser"]
     },
     "CDM": {
-      "Holding":              ["Intercept","Pinged Pass","Bruiser","Tiki Taka","Anticipate","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass"],
-      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Tiki Taka","Incisive Pass","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass"],
-      "Box Crasher":          ["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Tiki Taka","Quick Step","Bruiser","Anticipate","Technical","Press Proven","Relentless"],
-      "Centre Half":          ["Intercept","Bruiser","Jockey","Anticipate","Quick Step","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass"],
-      "Wide Half":            ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"]
+      "Holding":              ["Intercept","Pinged Pass","Bruiser","Anticipate","Tiki Taka","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless"],
+      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Incisive Pass","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive"],
+      "Box Crasher":          ["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Tiki Taka","Quick Step","Bruiser","Anticipate","Technical","Press Proven","Relentless","First Touch"],
+      "Centre Half":          ["Intercept","Bruiser","Jockey","Anticipate","Quick Step","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass","Relentless"],
+      "Wide Half":            ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle"]
     },
     "RB / LB": {
-      "Fullback":             ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless"],
-      "Wingback":             ["Intercept","Pinged Pass","Quick Step","Anticipate","Bruiser","Tiki Taka","Jockey","Incisive Pass","Rapid","Relentless","Press Proven"],
-      "Falseback":            ["Intercept","Pinged Pass","Anticipate","Jockey","Tiki Taka","Incisive Pass","Bruiser","Quick Step","First Touch","Press Proven","Long Ball Pass"],
-      "Inverted Wingback":    ["Incisive Pass","Tiki Taka","Quick Step","Intercept","Anticipate","Rapid","Pinged Pass","Jockey","Press Proven","Relentless","Bruiser"],
-      "Attacking Wingback":   ["Rapid","Quick Step","Pinged Pass","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Jockey","First Touch","Bruiser"]
+      "Fullback":             ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle"],
+      "Wingback":             ["Intercept","Pinged Pass","Quick Step","Bruiser","Anticipate","Tiki Taka","Jockey","Incisive Pass","Rapid","Relentless","Press Proven","Whipped Pass"],
+      "Falseback":            ["Intercept","Pinged Pass","Anticipate","Bruiser","Jockey","Tiki Taka","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless"],
+      "Inverted Wingback":    ["Incisive Pass","Tiki Taka","Quick Step","Anticipate","Intercept","Rapid","Pinged Pass","Jockey","Press Proven","Relentless","Bruiser","First Touch"],
+      "Attacking Wingback":   ["Rapid","Quick Step","Pinged Pass","Intercept","Tiki Taka","Incisive Pass","Anticipate","Relentless","Jockey","First Touch","Bruiser","Whipped Pass"]
     },
     "CB": {
-      "Defender":             ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],
-      "Stopper":              ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","Aerial Fortress"],
-      "Wide Back":            ["Intercept","Anticipate","Quick Step","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven"],
-      "Ball Playing Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress"]
+      "Defender":             ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless"],
+      "Stopper":              ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","Aerial Fortress","First Touch"],
+      "Wide Back":            ["Intercept","Anticipate","Quick Step","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless"],
+      "Ball Playing Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress","Slide Tackle"]
     },
     "GK": {
-      "Goalkeeper":           ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],
-      "Ball Playing":         ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"],
-      "Sweeper Keeper":       ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch"]
+      "Goalkeeper":           ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass"],
+      "Ball Playing":         ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass"],
+      "Sweeper Keeper":       ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass"]
     }
   };
 
@@ -1362,28 +1392,44 @@
     if (!s || s.categoryId !== REWARDS_CATEGORY_ID) return false;
     return /gh\s*4th/i.test(s.slotName || "") || /glory hunter/i.test(s.slotDescription || "");
   }
-  // ghPsp(slotName): map a GH-4th slot to our PS+ catalog entry (for its icon/trait) by
-  // stripping the "GH 4th " prefix and matching the remainder ("Quick Step+", ...); falls
-  // back to any catalog PS+ name found inside the slot name. null if none matches.
-  function ghPsp(slotName) {
+  // isFuttiesFifth(s): true for a "FUTTIES 5th <PlayStyle+>" reward slot - EA's newer one-off
+  // that adds a 5TH PS+ to a FUTTIES card. Confirmed live (Aug 2026): these sit in the SAME
+  // Rewards category as the GH ones, named "FUTTIES 5th Intercept+" etc, described "Add
+  // Intercept+ to any qualified FUTTIES player." We match either signal. There is no overlap
+  // with isGHFourth (a FUTTIES slot has neither "GH 4th" in its name nor "Glory Hunter" in
+  // its description), so neither section can ever list the other's evos.
+  function isFuttiesFifth(s) {
+    if (!s || s.categoryId !== REWARDS_CATEGORY_ID) return false;
+    return /futties\s*5th/i.test(s.slotName || "") || /qualified\s+futties\s+player/i.test(s.slotDescription || "");
+  }
+  // ONEOFF_PREFIX: the "GH 4th " / "FUTTIES 5th " label in front of a one-off slot's name.
+  // Stripping it leaves the plain PS+ name, which is both what we match on and what we show.
+  var ONEOFF_PREFIX = /^\s*(GH\s*4th|FUTTIES\s*5th)\s*/i;
+  // rewardPsp(slotName): map a one-off reward slot to our PS+ catalog entry (for its
+  // icon/trait) by stripping that prefix and matching the remainder ("Quick Step+", ...);
+  // falls back to any catalog PS+ name found inside the slot name. null if none matches.
+  function rewardPsp(slotName) {
     var nm = slotName || "";
-    var stripped = nm.replace(/^\s*GH\s*4th\s*/i, "").trim();
+    var stripped = nm.replace(ONEOFF_PREFIX, "").trim();
     if (pspByPlusName[stripped]) return pspByPlusName[stripped];
     for (var i = 0; i < PSP.length; i++) { if (nm.indexOf(PSP[i].n) !== -1) return PSP[i]; }
     return null;
   }
-  // rewardEvosFromCache(): the GH-4th reward evos currently cached, as [{ slotId, name, psp }].
+  // rewardEvosFromCache(pred): the one-off reward evos currently cached that match pred,
+  // as [{ slotId, name, psp }]. pred is isGHFourth or isFuttiesFifth; it defaults to the
+  // GH-4th ones so the older FC26.fourthEvos console helper keeps working unchanged.
   // No network - reads whatever the Academy repo already holds for the Rewards category.
-  function rewardEvosFromCache() {
-    return academySlots().filter(isGHFourth).map(function (s) {
-      return { slotId: s.id, name: s.slotName, psp: ghPsp(s.slotName) };
+  function rewardEvosFromCache(pred) {
+    return academySlots().filter(pred || isGHFourth).map(function (s) {
+      return { slotId: s.id, name: s.slotName, psp: rewardPsp(s.slotName) };
     });
   }
 
-  // loadRewardEvos(): best-effort ask the app to load the Rewards category, then return
-  // rewardEvosFromCache(). The request can reject on some pages, but if you've opened
+  // loadRewardEvos(pred): best-effort ask the app to load the Rewards category, then return
+  // rewardEvosFromCache(pred). The request can reject on some pages, but if you've opened
   // Evolutions -> Rewards in the app the slots are already cached, so we just read them.
-  async function loadRewardEvos() {
+  // ONE load covers both kinds - GH 4th and FUTTIES 5th share the same category.
+  async function loadRewardEvos(pred) {
     var svcA = getServices() && getServices().Academy;
     try {
       if (svcA && svcA.requestSlotsByCategory) {
@@ -1396,7 +1442,7 @@
         else if (o && typeof o.then === "function") { await o; }
       }
     } catch (e) { /* ignore - fall back to whatever is already cached */ }
-    return rewardEvosFromCache();
+    return rewardEvosFromCache(pred);
   }
 
   // applyRewardEvo(slotId, itemId): apply ONE limited reward evo to a player - same mechanic
@@ -1408,9 +1454,14 @@
 
   // Console helpers (list/load only - apply is intentionally NOT exposed here, so a stray
   // console call can't spend a one-off; the panel UI applies it behind a confirm):
-  //   await window.FC26.fourthEvos.load()   -> load Rewards + list [{slotId,name,psp}]
-  //   window.FC26.fourthEvos.list()         -> list what's already cached
-  window.FC26.fourthEvos = { list: rewardEvosFromCache, load: loadRewardEvos };
+  //   await window.FC26.fourthEvos.load()   -> load Rewards + list the GH-4th [{slotId,name,psp}]
+  //   window.FC26.fourthEvos.list()         -> list the GH-4th ones already cached
+  //   await window.FC26.fifthEvos.load()    -> same, for the FUTTIES-5th ones
+  //   window.FC26.fifthEvos.list()          -> list the FUTTIES-5th ones already cached
+  window.FC26.fourthEvos = { list: function () { return rewardEvosFromCache(isGHFourth); },
+                             load: function () { return loadRewardEvos(isGHFourth); } };
+  window.FC26.fifthEvos  = { list: function () { return rewardEvosFromCache(isFuttiesFifth); },
+                             load: function () { return loadRewardEvos(isFuttiesFifth); } };
 
   // playerPositionGroups(it): the role groups this player can fill (preferred
   // position first, then alternates), deduped - used to fill the position dropdown.
@@ -2697,21 +2748,56 @@
   playerSearch.style.cssText = "margin-top:6px;width:100%;box-sizing:border-box;padding:6px 8px;border-radius:7px;border:1px solid var(--field-border);background:var(--field);color:var(--ink)";
   playerSearch.addEventListener("input", renderPlayers);
 
-  // "Only evo-eligible" filter. When ticked, the list shows only players whose
-  // rarity is in our eligible set (see EVO-ELIGIBLE RARITIES). The right-hand note
-  // shows how many rarities are currently marked eligible. State is remembered.
-  var filterRow = document.createElement("label");
-  filterRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--muted);cursor:pointer";
+  // The two picker filters, side by side on one row. Both are remembered between runs.
+  //   "Only evo-eligible" - show only players whose rarity is in our eligible set
+  //                         (see EVO-ELIGIBLE RARITIES).
+  //   "with room left"    - NARROWS that further to cards that can still take at least one
+  //                         more PlayStyle (see hasRoom), so a maxed-out card drops out of
+  //                         the list. It only makes sense on top of the first filter, so it
+  //                         greys out and stops applying whenever that one is unticked.
+  // The right-hand note shows how many rarities are currently marked eligible.
+  var filterRow = document.createElement("div");
+  filterRow.style.cssText = "display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;margin-top:8px;font-size:11px;color:var(--muted)";
+
+  var eligLab = document.createElement("label");
+  eligLab.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer";
   var eligChk = document.createElement("input");
   eligChk.type = "checkbox";
   eligChk.checked = state.onlyEligible;
   eligChk.style.cssText = "accent-color:var(--accent);cursor:pointer;margin:0";
   var eligChkLbl = document.createElement("span");
   eligChkLbl.textContent = "Only evo-eligible";
+  eligLab.appendChild(eligChk); eligLab.appendChild(eligChkLbl);
+
+  var roomLab = document.createElement("label");
+  roomLab.style.cssText = "display:flex;align-items:center;gap:6px;cursor:pointer";
+  var roomChk = document.createElement("input");
+  roomChk.type = "checkbox";
+  roomChk.checked = state.roomOnly;
+  roomChk.style.cssText = "accent-color:var(--accent);cursor:pointer;margin:0";
+  var roomChkLbl = document.createElement("span");
+  roomChkLbl.textContent = "with room left";
+  roomLab.appendChild(roomChk); roomLab.appendChild(roomChkLbl);
+
   var eligNote = document.createElement("span");
   eligNote.style.cssText = "margin-left:auto;opacity:.85";
-  filterRow.appendChild(eligChk); filterRow.appendChild(eligChkLbl); filterRow.appendChild(eligNote);
-  eligChk.addEventListener("change", function () { state.onlyEligible = eligChk.checked; saveOnlyEligible(); renderPlayers(); });
+  filterRow.appendChild(eligLab); filterRow.appendChild(roomLab); filterRow.appendChild(eligNote);
+
+  // updateRoomChk(): the "with room left" box is only live while "Only evo-eligible" is on.
+  // Greying it (rather than hiding it) keeps the row from jumping about and makes the
+  // dependency obvious, and the tooltip spells it out.
+  function updateRoomChk() {
+    var live = state.onlyEligible;
+    roomChk.disabled = !live;
+    roomLab.style.opacity = live ? "1" : ".45";
+    roomLab.style.cursor = live ? "pointer" : "not-allowed";
+    roomLab.title = live
+      ? "Hide cards that are already full (4 PlayStyle+ and 8 basic)"
+      : "Tick \"Only evo-eligible\" first - this narrows that list";
+  }
+  eligChk.addEventListener("change", function () { state.onlyEligible = eligChk.checked; saveOnlyEligible(); updateRoomChk(); renderPlayers(); });
+  roomChk.addEventListener("change", function () { state.roomOnly = roomChk.checked; saveRoomOnly(); renderPlayers(); });
+  updateRoomChk();
 
   // ---- FEATURE 1: manage eligible rarities (full named list) ----------------
   // A collapsible manager that lists the app's FULL rarity table (state.rarityDefs,
@@ -3158,16 +3244,21 @@
     var qRaw = (playerSearch.value || "").trim();   // what the user actually typed (for the "no match" message)
     var q = normName(qRaw);                          // accent-stripped + lowercased, for matching
     var players = getClubPlayers().slice().sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); });
-    if (state.onlyEligible) { players = players.filter(isEligibleRarity); }  // eligible-only filter
+    // Eligible-only filter, optionally narrowed to cards that still have a free slot.
+    var roomOn = state.onlyEligible && state.roomOnly;
+    if (state.onlyEligible) { players = players.filter(isEligibleRarity); }
+    if (roomOn) { players = players.filter(hasRoom); }
     // Match against full name + first/last name, all accent-insensitive (so "guler" finds Güler).
     if (q) { players = players.filter(function (it) { return playerSearchText(it).indexOf(q) !== -1; }); }
     playerList.innerHTML = "";
     if (!players.length) {
       playerList.innerHTML = q
         ? "<div style='opacity:.7'>No players match \"" + esc(qRaw) + "\".</div>"
-        : (state.onlyEligible
-            ? "<div style='opacity:.7'>No evo-eligible players shown. Untick \"Only evo-eligible\", or pick a card you can evo and click \"Mark eligible\" on its card.</div>"
-            : "<div style='opacity:.7'>No club players found - open your Club first, then click ↻ Refresh.</div>");
+        : (roomOn
+            ? "<div style='opacity:.7'>Every evo-eligible player is already full (4 PlayStyle+ and 8 basic). Untick \"with room left\" to see them anyway.</div>"
+            : state.onlyEligible
+              ? "<div style='opacity:.7'>No evo-eligible players shown. Untick \"Only evo-eligible\", or pick a card you can evo and click \"Mark eligible\" on its card.</div>"
+              : "<div style='opacity:.7'>No club players found - open your Club first, then click ↻ Refresh.</div>");
       return;
     }
     players.forEach(function (it) {
@@ -3258,6 +3349,16 @@
     var n = 0; try { n = it.getNumPlusPlayStyles() || 0; } catch (e) { n = 0; }
     return Math.max(n, counted);
   }
+  // hasRoom(it): can this card still take AT LEAST ONE more PlayStyle of either kind?
+  // True while it's under 4 PS+ OR under 8 basics - so a card that has maxed one kind but
+  // not the other still counts as having room, because there's genuinely something left to
+  // give it. A card sitting on 4/4 + 8/8 (or a FUTTIES on 5 PS+) is full and returns false.
+  // Deliberately uses numPlus/numBasic, so it agrees with the meters and honours the
+  // receipts for anything applied this session (see APPLIED RECEIPTS).
+  function hasRoom(it) {
+    try { return numPlus(it) < CAP_PLUS || numBasic(it) < CAP_BASIC; } catch (e) { return true; }
+  }
+
   // How many of each kind the user has currently TICKED.
   function selectedCount(kind) { var n = 0; state.selected.forEach(function (s) { var e = byId(s); if (e && e.kind === kind) n++; }); return n; }
 
@@ -3513,7 +3614,7 @@
   function renderEvos() {
     evoList.innerHTML = "";
     var it = state.player;
-    if (typeof updateGhVisibility === "function") { try { updateGhVisibility(); } catch (e) {} }   // show/hide the GH-4th section for this player
+    if (typeof oneOffs !== "undefined" && oneOffs) { oneOffs.forEach(function (s) { try { s.updateVisibility(); } catch (e) {} }); }   // show/hide each one-off section for this player
     if (!it) { evoList.innerHTML = "<div style='opacity:.7'>Select a player above to choose evolutions.</div>"; updateEvoCount(); return; }
     var gk = isGKPlayer(it);
     var hidGK = false;                                  // did we drop the Goalkeeping row?
@@ -3600,135 +3701,187 @@
       evoList.appendChild(foot);
     }
     updateEvoCount();
-    if (typeof ghOpen !== "undefined" && ghOpen) { try { renderGHList(); } catch (e) {} }   // keep GH tiles' enabled/note in sync with the selected player
+    // Keep each one-off section's tiles/note in sync with the selected player.
+    if (typeof oneOffs !== "undefined" && oneOffs) { oneOffs.forEach(function (s) { try { s.renderIfOpen(); } catch (e) {} }); }
   }
 
-  // ---- FEATURE 4b UI: GH 4th PlayStyle+ (one-off) --------------------------
-  // A collapsible section (in the PlayStyle Deck) that lists ONLY the real GH-4th evos.
-  // Tapping one applies that 4th PS+ to the SELECTED player after a strong confirm. These
-  // are limited one-offs, so this is deliberately kept OUT of batch apply and Suggest, and
-  // never fires without an explicit tap + confirm. The game enforces the real rules
-  // (Glory Hunters card, already has 3 PS+); we surface its rejection if it says no.
-  var ghSection = document.createElement("div");
-  ghSection.style.cssText = "margin-top:14px;display:none";   // hidden until an eligible GH player is picked
-  var ghToggle = document.createElement("button");
-  ghToggle.type = "button";
-  ghToggle.className = "gh-toggle";
-  var ghBox = document.createElement("div");
-  ghBox.className = "gh-box";
-  ghBox.style.display = "none";
-  var ghHead = document.createElement("div");
-  ghHead.className = "gh-head";
-  ghHead.innerHTML = "One-off Glory Hunters evos: adds a <b>4th</b> PlayStyle+ to the selected GH player (needs 3 PS+ already). Applied one at a time, always confirmed - never part of batch or Suggest.";
-  var ghBar = document.createElement("div");
-  ghBar.style.cssText = "display:flex;gap:6px;margin-top:8px";
-  var ghLoadBtn = document.createElement("button");
-  ghLoadBtn.type = "button"; ghLoadBtn.className = "gh-load"; ghLoadBtn.textContent = "↻ Load / refresh";
-  ghBar.appendChild(ghLoadBtn);
-  var ghList = document.createElement("div"); ghList.className = "gh-list";
-  var ghNote = document.createElement("div"); ghNote.className = "gh-note";
-  ghBox.appendChild(ghHead); ghBox.appendChild(ghBar); ghBox.appendChild(ghList); ghBox.appendChild(ghNote);
-  ghSection.appendChild(ghToggle); ghSection.appendChild(ghBox);
+  // ---- FEATURE 4b UI: one-off "extra PlayStyle+" evos -----------------------
+  // EA hands out two of these, and they behave IDENTICALLY, so one builder makes both:
+  //   - GH 4th      : a Glory Hunters card that already has 3 PS+  -> adds a 4th
+  //   - FUTTIES 5th : a FUTTIES / FUTTIES Icon card with 4 PS+     -> adds a 5th
+  // Each gets its own collapsible section in the PlayStyle Deck listing ONLY its own evos.
+  // Tapping one applies it to the SELECTED player after a strong confirm. They're limited
+  // one-offs, so this is deliberately kept OUT of batch apply and Suggest, and never fires
+  // without an explicit tap + confirm. The game is the real enforcement layer - our gate
+  // just stops obvious mistakes, and we surface the game's rejection if it says no.
+  //
+  // FUTTIES_RARITIES: the rareflags the FUTTIES 5th accepts. Add a number here if EA opens
+  // it up to another FUTTIES-family rarity. 16 = FUTTIES. NOT 139 (FUTTIES Icon) - confirmed
+  // in-game that those can't take evos at all.
+  var FUTTIES_RARITIES = [16];
 
-  var ghOpen = false, ghEvos = [], ghLoading = false;
-  function updateGhToggle() { ghToggle.textContent = (ghOpen ? "▾ " : "▸ ") + "GH 4th PlayStyle+ (one-off)" + (ghEvos.length ? " (" + ghEvos.length + ")" : ""); }
-  ghToggle.addEventListener("click", function () {
-    ghOpen = !ghOpen;
-    ghBox.style.display = ghOpen ? "block" : "none";
-    if (ghOpen && !ghEvos.length) { loadGH(); } else { renderGHList(); }
-    updateGhToggle();
-  });
-  ghLoadBtn.addEventListener("click", function () { loadGH(); });
+  // makeOneOffSection(cfg): build ONE such section and return the handles the rest of the
+  // panel needs. Everything that differs between the two lives in cfg:
+  //   title    - collapsible header text ("GH 4th PlayStyle+ (one-off)")
+  //   short    - the same thing in shorthand, for status/hint lines ("GH 4th")
+  //   ordinal  - "4th" / "5th": which PlayStyle+ this adds
+  //   blurb    - the explainer line inside the box (HTML, so <b> works)
+  //   pred     - which Rewards slots belong here (isGHFourth / isFuttiesFifth)
+  //   needPlus - how many PS+ the card must ALREADY hold
+  //   cardOk   - function(it): is this card the right rarity?
+  //   cardWhat - readable name of the card it needs, for the "why is this greyed out" note
+  function makeOneOffSection(cfg) {
+    // --- the DOM. Reuses the existing .gh-* CSS classes, so both sections look the same.
+    var section = document.createElement("div");
+    section.style.cssText = "margin-top:14px;display:none";   // hidden until an eligible player is picked
+    var toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "gh-toggle";
+    var box = document.createElement("div");
+    box.className = "gh-box";
+    box.style.display = "none";
+    var head = document.createElement("div");
+    head.className = "gh-head";
+    head.innerHTML = cfg.blurb;
+    var bar = document.createElement("div");
+    bar.style.cssText = "display:flex;gap:6px;margin-top:8px";
+    var loadBtn = document.createElement("button");
+    loadBtn.type = "button"; loadBtn.className = "gh-load"; loadBtn.textContent = "↻ Load / refresh";
+    bar.appendChild(loadBtn);
+    var list = document.createElement("div"); list.className = "gh-list";
+    var note = document.createElement("div"); note.className = "gh-note";
+    box.appendChild(head); box.appendChild(bar); box.appendChild(list); box.appendChild(note);
+    section.appendChild(toggle); section.appendChild(box);
 
-  // loadGH(): best-effort load the Rewards category, then list the GH-4th evos. Guarded so
-  // overlapping calls (e.g. auto-load on select + the toggle) can't stack requests.
-  async function loadGH() {
-    if (ghLoading) return;
-    ghLoading = true;
-    ghNote.textContent = "Loading GH 4th evos...";
-    try { ghEvos = await loadRewardEvos(); } catch (e) { ghEvos = rewardEvosFromCache(); }
-    ghLoading = false;
-    updateGhToggle();
-    renderGHList();
-  }
-  // updateGhVisibility(): show the WHOLE GH-4th section ONLY when the active player is an
-  // eligible Glory Hunters card (right rarity + exactly 3 PS+); hide it entirely otherwise.
-  // Loads the evo list the first time it becomes visible. Called from renderEvos (every
-  // select), so the section appears/disappears as you click through players.
-  function updateGhVisibility() {
-    var show = eligGH(state.player);
-    ghSection.style.display = show ? "" : "none";
-    if (show && !ghEvos.length && !ghLoading) { loadGH(); }
-  }
-  // renderGHList(): draw one tappable tile per GH-4th evo. Tiles are only enabled when a
-  // single player is the active pick (not a multi-player batch) and no run is in progress.
-  // eligGH(it): the GH-4th eligibility gate - a Glory Hunters card that already has EXACTLY
-  // 3 PlayStyle+ (so applying adds the 4th). Anything else keeps the chips disabled. Matched
-  // on the rarity NAME containing "Glory Hunter" (covers Glory Hunters + Glory Hunters Red).
-  // The game is still the final enforcement layer; this just prevents obvious mistakes.
-  function eligGH(it) { return !!it && /glory hunter/i.test(rarityName(it)) && numPlus(it) === 3; }
+    // --- this section's own little bit of state.
+    var open = false, evos = [], loading = false;
 
-  function renderGHList() {
-    ghList.innerHTML = "";
-    var it = state.player;
-    if (!ghEvos.length) { ghNote.textContent = "No GH 4th evos found. Open Evolutions -> Rewards in the app, then click Load / refresh."; return; }
-    var many = state.batch.size > 1;
-    var canApply = eligGH(it) && !many && !state.running;
-    // Explain exactly why the chips are enabled or disabled, so it's never a mystery.
-    ghNote.textContent =
-      !it ? "Select a Glory Hunters player (with 3 PS+) first." :
-      many ? "Batch is active - GH 4th applies to one player, so untick the batch first." :
-      !/glory hunter/i.test(rarityName(it)) ? (playerName(it) + " isn't a Glory Hunters card - GH 4th only applies to Glory Hunters items.") :
-      numPlus(it) !== 3 ? (playerName(it) + " has " + numPlus(it) + " PS+ - GH 4th needs a card with exactly 3 PS+ already.") :
-      ("Tap one to add it to " + playerName(it) + " as a 4th PlayStyle+. Confirmed (one-off) before applying.");
-    ghEvos.forEach(function (evo) {
-      var trait = evo.psp ? (evo.psp.r - TRAIT_OFFSET) : null;
-      var label = (evo.name || "").replace(/^\s*GH\s*4th\s*/i, "");   // show just the PS+ name; the section header says "GH 4th"
-      var tile = document.createElement("button");
-      tile.type = "button";
-      tile.className = "gh-tile" + (canApply ? "" : " dis");
-      tile.disabled = !canApply;
-      tile.innerHTML = (trait != null ? psIco(trait, true) : "") + "<span>" + esc(label) + "</span>";
-      tile.title = "Apply " + esc(evo.name) + " to the selected player (one-off)";
-      tile.addEventListener("click", function () { runGHApply(evo); });
-      ghList.appendChild(tile);
+    function updateToggle() { toggle.textContent = (open ? "▾ " : "▸ ") + cfg.title + (evos.length ? " (" + evos.length + ")" : ""); }
+    toggle.addEventListener("click", function () {
+      open = !open;
+      box.style.display = open ? "block" : "none";
+      if (open && !evos.length) { load(); } else { render(); }
+      updateToggle();
     });
-  }
-  // runGHApply(evo): apply ONE GH-4th evo to the active player. Explicit confirm first
-  // (one-off, can't be undone). Same state-safe refresh the normal apply uses.
-  async function runGHApply(evo) {
-    if (state.running) return;
-    var it = state.player;
-    if (!it) { status.textContent = "Select a Glory Hunters player first."; return; }
-    if (state.batch.size > 1) { status.textContent = "GH 4th applies to one player - clear the batch first."; return; }
-    if (!eligGH(it)) { status.textContent = "GH 4th needs a Glory Hunters card with exactly 3 PlayStyle+ already."; return; }
-    var psName = evo.psp ? evo.psp.n : evo.name;
-    if (!window.confirm(
-      "Apply " + evo.name + " to " + playerName(it) + "?\n\n" +
-      "This spends your ONE-OFF " + psName + " evo and adds it as a 4th PlayStyle+.\n" +
-      "The player must be a Glory Hunters card that already has 3 PlayStyle+.\n\n" +
-      "This cannot be undone. Continue?")) return;
-    state.running = true; state.abort = false; setRunning(true);
-    status.textContent = "Applying " + evo.name + " to " + playerName(it) + "...";
-    var itemId = it.id, prevCount = currentPlayStyles(it).length, failMsg = "";
-    try { await applyRewardEvo(evo.slotId, itemId); }
-    catch (e) { failMsg = errMsg(e); }
-    refreshClub();
-    if (!failMsg) {
-      // Success means the 4th PS+ landed, so file the receipt (see APPLIED RECEIPTS) - the
-      // card shows it straight away instead of us re-pulling the club hoping EA has caught up.
-      var ghTrait = evo.psp ? (evo.psp.r - TRAIT_OFFSET) : null;
-      if (ghTrait != null) noteApplied(itemId, ghTrait, true);
-      var fresh = findPlayerById(itemId);
-      if (fresh && currentPlayStyles(fresh).length >= prevCount) state.player = fresh;
+    loadBtn.addEventListener("click", function () { load(); });
+
+    // load(): best-effort load the Rewards category, then list THIS section's evos. Guarded
+    // so overlapping calls (e.g. auto-load on select + the toggle) can't stack requests.
+    async function load() {
+      if (loading) return;
+      loading = true;
+      note.textContent = "Loading " + cfg.short + " evos...";
+      try { evos = await loadRewardEvos(cfg.pred); } catch (e) { evos = rewardEvosFromCache(cfg.pred); }
+      loading = false;
+      updateToggle();
+      render();
     }
-    renderPreview(); renderEvos(); renderPlayers();
-    if (currentMode() === "mobile") renderWizStep();
-    state.running = false; setRunning(false);
-    loadGH();   // the applied slot is now used - refresh the list
-    status.textContent = failMsg ? ("GH 4th failed: " + failMsg) : (evo.name + " applied to " + playerName(state.player || it) + ".");
+    // elig(it): the gate - right rarity AND exactly needPlus PlayStyle+ already, so applying
+    // adds the next one. Anything else keeps the tiles disabled.
+    function elig(it) { return !!it && cfg.cardOk(it) && numPlus(it) === cfg.needPlus; }
+    // updateVisibility(): show the WHOLE section ONLY when the active player passes the gate;
+    // hide it entirely otherwise. Loads the evo list the first time it becomes visible.
+    // Called from renderEvos (every select), so sections appear/disappear as you click around.
+    function updateVisibility() {
+      var show = elig(state.player);
+      section.style.display = show ? "" : "none";
+      if (show && !evos.length && !loading) { load(); }
+    }
+    // render(): draw one tappable tile per evo. Tiles are only enabled when a single player
+    // is the active pick (not a multi-player batch) and no run is in progress.
+    function render() {
+      list.innerHTML = "";
+      var it = state.player;
+      if (!evos.length) { note.textContent = "No " + cfg.short + " evos found. Open Evolutions -> Rewards in the app, then click Load / refresh."; return; }
+      var many = state.batch.size > 1;
+      var canApply = elig(it) && !many && !state.running;
+      // Explain exactly why the tiles are enabled or disabled, so it's never a mystery.
+      note.textContent =
+        !it ? ("Select " + cfg.cardWhat + " (with " + cfg.needPlus + " PS+) first.") :
+        many ? ("Batch is active - " + cfg.short + " applies to one player, so untick the batch first.") :
+        !cfg.cardOk(it) ? (playerName(it) + " isn't " + cfg.cardWhat + " - " + cfg.short + " only applies to those.") :
+        numPlus(it) !== cfg.needPlus ? (playerName(it) + " has " + numPlus(it) + " PS+ - " + cfg.short + " needs a card with exactly " + cfg.needPlus + " PS+ already.") :
+        ("Tap one to add it to " + playerName(it) + " as a " + cfg.ordinal + " PlayStyle+. Confirmed (one-off) before applying.");
+      evos.forEach(function (evo) {
+        var trait = evo.psp ? (evo.psp.r - TRAIT_OFFSET) : null;
+        var label = (evo.name || "").replace(ONEOFF_PREFIX, "");   // show just the PS+ name; the section header says which kind
+        var tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "gh-tile" + (canApply ? "" : " dis");
+        tile.disabled = !canApply;
+        tile.innerHTML = (trait != null ? psIco(trait, true) : "") + "<span>" + esc(label) + "</span>";
+        tile.title = "Apply " + esc(evo.name) + " to the selected player (one-off)";
+        tile.addEventListener("click", function () { runApply(evo); });
+        list.appendChild(tile);
+      });
+    }
+    // runApply(evo): apply ONE of these to the active player. Explicit confirm first
+    // (one-off, can't be undone). Same state-safe refresh the normal apply uses.
+    async function runApply(evo) {
+      if (state.running) return;
+      var it = state.player;
+      if (!it) { status.textContent = "Select " + cfg.cardWhat + " first."; return; }
+      if (state.batch.size > 1) { status.textContent = cfg.short + " applies to one player - clear the batch first."; return; }
+      if (!elig(it)) { status.textContent = cfg.short + " needs " + cfg.cardWhat + " with exactly " + cfg.needPlus + " PlayStyle+ already."; return; }
+      var psName = evo.psp ? evo.psp.n : evo.name;
+      if (!window.confirm(
+        "Apply " + evo.name + " to " + playerName(it) + "?\n\n" +
+        "This spends your ONE-OFF " + psName + " evo and adds it as a " + cfg.ordinal + " PlayStyle+.\n" +
+        "The player must be " + cfg.cardWhat + " that already has " + cfg.needPlus + " PlayStyle+.\n\n" +
+        "This cannot be undone. Continue?")) return;
+      state.running = true; state.abort = false; setRunning(true);
+      status.textContent = "Applying " + evo.name + " to " + playerName(it) + "...";
+      var itemId = it.id, prevCount = currentPlayStyles(it).length, failMsg = "";
+      try { await applyRewardEvo(evo.slotId, itemId); }
+      catch (e) { failMsg = errMsg(e); }
+      refreshClub();
+      if (!failMsg) {
+        // Success means the extra PS+ landed, so file the receipt (see APPLIED RECEIPTS) - the
+        // card shows it straight away instead of us re-pulling the club hoping EA has caught up.
+        var newTrait = evo.psp ? (evo.psp.r - TRAIT_OFFSET) : null;
+        if (newTrait != null) noteApplied(itemId, newTrait, true);
+        var fresh = findPlayerById(itemId);
+        if (fresh && currentPlayStyles(fresh).length >= prevCount) state.player = fresh;
+      }
+      renderPreview(); renderEvos(); renderPlayers();
+      if (currentMode() === "mobile") renderWizStep();
+      state.running = false; setRunning(false);
+      load();   // the applied slot is now used - refresh the list
+      status.textContent = failMsg ? (cfg.short + " failed: " + failMsg) : (evo.name + " applied to " + playerName(state.player || it) + ".");
+    }
+
+    updateToggle();
+    // What the rest of the panel talks to: the element to mount, plus the two refresh hooks
+    // renderEvos calls on every player change.
+    return { section: section, updateVisibility: updateVisibility, renderIfOpen: function () { if (open) render(); } };
   }
-  updateGhToggle();
+
+  // The two live sections. `oneOffs` is what renderEvos loops over, and what gets mounted
+  // into the Build module further down - add a third kind here and it wires itself up.
+  var oneOffGH = makeOneOffSection({
+    title: "GH 4th PlayStyle+ (one-off)",
+    short: "GH 4th",
+    ordinal: "4th",
+    blurb: "One-off Glory Hunters evos: adds a <b>4th</b> PlayStyle+ to the selected GH player (needs 3 PS+ already). Applied one at a time, always confirmed - never part of batch or Suggest.",
+    pred: isGHFourth,
+    needPlus: 3,
+    // Matched on the rarity NAME containing "Glory Hunter" (covers Glory Hunters + Glory Hunters Red).
+    cardOk: function (it) { return /glory hunter/i.test(rarityName(it)); },
+    cardWhat: "a Glory Hunters card"
+  });
+  var oneOffFUTTIES = makeOneOffSection({
+    title: "FUTTIES 5th PlayStyle+ (one-off)",
+    short: "FUTTIES 5th",
+    ordinal: "5th",
+    blurb: "One-off FUTTIES evos: adds a <b>5th</b> PlayStyle+ to the selected FUTTIES player (needs 4 PS+ already). Applied one at a time, always confirmed - never part of batch or Suggest.",
+    pred: isFuttiesFifth,
+    needPlus: 4,
+    // Matched on the exact rareflag (see FUTTIES_RARITIES) rather than the name, since the
+    // numbers are what EA actually gates on.
+    cardOk: function (it) { try { return FUTTIES_RARITIES.indexOf(it.rareflag) !== -1; } catch (e) { return false; } },
+    cardWhat: "a FUTTIES card"
+  });
+  var oneOffs = [oneOffGH, oneOffFUTTIES];
 
   // ---- STEP 1.6 apply loop -------------------------------------------------
   // sleep(ms): a small awaitable pause, so we don't fire calls back-to-back.
@@ -4610,7 +4763,7 @@
       "#fc26-panel .gt-sc{flex:none;font-weight:800;font-size:13px;color:var(--accent);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .gt-bench-lab{padding:5px 10px;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:rgba(0,0,0,.14);border-top:1px solid var(--card-border);border-bottom:1px solid var(--card-border)}" +
       "#fc26-panel .gt-chem{padding:6px 10px;font-size:10px;color:var(--muted);border-top:1px solid var(--card-border);background:rgba(0,0,0,.08)}" +
-      // ---- Feature 4b: GH 4th PlayStyle+ (one-off) section ---------------------
+      // ---- Feature 4b: one-off extra-PlayStyle+ sections (GH 4th, FUTTIES 5th) --
       "#fc26-panel .gh-toggle{width:100%;text-align:left;background:var(--tile-psp);color:var(--gold);border:1px solid var(--tile-psp-border);border-radius:7px;padding:7px 9px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.04em}" +
       "#fc26-panel .gh-box{margin-top:6px;padding:9px;border-radius:8px;background:var(--card);border:1px solid var(--tile-psp-border)}" +
       "#fc26-panel .gh-head{font-size:10.5px;line-height:1.35;color:var(--muted)}" +
@@ -7041,7 +7194,7 @@
   squadMod.appendChild(pickerHead); squadMod.appendChild(clubStat); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(dashLaunch);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
-  buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); buildMod.appendChild(ghSection);
+  buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); oneOffs.forEach(function (s) { buildMod.appendChild(s.section); });
   // Group 3 - Apply. The "run row" (optRow) holds the delay chip + Apply/Stop side by side
   // (Apply and Stop swap in the same slot), then the animation/summary box + status line.
   optRow.appendChild(applyBtn); optRow.appendChild(stopBtn);

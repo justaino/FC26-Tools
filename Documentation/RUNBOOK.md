@@ -189,8 +189,11 @@ Support for the **4th PlayStyle+** (the limited "GH 4th" Glory Hunters evos):
   - Console: `await window.FC26.fourthEvos.load()` lists your GH-4th evos (read-only); the
     panel is the only place that can apply one.
   - **Eligibility note:** the "Glory Hunters" gate matches the rarity NAME containing
-    "Glory Hunter", so it also allows **Glory Hunters Red** cards. Change `eligGH()` in
-    `fc26-tools.js` if you ever want it restricted to the base rarity only.
+    "Glory Hunter", so it also allows **Glory Hunters Red** cards.
+
+> **Changed in v41:** this section and the FUTTIES 5th one are now built by a single
+> function, `makeOneOffSection(cfg)`. The GH gate lives in that call's `cardOk` / `needPlus`
+> rather than a standalone `eligGH()`. Behaviour is identical - see §3w.
 
 ---
 
@@ -1207,10 +1210,101 @@ suggestion you disagree with is a **weighting** you disagree with - argue with i
 
 ---
 
+## 3w. New in v41 - FUTTIES 5th PlayStyle+, "with room left", and Suggest's 12th pick
+
+### The FUTTIES 5th PlayStyle+ (one-off)
+
+EA's newer limited evo, adding a **5th** PlayStyle+ to a FUTTIES card. Same idea as the
+GH 4th (§3c), and it works the same way:
+
+- Select a **FUTTIES card that already has exactly 4 PlayStyle+** and a gold
+  **"FUTTIES 5th PlayStyle+ (one-off)"** bar appears in the PlayStyle Deck. Open it, tap the
+  PlayStyle+ you want, confirm.
+- **Never in batch apply, never picked by Suggest, always confirmed.** One-offs get spent
+  permanently, so it takes a deliberate tap.
+- The section is completely hidden unless the selected player passes the gate.
+- Caps display grows on its own, so the card reads **5/5**, not an overflowing 5/4.
+- Console (read-only, can't apply): `await window.FC26.fifthEvos.load()`.
+
+**Under the hood:** they're Academy "Rewards" slots (the **same category id 9** as the GH
+ones), named `FUTTIES 5th <PlayStyle+>` with the description "Add `<PS+>` to any qualified
+FUTTIES player." One load covers both kinds. Applying uses the same `addItemToSlot` + `claim`
+calls as a normal PlayStyle.
+
+### One builder, two sections
+
+The two are identical apart from wording and the eligibility rule, so
+**`makeOneOffSection(cfg)`** builds both and `oneOffs` is the array of them. To add a third
+kind later, write one more config block - the loops that mount it and refresh it pick it up
+with no other change.
+
+| | GH 4th | FUTTIES 5th |
+|---|---|---|
+| Slot matcher | `isGHFourth` | `isFuttiesFifth` |
+| Rarity gate | name contains "Glory Hunter" | rareflag in `FUTTIES_RARITIES` (`[16]`) |
+| PS+ already needed | exactly **3** | exactly **4** |
+| Adds | 4th PS+ | 5th PS+ |
+
+The two matchers can't overlap: a FUTTIES slot has neither "GH 4th" in its name nor
+"Glory Hunter" in its description, so neither section can ever list the other's evos.
+
+Both share the `.gh-*` CSS classes, so they look identical - restyle one, restyle both.
+
+> **FUTTIES Icon (139) is not eligible for any of this.** It was briefly added in testing
+> and removed - those cards can't take evos at all. If you ever need to reinstate it, it goes
+> in `ELIG_SEED`, `ELIG_MERGE_ONCE` **and** `FUTTIES_RARITIES`. Note that removing a rarity
+> from the code does **not** retract it from a browser that already merged it - untick it in
+> Manage eligible rarities, or clear it out of the `FC26_eligibleRarities` localStorage key.
+
+### The "with room left" filter
+
+A second tickbox beside "Only evo-eligible" on the player list. When on, any card that's
+**already full** drops out.
+
+- "Full" means `hasRoom()` is false: **4 PlayStyle+ AND 8 basic**. A card that's maxed one
+  kind but not the other still shows, because there's genuinely something left to give it.
+- It's a **narrowing of "Only evo-eligible"**, not a filter of its own, so it greys out (with
+  a tooltip explaining why) until that one is ticked.
+- Saved in localStorage under `FC26_roomOnly`.
+- `hasRoom()` reads `numPlus` / `numBasic` rather than the game's card data directly, so it
+  agrees with the meters on the preview card and honours the applied receipts (§3t) - fill a
+  card's last slot and it leaves the list immediately, without waiting for EA to catch up.
+
+### Suggest now fills all 12 slots
+
+**The bug:** Suggest stopped at 11 every time, no matter how empty the card was.
+
+**The cause was the data, not the algorithm.** A PlayStyle that isn't on the role's list
+scores 0, and Suggest stops as soon as the best remaining candidate would add nothing. 36 of
+the 37 lists in `ROLES` held exactly **11** names, so 11 was the ceiling.
+
+**The fix:** every role list is now **12** long, matching the caps. No code changed.
+
+This is now the single most important invariant in `ROLES` - **see the warning in §7b before
+you edit those lists.**
+
+Two knock-ons worth knowing:
+
+- Nothing was removed from any role; all 37 only gained. 24 had their top 6 reordered to
+  match fut.gg's priority order, and that's the part that actually changes behaviour.
+- The full-marks ceiling (`psMaxForWeights`) sums every weight, so a 12th name at weight 1
+  lifts it 63 → 64. Every card's PlayStyle score drops about **1.6%**. It's the same shift
+  for everyone in a role, so rankings and Best XI stay put - the printed numbers just read a
+  touch lower.
+
+The apply loop's own guard was already right (`CAP_PLUS + CAP_BASIC` = 12 rounds) and needed
+no change: an upgrade burns a round without adding a slot, but it can only ever upgrade
+PlayStyles the card held before the run started, so 12 rounds is always exactly enough.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
 of eligible rarities and uses it for the **"Only evo-eligible"** filter.
+
+Next to that filter sits **"with room left"** (v41) - see §3w. It narrows the same list to
+cards that can still take something, so it greys out until "Only evo-eligible" is ticked.
 
 How the list is built:
 - **Full rarity table (v6+)** - on startup the tool reads the **game's own complete
@@ -1218,7 +1312,10 @@ How the list is built:
   eligibility from the **full named list** straight away, instead of waiting to
   encounter each rarity. Use the **Manage eligible rarities** button (§4e).
 - **Seed** - a small starting guess baked into the code (`ELIG_SEED`, currently
-  `[30, 98, 109]`), used only on the very first run before you've ticked anything.
+  `[16, 30, 94, 98, 103, 109]`), used only on the very first run before you've ticked
+  anything. **139 (FUTTIES Icon) is deliberately NOT in it** - those cards can't take evos,
+  even though plain FUTTIES (16) can. Its name is still in `RARITIES` so the cards read
+  "FUTTIES Icon" rather than "Rarity 139"; naming and eligibility are separate things.
 - **Self-learning** - every time an Apply **succeeds**, that card's rarity is proven
   eligible, so it's added automatically.
 - **Manual** - tick/untick rarities yourself via the manager (§4e), the preview card's
@@ -1518,8 +1615,33 @@ PlayStyles. **A PlayStyle's position in the list sets how much it's worth** - th
 A card is scored against **every role its position offers**, and the **best-fitting role wins**.
 A **PlayStyle+ counts `PSPLUS_MULT`× a basic** (currently 3.5×).
 
-**So to re-tune a PlayStyle, you just move it up or down its role's list** (or add/remove it).
-Think of it like a priority column: row order = ranking.
+### ⚠️ Every role list must be EXACTLY 12 long - Suggest depends on it
+
+A PlayStyle that isn't on a role's list is worth 0, and Suggest stops the moment the best
+remaining candidate would add nothing. So **the length of the list is a hard ceiling on how
+many PlayStyles Suggest can pick.** 12 = the caps (4 PS+ + 8 basic).
+
+This bit us: until v41 every list was **11** long, and Suggest silently stopped one short of
+a full card every single time. If you shorten a list, you shorten Suggest with it.
+
+So when re-tuning: **swap names in and out, don't just delete.** Keep the count at 12.
+
+The current lists come from **fut.gg's "Best PlayStyles by Role"**
+(<https://www.fut.gg/playstyles/best-by-role/>) read at its **4 PlayStyles+ / 8 base**
+setting, which is exactly our caps. Their role names and position groups match ours one for
+one, all 37. Three names are spelled differently there and are mapped on the way in:
+Game Changer → Gamechanger, Long Ball → Long Ball Pass, Rush Out → 1v1 Close Down.
+
+To re-scrape it, note the page's number selector is **client-side** - there's no separate URL
+per setting. The page renders each role's 12 in priority order and the buttons only recolour
+how many of the leading ones are drawn as PS+, so parsing the rendered role cards gives you
+the order directly. (The plain-text fetch truncates before the GK section and garbles the
+tail of the CB lists - parse the markup, not a summary of it.)
+
+**So to re-tune a PlayStyle, you just move it up or down its role's list** (or swap it for
+another). Think of it like a priority column: row order = ranking. Remember only the top 6
+positions carry different weights - ranks 7-12 are all worth 1, so shuffling within the tail
+changes nothing.
 
 **Worked example - make Gamechanger matter more for a Shadow Striker (CAM):**
 find `"Shadow Striker"` inside `ROLES` and move `"Gamechanger"` earlier in the array.
@@ -1639,6 +1761,19 @@ install page once and never use it, or use it daily and never revisit the page.
 A small Cloudflare Web Analytics script sits just before `</head>` in each of the five
 pages: `index.html`, `features.html`, `changelog.html`, `meta-rating.html` and
 `score-customiser.html`. No cookies, so no consent banner needed.
+
+> ⚠️ **`meta-rating.html` is GENERATED by `meta-page.js` - never hand-edit its beacon.**
+> This bit us in v41: the block existed in the committed HTML but not in the generator, so a
+> routine `node meta-page.js` silently deleted it and the page stopped being counted with no
+> error. The block now lives in `meta-page.js` itself. Same rule for any future generated
+> page: **put the beacon in the generator, not the output.**
+
+Quick check that all five are still counted:
+
+```
+grep -c cloudflareinsights index.html features.html changelog.html meta-rating.html score-customiser.html
+```
+Every line must read `1`. A `0` means that page is invisible in the dashboard.
 
 If you ever add a **new page** to the site, copy that script block into it or that page
 won't be counted. Search any existing page for `cloudflareinsights` to find it.
