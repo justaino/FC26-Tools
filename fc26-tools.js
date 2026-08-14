@@ -1563,6 +1563,117 @@
       "<div class='pv-fgrid'>" + cells + "</div></div>";
   }
 
+  // statGrade(v): the heat class shared by the face stats and the detailed stats, so the
+  // same number is always the same colour in both readouts.
+  function statGrade(v) { return v >= 90 ? "hi" : v >= 80 ? "mid" : v >= 70 ? "reg" : "lo"; }
+
+  // subStatsHTML(it): the "Detailed stats" collapsible - every underlying attribute,
+  // grouped under its face stat exactly as the game groups them (see readSubStats).
+  // Collapsed by default so it never pushes the PlayStyle deck down the page; the
+  // open/closed choice is remembered (state.subStatsOpen). Returns "" when the app
+  // doesn't expose sub-attributes, so nothing is drawn rather than an empty box.
+  // ONE component, used by both layouts - the preview card is shared, so desktop and
+  // mobile can't disagree about it.
+  function subStatsHTML(it) {
+    var groups = readSubStats(it);
+    if (!groups.length) return "";
+    var open = !!state.subStatsOpen;
+    var body = groups.map(function (g) {
+      var rows = g.items.map(function (s) {
+        // The bar is a plain width %, so it stays readable in every theme.
+        return "<div class='pv-srow'>" +
+          "<span class='pv-sname'>" + esc(s.name) + (s.key ? "<b class='pv-skey' title='The game lists this as a key attribute for this card'>&#9733;</b>" : "") + "</span>" +
+          "<span class='pv-sbar'><i style='width:" + Math.max(0, Math.min(100, s.val)) + "%'></i></span>" +
+          "<span class='pv-sval " + statGrade(s.val) + "'>" + s.val + "</span>" +
+        "</div>";
+      }).join("");
+      return "<div class='pv-sgroup'><div class='pv-sgl'>" + esc(g.label) + "</div>" + rows + "</div>";
+    }).join("");
+    return "<div class='pv-subs'>" +
+      "<button type='button' class='pv-subtoggle'>" + (open ? "&#9662; " : "&#9656; ") + "Detailed stats</button>" +
+      // Explicit inline display rather than the `hidden` attribute: we're injected into
+      // EA's page and a host reset like [hidden]{display:block} would unfold it on us.
+      "<div class='pv-sbox'" + (open ? "" : " style='display:none'") + ">" + body + "</div>" +
+    "</div>";
+  }
+
+  // ----------------------------------------------------------------------------
+  // DETAILED (SUB) ATTRIBUTES
+  // Each of the 6 face stats is an average of several underlying attributes - the
+  // ~34 numbers the game shows on a player's full stat page (Acceleration, Finishing,
+  // Composure, ...). Discovered live, all on the club item itself:
+  //   it.getSubAttributes()            -> [{type, rating, highlight}] - LIVE values
+  //   it.getBaseSubAttributes()        -> the same, FROZEN at the pre-evo values
+  //   it.getSubAttributesByParent(n)   -> the sub-attribute type ids under face stat n
+  //   it.getPlayerKeySubAttributes()   -> the 5 the game calls this card's "key" ones
+  //   window.ItemSubAttribute          -> a two-way enum: id <-> name ("sprintspeed")
+  //
+  // ⚠️ USE getSubAttributes(), NEVER getBaseSubAttributes(). This is the SAME trap as
+  // it.attributes vs it.getAttributes() (see readStats): the "base" one is frozen at the
+  // card's pre-evolution numbers. Confirmed live on an evolved Pirlo - acceleration reads
+  // 74 from the base call and 93 from the live one. Getting this wrong would silently show
+  // pre-evo stats for every evolved card in the club.
+  //
+  // getSubAttributesByParent(n) gives us the GAME'S OWN grouping, so we never hardcode
+  // which attribute sits under which face stat, and it adapts to keepers on its own:
+  //   outfield: 0 Pace [2], 1 Shooting [6], 2 Passing [6], 3 Dribbling [6],
+  //             4 Defending [5], 5 Physical [4]   = 29 shown (the 5 GK ones are excluded)
+  //   keeper:   0 [gkdiving], 1 [gkhandling], 2 [gkkicking], 3 [gkreflexes],
+  //             4 [acceleration, sprintspeed], 5 [gkpositioning]
+  var SUB_ENUM = null;   // resolved lazily - the app defines it as a global
+
+  // SUB_LABELS: the enum's names are squashed lowercase ("sprintspeed"), so spell out the
+  // multi-word ones. Anything not listed falls back to a capitalised version of the enum
+  // name, which reads fine for the single words ("Stamina", "Composure", "Curve").
+  var SUB_LABELS = {
+    sprintspeed: "Sprint Speed", ballcontrol: "Ball Control", freekickaccuracy: "Free Kick Acc.",
+    headingaccuracy: "Heading Acc.", longpassing: "Long Passing", shortpassing: "Short Passing",
+    longshots: "Long Shots", shotpower: "Shot Power", standingtackle: "Standing Tackle",
+    slidingtackle: "Sliding Tackle", gkdiving: "Diving", gkhandling: "Handling",
+    gkkicking: "Kicking", gkreflexes: "Reflexes", gkpositioning: "Positioning",
+    weakfoot: "Weak Foot", skillmove: "Skill Moves", workrate: "Work Rate"
+  };
+  // subLabel(id): readable name for a sub-attribute id, via the app's own enum.
+  function subLabel(id) {
+    if (SUB_ENUM === null) { try { SUB_ENUM = window.ItemSubAttribute || {}; } catch (e) { SUB_ENUM = {}; } }
+    var raw = SUB_ENUM[id];
+    if (!raw) return "Attr " + id;                       // unknown id - show it rather than hide it
+    if (SUB_LABELS[raw]) return SUB_LABELS[raw];
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+
+  // readSubStats(it): the card's detailed attributes, grouped exactly as the game groups
+  // them. Returns [{ label, items: [{id, name, val, key}] }] - one entry per face stat, in
+  // the same order readStats/faceStatsHTML use, so the two readouts line up. Returns []
+  // if this build of the app doesn't expose them, which is what the UI checks.
+  function readSubStats(it) {
+    var out = [];
+    try {
+      if (!it || typeof it.getSubAttributes !== "function" || typeof it.getSubAttributesByParent !== "function") return [];
+      var live = it.getSubAttributes() || [];
+      var byId = {};
+      live.forEach(function (a) { if (a && a.type != null) byId[a.type] = a.rating; });
+      // The game's "key attributes" for this card - we badge these in the list.
+      var keyIds = {};
+      try { (it.getPlayerKeySubAttributes() || []).forEach(function (a) { if (a && a.type != null) keyIds[a.type] = 1; }); } catch (e) {}
+      var gk = isGKPlayer(it);
+      var labels = gk ? GK_LABELS : FACE_LABELS;
+      var keys = gk ? GK_STATS : FACE_STATS;
+      for (var p = 0; p < keys.length; p++) {
+        var ids = [];
+        try { ids = it.getSubAttributesByParent(p) || []; } catch (e) { ids = []; }
+        if (!ids.length) continue;
+        out.push({
+          label: labels[keys[p]],
+          items: ids.map(function (id) {
+            return { id: id, name: subLabel(id), val: (byId[id] != null ? byId[id] : 0), key: !!keyIds[id] };
+          })
+        });
+      }
+    } catch (e) { return []; }
+    return out;
+  }
+
   // scoreByPositionHTML(it): the card's score at EVERY position it can play, best first, with the
   // strongest one accented. Answers "where is this player actually good?" at a glance - a card can
   // be a middling CM and an excellent CDM, and only the best number reaches the pill.
@@ -3060,6 +3171,13 @@
   function saveCardDetailOpen() { try { window.localStorage.setItem(CARD_DETAIL_KEY, state.cardDetailOpen ? "1" : "0"); } catch (e) {} }
   state.cardDetailOpen = loadCardDetailOpen();
 
+  // Same idea for the "Detailed stats" collapsible inside the card (see subStatsHTML).
+  // Its own key, so folding the stats away doesn't fold the whole card away with it.
+  var SUBSTATS_KEY = "FC26_subStatsOpen";
+  function loadSubStatsOpen() { try { return window.localStorage.getItem(SUBSTATS_KEY) === "1"; } catch (e) { return false; } }
+  function saveSubStatsOpen() { try { window.localStorage.setItem(SUBSTATS_KEY, state.subStatsOpen ? "1" : "0"); } catch (e) {} }
+  state.subStatsOpen = loadSubStatsOpen();
+
   // renderPreview(): redraw the selected-player card. Same info as before -
   // name/OVR/rarity, caps used, and current PlayStyles - but laid out visually:
   //   - two "capacity pip" trackers (4 pips for PS+, 8 for Basic) that fill up
@@ -3153,6 +3271,8 @@
       scoreByPositionHTML(it) +
       // Face stats grid (Feature: fill the spotlight) - same 6 numbers the Justaino rating reads.
       faceStatsHTML(it) +
+      // Every underlying attribute, folded away behind a toggle right under the 6 it feeds.
+      subStatsHTML(it) +
       noneMsg +
       groupHTML("PlayStyle+", plus, true) +
       groupHTML("Basic", basic, false);
@@ -3194,6 +3314,18 @@
       state.cardDetailOpen = !state.cardDetailOpen;
       saveCardDetailOpen();
       renderPreview();
+    });
+
+    // Fold/unfold the detailed stats. Toggling the box directly instead of redrawing the
+    // whole card keeps the scroll position put, which matters on a phone where the card is
+    // tall - a re-render would jump you back to the top every time.
+    var subBtn = preview.querySelector(".pv-subtoggle");
+    if (subBtn) subBtn.addEventListener("click", function () {
+      state.subStatsOpen = !state.subStatsOpen;
+      saveSubStatsOpen();
+      var box = preview.querySelector(".pv-sbox");
+      if (box) box.style.display = state.subStatsOpen ? "" : "none";
+      subBtn.innerHTML = (state.subStatsOpen ? "▾ " : "▸ ") + "Detailed stats";
     });
 
     // Wire the eligibility button (listener, not inline onclick - the app's CSP
@@ -4663,6 +4795,32 @@
       "#fc26-panel .pv-fv.mid{color:var(--gold)}" +
       "#fc26-panel .pv-fv.reg{color:var(--ink)}" +
       "#fc26-panel .pv-fv.lo{color:var(--muted)}" +
+      // ---- Detailed (sub) attributes collapsible -------------------------------
+      // Two columns on desktop so all 29 rows stay reachable without a long scroll;
+      // one column on a phone (the media query further down), where width is the
+      // scarce thing rather than height.
+      "#fc26-panel .pv-subs{margin-top:9px}" +
+      "#fc26-panel .pv-subtoggle{width:100%;text-align:left;background:rgba(0,0,0,.22);color:var(--muted);border:1px solid var(--card-border);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" +
+      "#fc26-panel .pv-subtoggle:hover{color:var(--ink);border-color:var(--accent)}" +
+      "#fc26-panel .pv-sbox{margin-top:7px;columns:2;column-gap:14px}" +
+      "#fc26-panel .pv-sgroup{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;margin-bottom:10px}" +
+      "#fc26-panel .pv-sgl{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}" +
+      "#fc26-panel .pv-srow{display:flex;align-items:center;gap:6px;padding:2px 0;min-width:0}" +
+      "#fc26-panel .pv-sname{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;color:var(--muted)}" +
+      "#fc26-panel .pv-skey{color:var(--gold);font-size:8px;margin-left:3px;vertical-align:top}" +
+      "#fc26-panel .pv-sbar{flex:none;width:38px;height:3px;border-radius:2px;background:rgba(255,255,255,.10);overflow:hidden}" +
+      "#fc26-panel .pv-sbar i{display:block;height:100%;background:var(--accent);opacity:.55}" +
+      "#fc26-panel .pv-sval{flex:none;min-width:20px;text-align:right;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .pv-sval.hi{color:var(--accent)}" +
+      "#fc26-panel .pv-sval.mid{color:var(--gold)}" +
+      "#fc26-panel .pv-sval.reg{color:var(--ink)}" +
+      "#fc26-panel .pv-sval.lo{color:var(--muted)}" +
+      // On a phone the panel is far too narrow for two columns - the names would ellipsis
+      // away to nothing. One column, and a slightly wider bar since there's room for it.
+      "#fc26-panel.fc26-mobile .pv-sbox{columns:1}" +
+      "#fc26-panel.fc26-mobile .pv-sname{font-size:11.5px}" +
+      "#fc26-panel.fc26-mobile .pv-sbar{width:52px}" +
+      "#fc26-panel.fc26-mobile .pv-srow{padding:3px 0}" +
       // Grouped chips: current PlayStyles, split into a PS+ row and a Basic row.
       "#fc26-panel .pv-group{margin-top:12px}" +
       "#fc26-panel .pv-gl{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}" +

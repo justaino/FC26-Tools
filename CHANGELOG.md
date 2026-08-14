@@ -5,6 +5,35 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v42 - 2026-08-14
+
+**Every stat a player has, not just the six on the front of the card.**
+
+- **New "Detailed stats" section on the player card.** Under the six face stats there's now
+  a **▸ Detailed stats** bar. Tap it and you get all **29** underlying attributes -
+  Acceleration, Composure, Standing Tackle, Curve, the lot.
+- **Grouped the way the game groups them:** the attributes that feed PAC sit under PAC, the
+  ones that feed SHO sit under SHO, and so on. I don't decide that grouping, the game hands
+  it over, so it's right by definition and it'll follow EA if they ever change it.
+- **A ★ marks the card's key attributes** - the handful the game itself singles out as the
+  ones that define this player.
+- Each attribute gets a small bar and is colour-graded on **the same scale as the face
+  stats**, so a number means the same thing wherever you see it.
+- **Collapsed by default**, so it never shoves the PlayStyle deck down the page, and it
+  remembers whether you left it open. That's remembered separately from the card's own
+  "Stats & PlayStyles" fold, so opening one doesn't drag the other along.
+- **Works the same on desktop and phone** - two columns where there's width, one where there
+  isn't. It's the same component, so the two can't drift apart.
+- **Evolved cards show their real, current numbers.** This one nearly bit us: the game keeps
+  a second frozen copy of every attribute at the card's pre-evolution values, and reading the
+  wrong one would have quietly shown stale stats for every evolved player in the club. Checked
+  on an evolved Pirlo, whose Acceleration reads 74 frozen and 93 live. We use live.
+- **Note on goalkeepers:** a keeper's detailed numbers don't match the six on the front of
+  their card, sometimes by a lot. That is how EA's own data is - it isn't the tool getting it
+  wrong, and I've left the real numbers showing rather than hide them.
+
+---
+
 ## v41 - 2026-08-14
 
 **The FUTTIES 5th PlayStyle+, a filter that hides full cards, and Suggest finally fills

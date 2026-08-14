@@ -1298,6 +1298,71 @@ PlayStyles the card held before the run started, so 12 rounds is always exactly 
 
 ---
 
+## 3x. New in v42 - Detailed stats on the player card
+
+A **▸ Detailed stats** collapsible under the face-stats grid on the preview card, showing all
+29 underlying attributes grouped under the face stat each one feeds.
+
+- Collapsed by default (it would otherwise push the PlayStyle deck below the fold), and the
+  choice is remembered in `FC26_subStatsOpen` - **separate** from the card's own
+  "Stats & PlayStyles" fold (`FC26_deckStatsOpen`), so the two don't drag each other around.
+- ★ marks the card's key attributes, straight from `getPlayerKeySubAttributes()`.
+- Same heat-grade colours as the face stats (`statGrade()` is shared by both, so a number
+  can't be graded one way in one readout and differently in the other).
+- One component (`subStatsHTML`) used by both layouts, since the preview card is shared.
+  Desktop gets two CSS columns, mobile one, via `#fc26-panel.fc26-mobile .pv-sbox{columns:1}`.
+- Toggling flips the box's `display` directly instead of calling `renderPreview()` - a
+  re-render would reset the scroll position, which is very noticeable on a phone.
+
+### Where the data comes from (all discovered live, all on the club item)
+
+| Call | What it gives |
+|---|---|
+| `it.getSubAttributes()` | `[{type, rating, highlight}]` - **LIVE** values |
+| `it.getBaseSubAttributes()` | the same, **FROZEN at pre-evolution values** |
+| `it.getSubAttributesByParent(n)` | the attribute type ids under face stat `n` |
+| `it.getPlayerKeySubAttributes()` | the 5 the game calls this card's key attributes |
+| `window.ItemSubAttribute` | two-way enum: id ↔ name (`sprintspeed`, `composure`, …) |
+
+> ⚠️ **Always `getSubAttributes()`, never `getBaseSubAttributes()`.** This is the exact same
+> trap as `it.attributes` vs `it.getAttributes()` (see `readStats`) - the "base" call is
+> frozen at the card's pre-evo numbers. Verified on an evolved Pirlo: Acceleration reads
+> **74** base and **93** live. Reading the wrong one shows stale stats for every evolved card
+> with no error to warn you.
+
+`getSubAttributesByParent(n)` is what saves us hardcoding which attribute belongs to which
+face stat, and it adapts to keepers by itself:
+
+- **Outfield** - 0 Pace [2], 1 Shooting [6], 2 Passing [6], 3 Dribbling [6], 4 Defending [5],
+  5 Physical [4] = **29 shown**. The 5 GK attributes exist on the item but are in no outfield
+  group, so they're correctly left out.
+- **Keeper** - 0 [gkdiving], 1 [gkhandling], 2 [gkkicking], 3 [gkreflexes],
+  4 [acceleration, sprintspeed], 5 [gkpositioning] = **7 shown**.
+
+### ⚠️ Goalkeeper numbers look wrong. They aren't. Don't "fix" this.
+
+A keeper's detailed attributes **do not match the six face stats above them**, sometimes
+badly. Real example, Courtois: face stats read `DIV 93 · HAN 96 · KIC 87 · REF 96 · SPD 92 ·
+POS 95`, while the detailed rows read `Diving 85 · Handling 89 · Kicking 76 · Reflexes 90 ·
+Acceleration 42 / Sprint Speed 52 · Positioning 88`. SPD is out by 45.
+
+This was checked in the game itself and **that is genuinely how EA's data is** - it is not a
+bug in the tool, not the wrong accessor, and not the frozen-base trap above. Outfielders
+reconcile exactly (Pirlo's SHO computes to 94.3 against EA's own weighting and the card shows
+94), which is what proves the reader is correct.
+
+The real numbers are shown rather than hidden or "corrected". If a future session spots this
+and decides to fix it, they'll be introducing a bug, not removing one.
+
+### Labels
+
+`SUB_LABELS` only spells out the multi-word enum names (`sprintspeed` → "Sprint Speed").
+Anything not listed is auto-capitalised from the enum name, which reads fine for single words
+("Stamina", "Composure", "Curve"). A brand-new EA attribute therefore appears on its own with
+a sensible label and no code change; add a `SUB_LABELS` line only if it needs prettier text.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
