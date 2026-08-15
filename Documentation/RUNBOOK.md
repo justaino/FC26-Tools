@@ -1318,7 +1318,7 @@ A **▸ Detailed stats** collapsible under the face-stats grid on the preview ca
 
 | Call | What it gives |
 |---|---|
-| `it.getSubAttributes()` | `[{type, rating, highlight}]` - **LIVE** values |
+| `it.getSubAttributes()` | `[{type, rating, highlight}]` - live values, **but only once loaded (see below)** |
 | `it.getBaseSubAttributes()` | the same, **FROZEN at pre-evolution values** |
 | `it.getSubAttributesByParent(n)` | the attribute type ids under face stat `n` |
 | `it.getPlayerKeySubAttributes()` | the 5 the game calls this card's key attributes |
@@ -1329,6 +1329,55 @@ A **▸ Detailed stats** collapsible under the face-stats grid on the preview ca
 > frozen at the card's pre-evo numbers. Verified on an evolved Pirlo: Acceleration reads
 > **74** base and **93** live. Reading the wrong one shows stale stats for every evolved card
 > with no error to warn you.
+
+### ⚠️ THE SECOND TRAP (v43) - sub-attributes load lazily, per card
+
+Using `getSubAttributes()` is necessary but **not sufficient**. A club item's sub-attributes
+are **not populated when the club loads**. Until the app has fetched *that specific card's*
+attribute metadata, `getSubAttributes()` returns numbers **identical to
+`getBaseSubAttributes()`** - the base card.
+
+This shipped broken in v42 and was caught in the wild: an evolved Kroupi read
+`81/80/75/72…` in the panel and `97/97/95/94…` in the app. Opening the player's Attributes
+screen in the app was what fixed it, which is the tell - the app was fetching on demand.
+
+**The call the app makes** (read out of `UTPlayerMetaDataDAO`, not guessed):
+
+```
+services.PlayerMetaData.updateItemPlayerMeta([item])     <- an ARRAY OF ITEMS, not ids
+  -> metaDAO.getAttributesMetaData([item])
+  -> GET /ut/game/fc26/attributes/metadata?defIds=<item.definitionId>
+  -> updateMetaData() -> item.setMetaData(...)           <- mutates the item IN PLACE
+```
+
+Three things that source told us, all of which the fix relies on:
+
+- It takes **item objects**, not ids - it reads `databaseId` and `definitionId` off each.
+- If the definition is already cached it short-circuits to `NOT_MODIFIED` with **no network
+  call**, so asking once per card is cheap and asking again is nearly free.
+- It filters to items whose base meta (`databaseId`) is known and returns `BAD_REQUEST` if
+  none qualify, so **it must fail softly**.
+
+The item is mutated in place (confirmed: `sameObject: true, changedInPlace: true`), so we
+only redraw - we never reload the club.
+
+`ensurePlayerMeta(it)` does this once per card per session, tracked in `metaState`, fired
+from `renderPreview`. While it's in flight the section shows "Loading detailed stats…"
+rather than the base numbers, because **stale values here look entirely plausible** and
+showing them is worse than showing nothing. On failure the numbers appear with a visible
+"couldn't confirm these are up to date" note instead of being passed off as real.
+
+> **Do not "optimise" this by checking a flag on the item and skipping the call.** There is a
+> `getMetaData()` that looks like it would serve, but it was never confirmed to be falsy for
+> an unloaded card, and being wrong about that brings the whole bug straight back. The call
+> is free when cached; just make it.
+
+Console: `window.FC26.metaState()` shows each viewed card as `idle`/`pending`/`done`/`failed`.
+
+> ⚠️ **`services.Configuration.requestPlayerMetaData` is NOT this call.** It looks like it
+> (right name, right service area) but it takes **no arguments** and loads global config.
+> Wiring it up would compile, run, and do nothing at all. Reading the source before writing
+> the code is what caught that.
 
 `getSubAttributesByParent(n)` is what saves us hardcoding which attribute belongs to which
 face stat, and it adapts to keepers by itself:

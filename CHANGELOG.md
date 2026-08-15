@@ -5,6 +5,32 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v43 - 2026-08-15
+
+**Fixes the detailed stats showing the wrong numbers.**
+
+- **The bug:** for a player you hadn't already opened in the web app, the new Detailed stats
+  section showed the **base card's** attributes instead of the real ones. On an evolved
+  player that's wildly out - one of mine read 81 Acceleration in the panel and 97 in the
+  game. The giveaway was that the numbers "fixed themselves" the moment you visited that
+  player's Attributes screen in the app.
+- **Why:** the game doesn't send a card's detailed attributes when your club loads. It
+  fetches them per player, the first time something asks. Until then the tool was reading a
+  placeholder that happens to be the base card's stats, with nothing to indicate it wasn't
+  real. The six face stats were never affected - only the detailed list.
+- **The fix:** the panel now asks the game for that card's attributes itself the moment you
+  select a player, and redraws when they arrive. No more visiting the player in the app first.
+- **It says "Loading detailed stats…" while it waits** rather than showing the placeholder.
+  Those wrong numbers looked completely believable, and showing believable-but-wrong is worse
+  than showing nothing for a second.
+- It's a one-off per player. Come back to the same card and it's instant.
+- **If it can't confirm the numbers**, it shows them with a plain warning that they may be
+  the base card's, rather than quietly passing them off as correct.
+- Clicking quickly through players can't cross the wires either - a late answer for one
+  player will never land on whoever you've since clicked on.
+
+---
+
 ## v42 - 2026-08-14
 
 **Every stat a player has, not just the six on the front of the card.**
