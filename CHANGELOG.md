@@ -5,6 +5,30 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## Unreleased (on `dev`, not published)
+
+Kept here rather than under a version number because **no install-page version has been
+cut for it**. Nobody has this yet. It moves under a real `vN` heading if and when it ships.
+
+**New: the SBC Reader (read-only).**
+
+- A new **🧩 SBC Reader** tile in the Lineup column. Open an SBC's squad screen in the game,
+  tap the tile, and the panel tells you what that SBC is: its name, its slot count, and every
+  requirement spelled out in plain English.
+- **It only reads.** It doesn't fill squads, doesn't submit anything, doesn't touch your club.
+  There's no button that could.
+- The requirement wording comes from the game's own text, so it reads exactly as it does
+  in the app rather than being our translation of it.
+- Each requirement is ticked or crossed depending on whether a future auto-fill could
+  actually satisfy it, with an honest verdict at the bottom.
+- **Team rating and chemistry are crossed on purpose.** Those can't be solved by picking your
+  cheapest players, and filling them badly would eat good fodder for a squad that doesn't
+  submit. Better to say so than to guess.
+- This is step 1 of a possible SBC builder. It might not go any further, so it was built to
+  be removed cleanly if not (see RUNBOOK §3y).
+
+---
+
 ## v43 - 2026-08-15
 
 **Fixes the detailed stats showing the wrong numbers.**

@@ -5247,6 +5247,29 @@
       "#fc26-panel .db-hl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
       // On a phone 5 across is too tight - drop to 3 columns (5 cells wrap to 3 + 2).
       "#fc26-panel.fc26-mobile .db-hero{grid-template-columns:repeat(3,1fr)}" +
+      // ---- SBC Reader (### SBC-READER styles - delete with the feature) ----
+      // Deliberately reuses .db-card/.db-h3/.db-body from the dashboard, so this is
+      // only the handful of rules the reader adds of its own.
+      "#fc26-panel .sbc-tools{display:flex;justify-content:flex-end}" +
+      "#fc26-panel .sbc-again{background:var(--btn);color:var(--btn-ink);border:0;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:11px;font-weight:700}" +
+      "#fc26-panel .sbc-name{font-size:17px;font-weight:800;letter-spacing:-.01em}" +
+      "#fc26-panel .sbc-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}" +
+      "#fc26-panel .sbc-pill{font-size:10px;font-weight:700;padding:4px 8px;border-radius:999px;background:var(--tile);border:1px solid var(--tile-border);color:var(--muted)}" +
+      "#fc26-panel .sbc-reqs{display:flex;flex-direction:column;gap:6px}" +
+      "#fc26-panel .sbc-req{display:flex;gap:9px;align-items:flex-start;padding:9px 10px;border-radius:10px;background:var(--tile);border:1px solid var(--tile-border)}" +
+      // A requirement a future auto-fill can't satisfy is dimmed and flagged, never hidden -
+      // you should always see the whole SBC, not a filtered version of it.
+      "#fc26-panel .sbc-req.no{opacity:.62}" +
+      "#fc26-panel .sbc-req-dot{flex:none;width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:10px;font-weight:800;background:var(--sel);border:1px solid var(--accent);color:var(--accent)}" +
+      "#fc26-panel .sbc-req.no .sbc-req-dot{background:transparent;border-color:var(--border);color:var(--muted)}" +
+      "#fc26-panel .sbc-req-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" +
+      "#fc26-panel .sbc-req-tx b{font-size:12.5px;font-weight:700;line-height:1.3}" +
+      "#fc26-panel .sbc-req-tx i{font-style:normal;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
+      "#fc26-panel .sbc-verdict{border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;gap:4px;border:1px solid}" +
+      "#fc26-panel .sbc-verdict b{font-size:12.5px}" +
+      "#fc26-panel .sbc-verdict span{font-size:11px;color:var(--muted);line-height:1.45}" +
+      "#fc26-panel .sbc-verdict.ok{background:var(--sel);border-color:var(--accent)}" +
+      "#fc26-panel .sbc-verdict.warn{background:var(--tile);border-color:var(--border)}" +
       // Generic dashboard section card + heading (reused by every module below the hero).
       "#fc26-panel .db-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:12px}" +
       "#fc26-panel .db-h3{margin:0 0 10px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800;display:flex;align-items:center;gap:8px}" +
@@ -5568,7 +5591,7 @@
     // rule it OUT-SPECIFICS the 1-class pill rule (.fc26-min) - so a panel minimized with the
     // builder open would keep its full height and only "half close". Minimized never needs the
     // builder height, so we simply don't add gt-open when minimized.
-    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + ((state.builderOpen || state.metaPageOpen || state.dashOpen || state.scorePageOpen) && !state.minimized ? " gt-open" : "");
+    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + ((state.builderOpen || state.metaPageOpen || state.dashOpen || state.scorePageOpen || state.sbcOpen) && !state.minimized ? " gt-open" : "");
     applyPanelSize();     // set/clear our explicit size BEFORE clamping position (so the rect is right)
     var slot = posSlot();
     var pos = slot ? positions[slot] : null;
@@ -6870,6 +6893,307 @@
     dashHost.appendChild(bodyEl);
   }
 
+  // ============================================================================
+  // FEATURE 7 - SBC READER  (step 1 of 4: READ-ONLY)
+  // ============================================================================
+  // ### SBC-READER BEGIN ### (everything down to "### SBC-READER END ###" is this
+  // feature and nothing else. To remove the feature entirely: delete that block,
+  // delete the `sbcLaunch` entry from the squadMod.appendChild(...) line, and delete
+  // the `.sbc-*` rules in the stylesheet. Nothing else in the tool touches it.)
+  //
+  // WHAT THIS DOES: shows the SBC you currently have OPEN in the game - its name,
+  // how many slots it has, and what it requires in plain English. That's all.
+  // It reads. It never fills a squad, never submits, never touches your club.
+  //
+  // WHY IT'S SEPARATE: this is step 1 of a possible SBC builder. If the builder
+  // gets dropped, this block deletes cleanly (see above).
+  //
+  // HOW WE FIND THE OPEN SBC (all discovered live - see Reference/paletools/README.md):
+  // the app keeps a stack of "view controllers" (one per screen). Ask it for the
+  // current one and you land on UTSBCSquadSplitViewController when an SBC squad is
+  // open. The challenge object hangs off its LEFT controller as `_challenge`.
+  // Property names vary, so we try both `_leftController` and `leftController`
+  // styles, and fall back to a general search if the known path ever changes.
+
+  // Requirement types the future FILL step will be able to satisfy. Everything not
+  // in here we can still SHOW, we just can't build for it. TEAM_RATING is the big
+  // one: squad rating isn't a plain average, so hitting an exact team rating cheaply
+  // is a real optimisation problem (the reference tool doesn't solve it either - it
+  // just guesses a rating window). Chemistry is likewise out.
+  var SBC_SUPPORTED_KEYS = {
+    PLAYER_COUNT: 1, PLAYER_QUALITY: 1, PLAYER_LEVEL: 1, PLAYER_RARITY: 1,
+    PLAYER_RARITY_GROUP: 1, PLAYER_MIN_OVR: 1, PLAYER_MAX_OVR: 1, PLAYER_EXACT_OVR: 1,
+    PLAYER_TRADABILITY: 1, FIRST_OWNER_PLAYERS_COUNT: 1,
+    NATION_ID: 1, LEAGUE_ID: 1, CLUB_ID: 1,
+    NATION_COUNT: 1, LEAGUE_COUNT: 1, CLUB_COUNT: 1,
+    SAME_NATION_COUNT: 1, SAME_LEAGUE_COUNT: 1, SAME_CLUB_COUNT: 1
+  };
+
+  // sbcKids(c): every child controller hanging off one controller, whatever the app
+  // decided to call the properties this year. Returns a plain array.
+  function sbcKids(c) {
+    if (!c) return [];
+    var out = [];
+    var left = c._leftController || c.leftController;
+    var right = c._rightController || c.rightController;
+    var kids = c._childViewControllers || c.childViewControllers;
+    if (left) out.push(left);
+    if (right) out.push(right);
+    if (kids && kids.length) { for (var i = 0; i < kids.length; i++) if (kids[i]) out.push(kids[i]); }
+    return out;
+  }
+
+  // sbcAppMain(): the app's own entry point, read the same "window.X or bare global"
+  // way getServices() reads services (a bare global isn't always mirrored on window).
+  function sbcAppMain() {
+    if (window.getAppMain) return window.getAppMain;
+    try { if (typeof getAppMain !== "undefined") return getAppMain; } catch (e) {}
+    return null;
+  }
+
+  // sbcCurrentController(): the controller for whatever screen is on top right now,
+  // or null if the app isn't in a state where we can ask.
+  function sbcCurrentController() {
+    var main = sbcAppMain();
+    if (!main) return null;
+    try {
+      return main().getRootViewController()
+        .getPresentedViewController().getCurrentViewController().getCurrentController();
+    } catch (e) { return null; }
+  }
+
+  // sbcFindChallenge(root): hunt down the open challenge. Tries the known path first
+  // (cheap), then a breadth-first search as a safety net if EA moves it. A "challenge"
+  // is any object carrying BOTH `squad` and `eligibilityRequirements`.
+  function sbcFindChallenge(root) {
+    function looksLikeChallenge(o) {
+      return !!(o && typeof o === "object" && o.squad && o.eligibilityRequirements);
+    }
+    if (!root) return null;
+    // Known path: root -> leftController -> _challenge
+    var stack = [root].concat(sbcKids(root));
+    for (var i = 0; i < stack.length; i++) {
+      var c = stack[i];
+      var ch = c && (c._challenge || c.challenge);
+      if (looksLikeChallenge(ch)) return ch;
+    }
+    // Safety net: walk the controller tree a few levels deep.
+    var queue = [[root, 0]], seen = [], guard = 0;
+    while (queue.length && guard++ < 400) {
+      var pair = queue.shift(), node = pair[0], depth = pair[1];
+      if (!node || depth > 5 || seen.indexOf(node) !== -1) continue;
+      seen.push(node);
+      var cand = node._challenge || node.challenge;
+      if (looksLikeChallenge(cand)) return cand;
+      if (looksLikeChallenge(node)) return node;
+      var kids = sbcKids(node);
+      for (var k = 0; k < kids.length; k++) queue.push([kids[k], depth + 1]);
+    }
+    return null;
+  }
+
+  // sbcSetName(root, challenge): the SBC's display name. It is NOT on the challenge
+  // (checked live - `challenge.setName` came back undefined), so we look at the `_set`
+  // the split controller is holding, then fall back to the challenge's own name field.
+  function sbcSetName(root, challenge) {
+    var tries = [];
+    try { tries.push(root && (root._set || root.set)); } catch (e) {}
+    try { tries.push(challenge); } catch (e2) {}
+    for (var i = 0; i < tries.length; i++) {
+      var o = tries[i];
+      if (!o) continue;
+      var n = o.name || o.setName || o.title;
+      if (n && typeof n === "string") return n;
+    }
+    return "Current SBC";
+  }
+
+  // sbcReadReq(raw): turn ONE of EA's raw requirement objects into something we can
+  // read. EA hands us raw data only - no "does this player match" helper - so the
+  // useful fields have to be pulled out through its accessor methods:
+  //   raw.getFirstKey()      -> a NUMBER identifying the rule type
+  //   SBCEligibilityKey[num] -> the readable name (the enum maps both ways)
+  //   raw.getValue(key)      -> an ARRAY of values (a rule can allow several)
+  //   raw.count              -> how many players must match (-1 = all of them)
+  //   raw.scope              -> GREATER / LOWER / EXACT
+  //   raw.buildString()      -> EA's OWN human sentence, e.g. "Team Rating: Min. 88"
+  // We lean on buildString for display: it's already localised and always correct.
+  function sbcReadReq(raw) {
+    var K = window.SBCEligibilityKey || {};
+    var S = window.SBCEligibilityScope || {};
+    var out = { name: "UNKNOWN", key: null, values: [], count: null, scope: null, text: "", supported: false };
+    try { out.key = raw.getFirstKey(); } catch (e) {}
+    if (out.key != null && K[out.key] != null) out.name = String(K[out.key]);
+    try { var v = raw.getValue(out.key); out.values = (v && v.length) ? [].slice.call(v) : []; } catch (e2) {}
+    try { out.count = raw.count; } catch (e3) {}
+    try { out.scope = (S[raw.scope] != null) ? String(S[raw.scope]) : raw.scope; } catch (e4) {}
+    // EA's own sentence is the best label we can show. If it ever throws or comes back
+    // blank, fall back to something built from the pieces above.
+    try { if (typeof raw.buildString === "function") out.text = String(raw.buildString() || ""); } catch (e5) {}
+    if (!out.text) {
+      out.text = out.name.replace(/_/g, " ").toLowerCase() +
+        (out.values.length ? (": " + out.values.join(", ")) : "") +
+        (out.count > 0 ? (" (" + out.count + " players)") : "");
+    }
+    out.supported = !!SBC_SUPPORTED_KEYS[out.name];
+    return out;
+  }
+
+  // readOpenSbc(): the one function the UI calls. Always returns an object:
+  //   { ok:false, reason:"..." }                      - nothing to show, reason is for you
+  //   { ok:true, name, slots, op, reqs:[...], unsupported:n }
+  // Read-only from top to bottom.
+  function readOpenSbc() {
+    if (!sbcAppMain()) return { ok: false, reason: "The web app isn't ready yet." };
+    var root = sbcCurrentController();
+    if (!root) return { ok: false, reason: "Couldn't read the current screen." };
+    var cls = "";
+    try { cls = (root.constructor && root.constructor.name) || ""; } catch (e) {}
+    var ch = sbcFindChallenge(root);
+    if (!ch) {
+      return { ok: false, reason: "No SBC squad open. Go to SBC, pick a challenge, then reopen this page.", screen: cls };
+    }
+    var slots = null;
+    try { slots = ch.squad.getNonBrickSlots().length; } catch (e2) {}
+    var reqs = [];
+    try { reqs = (ch.eligibilityRequirements || []).map(sbcReadReq); } catch (e3) {}
+    var unsupported = reqs.filter(function (r) { return !r.supported; }).length;
+    return {
+      ok: true,
+      name: sbcSetName(root, ch),
+      slots: slots,
+      op: ch.eligibilityOperation || "AND",
+      reqs: reqs,
+      unsupported: unsupported,
+      screen: cls
+    };
+  }
+
+  // The launcher tile (sits in the lineup column with the other page launchers).
+  var sbcLaunch = document.createElement("div");
+  sbcLaunch.className = "meta-section";
+  var sbcLaunchBtn = document.createElement("button");
+  sbcLaunchBtn.type = "button";
+  sbcLaunchBtn.className = "gt-launch";
+  sbcLaunchBtn.innerHTML = "<span class='gt-launch-ic'>🧩</span>" +
+    "<span class='gt-launch-tx'><b>SBC Reader</b><i>Reads the SBC you have open and lists what it needs</i></span>" +
+    "<span class='gt-launch-go'>›</span>";
+  sbcLaunchBtn.addEventListener("click", openSbcPage);
+  sbcLaunch.appendChild(sbcLaunchBtn);
+
+  // The full-screen page host (same shell as the Dashboard / Squad Builder pages).
+  var sbcHost = document.createElement("div");
+  sbcHost.className = "gt-builder";
+  sbcHost.style.display = "none";
+  body.appendChild(sbcHost);
+
+  state.sbcOpen = false;
+
+  function openSbcPage() {
+    state.sbcOpen = true;
+    sbcHost.style.display = "flex";
+    layoutHost.style.display = "none";
+    applyPanelChrome();
+    renderSbcPage();
+  }
+  function closeSbcPage() {
+    state.sbcOpen = false;
+    sbcHost.style.display = "none";
+    layoutHost.style.display = "flex";
+    applyPanelChrome();
+  }
+
+  // renderSbcPage(): draw whatever SBC is open right now. Re-reads on every call, so
+  // the Re-read button is just "call me again".
+  function renderSbcPage() {
+    if (!state.sbcOpen) return;
+    sbcHost.innerHTML = "";
+
+    // Header (back + eyebrow + title) - same chrome as the other full-panel pages.
+    var top = document.createElement("div"); top.className = "gt-bd-top";
+    var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeSbcPage);
+    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>SBC Reader</b>";
+    top.appendChild(back); top.appendChild(ttl);
+    sbcHost.appendChild(top);
+
+    var bodyEl = document.createElement("div"); bodyEl.className = "db-body";
+
+    // "Re-read" - you'll switch to the game, open a different SBC, come back and tap it.
+    var tools = document.createElement("div"); tools.className = "sbc-tools";
+    var again = document.createElement("button"); again.type = "button"; again.className = "sbc-again";
+    again.textContent = "↻ Re-read the open SBC";
+    again.addEventListener("click", renderSbcPage);
+    tools.appendChild(again);
+    bodyEl.appendChild(tools);
+
+    var info = readOpenSbc();
+
+    if (!info.ok) {
+      var empty = document.createElement("div"); empty.className = "mp-soon";
+      empty.innerHTML = esc(info.reason) + (info.screen ? ("<br><span style='opacity:.6;font-size:10px'>on screen: " + esc(info.screen) + "</span>") : "");
+      bodyEl.appendChild(empty);
+      sbcHost.appendChild(bodyEl);
+      return;
+    }
+
+    // ---- The SBC itself ----
+    var head = document.createElement("div"); head.className = "db-card";
+    head.innerHTML =
+      "<div class='sbc-name'>" + esc(info.name) + "</div>" +
+      "<div class='sbc-meta'>" +
+        "<span class='sbc-pill'>" + (info.slots == null ? "?" : info.slots) + " slots</span>" +
+        "<span class='sbc-pill'>" + info.reqs.length + " requirement" + (info.reqs.length === 1 ? "" : "s") + "</span>" +
+        "<span class='sbc-pill'>match " + esc(String(info.op)) + "</span>" +
+      "</div>";
+    bodyEl.appendChild(head);
+
+    // ---- Requirements, in EA's own words ----
+    var card = document.createElement("div"); card.className = "db-card";
+    var h3 = document.createElement("div"); h3.className = "db-h3"; h3.textContent = "Requirements";
+    card.appendChild(h3);
+
+    if (!info.reqs.length) {
+      var none = document.createElement("div"); none.className = "mp-soon";
+      none.textContent = "This challenge lists no requirements.";
+      card.appendChild(none);
+    } else {
+      var list = document.createElement("div"); list.className = "sbc-reqs";
+      info.reqs.forEach(function (r) {
+        var row = document.createElement("div");
+        row.className = "sbc-req" + (r.supported ? "" : " no");
+        // count -1 means "every player must match this", anything else is "N players".
+        var appliesTo = (r.count === -1 || r.count == null) ? "all players" : (r.count + " player" + (r.count === 1 ? "" : "s"));
+        row.innerHTML =
+          "<span class='sbc-req-dot'>" + (r.supported ? "✓" : "✗") + "</span>" +
+          "<span class='sbc-req-tx'>" +
+            "<b>" + esc(r.text) + "</b>" +
+            "<i>" + esc(r.name) + " · " + esc(appliesTo) + (r.scope ? (" · " + esc(String(r.scope).toLowerCase())) : "") + "</i>" +
+          "</span>";
+        list.appendChild(row);
+      });
+      card.appendChild(list);
+    }
+    bodyEl.appendChild(card);
+
+    // ---- Honest verdict on whether a future auto-fill could handle this one ----
+    var verdict = document.createElement("div");
+    verdict.className = "sbc-verdict " + (info.unsupported ? "warn" : "ok");
+    verdict.innerHTML = info.unsupported
+      ? "<b>Auto-fill could not build this one.</b><span>" + info.unsupported + " of " + info.reqs.length +
+        " requirements are marked ✗. Team rating and chemistry can't be solved by picking cheapest-first, so they're out of scope.</span>"
+      : "<b>Auto-fill could build this one.</b><span>Every requirement is a simple per-player test, which is exactly what a cheapest-fodder fill handles.</span>";
+    bodyEl.appendChild(verdict);
+
+    sbcHost.appendChild(bodyEl);
+  }
+
+  // Console helpers: read the open SBC without opening the panel page.
+  //   window.FC26.readSbc()     -> the parsed object
+  //   window.FC26.openSbcPage() -> open the page
+  window.FC26.readSbc = readOpenSbc;
+  window.FC26.openSbcPage = openSbcPage;
+  // ### SBC-READER END ###
+
   // Console helper: open the dashboard without clicking (and a summary read-out).
   window.FC26.openDashPage = openDashPage;
   window.FC26.clubSummary = computeClubSummary;
@@ -7449,7 +7773,7 @@
 
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(clubStat); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(dashLaunch);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(clubStat); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(dashLaunch); squadMod.appendChild(sbcLaunch);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); oneOffs.forEach(function (s) { buildMod.appendChild(s.section); });
@@ -7602,6 +7926,7 @@
     // Same for the other two full-screen pages (the Dashboard was missing here, so rotating
     // a phone with it open used to dump you back on the main layout with the page still "open").
     if (state.dashOpen) { layoutHost.style.display = "none"; dashHost.style.display = "flex"; renderDashPage(); }
+    if (state.sbcOpen) { layoutHost.style.display = "none"; sbcHost.style.display = "flex"; renderSbcPage(); }
     // Peks Lab is checked LAST and hides the meta page, because it's normally opened
     // FROM it - both flags are true at once, and the settings page is the one in front.
     if (state.scorePageOpen) { layoutHost.style.display = "none"; metaPageHost.style.display = "none"; ssHost.style.display = "flex"; renderScorePage(); }

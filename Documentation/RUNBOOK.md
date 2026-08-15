@@ -1412,6 +1412,89 @@ a sensible label and no code change; add a `SUB_LABELS` line only if it needs pr
 
 ---
 
+## 3y. UNRELEASED (on `dev` only) - the SBC Reader
+
+**Not published.** This is on the `dev` branch and has no install-page version yet, so
+nobody has it, including you unless you paste the dev build in by hand. It is step 1 of a
+possible SBC builder, and it may yet be dropped (see "Deleting it" below).
+
+### What it does
+
+Opens from the **🧩 SBC Reader** tile in the Lineup column, under Club Dashboard. It shows
+the SBC **you currently have open in the game**: its name, how many slots it has, and every
+requirement written out in plain English.
+
+It is **read-only**. It never fills a squad, never submits a challenge, never touches your
+club. There is deliberately no button that could.
+
+### How to use it
+
+1. In the web app, go to **SBC** and open a challenge's **squad** screen.
+2. Open the panel, tap **🧩 SBC Reader**.
+3. To look at a different SBC: switch to it in the game, come back, tap **↻ Re-read the
+   open SBC**.
+
+Each requirement is marked:
+
+- **✓** a future auto-fill could satisfy this (it's a simple yes/no test on one player)
+- **✗** it could not
+
+At the bottom is a plain verdict on whether the whole SBC is buildable.
+
+### Why some requirements are ✗
+
+**Team rating and chemistry can't be solved by picking the cheapest players first.**
+Squad rating in FUT isn't a plain average, so "cheapest 11 players averaging 88" is a search
+problem, not a filter. The reference tool (Paletools) doesn't solve it either - it keeps
+players in a rough rating window and hopes, which is why it ships a *separate manual*
+ratings calculator. Rather than fill your SBC badly and eat good fodder, this tool says so
+up front.
+
+The 19 requirement types it counts as buildable are listed in `SBC_SUPPORTED_KEYS` in
+`fc26-tools.js`. Everything else shows ✗.
+
+### How it finds the open SBC (for future maintenance)
+
+All discovered live against FC26 and written up in full in
+`Reference/paletools/README.md` (that folder is gitignored - see the note there):
+
+```
+getAppMain().getRootViewController().getPresentedViewController()
+            .getCurrentViewController().getCurrentController()
+   -> UTSBCSquadSplitViewController
+      .leftController._challenge        <- the challenge
+```
+
+The challenge carries `.squad`, `.eligibilityRequirements` and `.eligibilityOperation`.
+Requirement objects hold **raw data only**, so each one is read through EA's own accessors
+(`getFirstKey()`, `getValue(k)`, `count`, `scope`) and labelled with EA's own
+`buildString()`, which is why the wording matches the game exactly and needs no
+translation table from us. `SBCEligibilityKey` is a two-way enum, so the readable type name
+comes free.
+
+**If it ever stops finding the SBC**, the "no SBC open" message prints the controller you
+were actually on. That name is the thing to check first, EA renaming a controller is the
+likeliest cause.
+
+Console equivalents: `window.FC26.readSbc()` returns the parsed object,
+`window.FC26.openSbcPage()` opens the page.
+
+### Deleting it
+
+It was built to be removable in three steps:
+
+1. Delete the block between `### SBC-READER BEGIN ###` and `### SBC-READER END ###` in
+   `fc26-tools.js`.
+2. Delete `squadMod.appendChild(sbcLaunch);` from the layout assembly line.
+3. Delete the `.sbc-*` rules in the stylesheet (they're fenced with an
+   `### SBC-READER styles` comment).
+
+Then `node minify.js`. Nothing else in the tool reads it, apart from `state.sbcOpen`
+appearing in the two lines that track which full-screen page is open; leaving those is
+harmless.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list
