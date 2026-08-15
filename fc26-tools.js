@@ -1578,7 +1578,25 @@
     var groups = readSubStats(it);
     if (!groups.length) return "";
     var open = !!state.subStatsOpen;
-    var body = groups.map(function (g) {
+    // Until the card's metadata has loaded, getSubAttributes() hands back the BASE card's
+    // numbers (see ensurePlayerMeta). Showing those would be worse than showing nothing -
+    // they look completely plausible and are simply wrong on any evolved card - so we say
+    // we're loading instead. renderPreview kicks the load off and redraws when it lands.
+    var status = metaStatusOf(it);
+    if (status === META_IDLE || status === META_PENDING) {
+      return "<div class='pv-subs'>" +
+        "<button type='button' class='pv-subtoggle'>" + (open ? "&#9662; " : "&#9656; ") + "Detailed stats</button>" +
+        "<div class='pv-sbox'" + (open ? "" : " style='display:none'") + ">" +
+          "<div class='pv-sload'>Loading detailed stats&hellip;</div>" +
+        "</div></div>";
+    }
+    // Loaded, or we tried and couldn't confirm it. In the second case we DO show the
+    // numbers (they're the best we have and are correct for an un-evolved card) but say
+    // plainly that they might be the base card's, rather than quietly passing them off.
+    var warn = status === META_FAILED
+      ? "<div class='pv-swarn'>Couldn't confirm these are up to date - on an evolved card they may be the base values. Open the player in the app to refresh.</div>"
+      : "";
+    var body = warn + groups.map(function (g) {
       var rows = g.items.map(function (s) {
         // The bar is a plain width %, so it stays readable in every theme.
         return "<div class='pv-srow'>" +
@@ -1673,6 +1691,80 @@
     } catch (e) { return []; }
     return out;
   }
+
+  // ---- LAZY METADATA LOAD (why the sub-attributes were wrong) ----------------
+  // A club item's sub-attributes are NOT populated when the club loads. Until the app has
+  // fetched THAT CARD's attribute metadata, getSubAttributes() returns the same numbers as
+  // getBaseSubAttributes() - i.e. the base card - so an evolved player reads far too low.
+  // Measured live on an evolved Kroupi: 81/80/75/72... before, 97/97/95/94... after.
+  // Opening the player's Attributes screen in the app is what triggers the fetch, which is
+  // why the numbers appeared to "correct themselves" once you'd visited a card.
+  //
+  // The call the app itself makes, read out of its own DAO source rather than guessed:
+  //   services.PlayerMetaData.updateItemPlayerMeta([item])
+  //     -> metaDAO.getAttributesMetaData([item])
+  //     -> GET /ut/game/fc26/attributes/metadata?defIds=<item.definitionId>
+  //     -> updateMetaData() -> item.setMetaData(...)      MUTATES THE ITEM IN PLACE
+  // Confirmed in place: after the app loaded it, the very object we were already holding
+  // had the new values (sameObject true, changedInPlace true) - so we only need to redraw,
+  // never to reload the club.
+  //
+  // Two things the DAO source told us, both of which shape the code below:
+  //   * If the definition is already cached it short-circuits to NOT_MODIFIED and makes NO
+  //     network call - so asking once per card is cheap and asking again is nearly free.
+  //   * It first filters to items whose BASE meta (databaseId) is known and returns
+  //     BAD_REQUEST if none qualify - so this MUST fail softly and never throw.
+  //
+  // NB: we deliberately do NOT try to detect "already loaded" from the item (e.g. via
+  // getMetaData()) and skip the call. We never confirmed that such a flag is falsy for an
+  // unloaded card, and getting that wrong reintroduces the exact bug this fixes. Asking
+  // once per card per session costs nothing when it's cached, and is always correct.
+  var META_IDLE = 0, META_PENDING = 1, META_DONE = 2, META_FAILED = 3;
+  var metaState = {};   // item id -> one of the four above
+
+  // metaStatusOf(it): where this card is in that little lifecycle.
+  function metaStatusOf(it) {
+    try { if (!it || it.id == null) return META_FAILED; } catch (e) { return META_FAILED; }
+    var s = metaState[it.id];
+    return s == null ? META_IDLE : s;
+  }
+
+  // ensurePlayerMeta(it): ask the app to load this card's attribute metadata, once. When it
+  // lands the item has already updated itself, so we just redraw the card. Fire-and-forget:
+  // nothing awaits this, and any failure just flips the section to "couldn't confirm" rather
+  // than breaking the panel.
+  function ensurePlayerMeta(it) {
+    if (metaStatusOf(it) !== META_IDLE) return;
+    metaState[it.id] = META_PENDING;
+    var svc = null;
+    try { svc = getServices() && getServices().PlayerMetaData; } catch (e) {}
+    if (!svc || typeof svc.updateItemPlayerMeta !== "function") { metaState[it.id] = META_FAILED; return; }
+    // settle(ok): record the outcome and redraw, but ONLY if this card is still the one on
+    // screen - you can click through players faster than the network answers.
+    function settle(ok) {
+      metaState[it.id] = ok ? META_DONE : META_FAILED;
+      try {
+        if (state.player && state.player.id === it.id) {
+          renderPreview();
+          if (currentMode() === "mobile" && typeof renderWizStep === "function") renderWizStep();
+        }
+      } catch (e) { /* a redraw failing must not strand the state */ }
+    }
+    try {
+      var o = svc.updateItemPlayerMeta([it]);
+      if (o && typeof o.observe === "function") { awaitService(o).then(function () { settle(true); }, function () { settle(false); }); }
+      else if (o && typeof o.then === "function") { o.then(function () { settle(true); }, function () { settle(false); }); }
+      else { settle(true); }
+    } catch (e) { settle(false); }
+  }
+
+  // Console helper: check what the panel thinks about a card's metadata.
+  //   window.FC26.metaState()  -> { itemId: "done" | "pending" | "failed" | "idle", ... }
+  window.FC26.metaState = function () {
+    var names = ["idle", "pending", "done", "failed"], o = {};
+    Object.keys(metaState).forEach(function (k) { o[k] = names[metaState[k]] || metaState[k]; });
+    return o;
+  };
 
   // scoreByPositionHTML(it): the card's score at EVERY position it can play, best first, with the
   // strongest one accented. Answers "where is this player actually good?" at a glance - a card can
@@ -3190,6 +3282,10 @@
     if (spotHint) spotHint.style.display = it ? "none" : "block";   // show the placeholder only when nothing is picked
     if (!it) { preview.style.display = "none"; preview.innerHTML = ""; return; }
     preview.style.display = "block";
+
+    // The detailed stats arrive lazily (see ensurePlayerMeta) - kick that off for whoever
+    // is on screen. It's a no-op after the first time per card, and it redraws itself.
+    ensurePlayerMeta(it);
 
     // Split the player's current PlayStyles into PS+ (isIcon) and basic, keeping
     // each one's traitId (for its icon) and readable name. effectivePlayStyles adds
@@ -4821,6 +4917,10 @@
       "#fc26-panel.fc26-mobile .pv-sname{font-size:11.5px}" +
       "#fc26-panel.fc26-mobile .pv-sbar{width:52px}" +
       "#fc26-panel.fc26-mobile .pv-srow{padding:3px 0}" +
+      // Shown while the card's metadata is still loading, and when it couldn't be confirmed.
+      // The warning spans both columns so it can't be missed sitting in one of them.
+      "#fc26-panel .pv-sload{padding:10px 2px;font-size:11px;color:var(--muted);opacity:.85}" +
+      "#fc26-panel .pv-swarn{column-span:all;-webkit-column-span:all;margin-bottom:9px;padding:7px 9px;border-radius:8px;font-size:10.5px;line-height:1.4;color:#ffd7d7;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30)}" +
       // Grouped chips: current PlayStyles, split into a PS+ row and a Basic row.
       "#fc26-panel .pv-group{margin-top:12px}" +
       "#fc26-panel .pv-gl{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}" +
