@@ -1448,7 +1448,9 @@ a sensible label and no code change; add a `SUB_LABELS` line only if it needs pr
 has it, including you unless you paste the dev build in by hand. It may yet be dropped -
 see "Deleting it" at the end.
 
-Opens from the **🧩 SBC Reader** tile in the Lineup column, under Club Dashboard.
+Opens from the **🧩 SBC Reader** square in the Lineup column. It shares a compact
+two-across row (`mini-row`) with **🏟️ Club Dashboard** - both used to be full-width tiles
+and the column got too long. Justaino Score and Squad Builder keep their big tiles.
 
 ### What it does, in four stages
 
@@ -1473,8 +1475,13 @@ re-finds the challenge live rather than trusting a stale reference, refuses if t
 isn't the one the plan was built for, clears the squad first so filling twice can't
 half-replace, and blocks double-clicks.
 
-After you submit in the game, hit **↻ Reload club** so the tool stops listing players
-you've spent.
+After you submit in the game, press **↻ Reload club & re-read** on the SBC page. That button
+pulls your club again as well as re-reading the challenge, which matters because the players
+you just spent are gone from the game but still sitting in the tool's cached club - without
+it, the next plan would try to spend them again. It takes 10-20s (see §3s on the club load).
+
+You rarely need it for *switching* SBC: the page polls every 1.5s and redraws itself when
+you open a different challenge.
 
 ### Reading the requirement marks
 
@@ -1536,6 +1543,43 @@ The search budget (`NODE_CAP`) was set by measurement: a normal 11-slot solve ex
 **whole** space in 8-40ms, so the answer is provably the cheapest available and the panel
 says so. Only odd cases (23 slots, every rating stocked in bulk) run out at ~100ms, and
 then it says "cheapest found" rather than claiming optimality.
+
+### Locking cards you don't want to spend
+
+**Tap any card in the plan to keep it out of SBCs**, and the plan re-solves without it.
+Locked cards appear in a "Kept out of SBCs" card; tap one there to allow it again. The list
+is stored in the browser (`fc26_sbc_locked`) so it survives reloads, and locked cards show
+in the exclusion breakdown as "locked by you" so a shrunken pool is never a mystery.
+
+Locking is by **item id**, so it's that exact card. Lock your 91 Mbappe and a spare 84 of
+him is still usable as fodder.
+
+Why locking rather than a bench you swap from: re-solving is still **guaranteed** to make
+the rating, whereas swapping a card by hand can quietly break it. That's why there's no
+bench feature - SBC squads are 11 players with no bench anyway (`getNonBrickSlots()` returns
+11, and the game lists "Number of Players in the Squad: 11" as a requirement). The fill code
+doesn't hardcode 11 though: it fills whatever slots the game reports, so a bigger SBC would
+just work.
+
+From the Console: `window.FC26.sbcLocks.list()` and `window.FC26.sbcLocks.clear()`.
+
+### The same player can't appear twice ⚠️
+
+The game rejects a squad containing one player twice, exactly as it does for a normal squad
+(the Squad Builder hits the same rule as error 460). This is enforced in **three** places,
+and all three are needed:
+
+1. `sbcRatingStock()` keeps only one card **per player per rating**. Three spare 88 Rodris
+   count as one available 88. This one matters most: the solver counts how many cards it has
+   at each rating, and counting unusable duplicates would let it plan a squad that can't
+   legally be built.
+2. The reserved picks for counted requirements ("Min. 1 TOTW") count **distinct people**,
+   not cards.
+3. Assignment skips anyone already in the squad, because the same person can own cards at
+   **different** ratings (a base 84 and a TOTW 88).
+
+All of it uses the existing `playerKey()` helper - do not invent a second notion of "same
+player", `playerKey()` already handles the case where `assetId` comes back 0 on club items.
 
 ### The toggles
 

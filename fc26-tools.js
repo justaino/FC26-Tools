@@ -4972,6 +4972,13 @@
       "#fc26-panel .elig-cancel{flex:none;background:transparent;color:var(--muted);border:1px solid var(--field-border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:10px;font-weight:700}" +
       // ---- Feature 2: Meta rating section --------------------------------------
       "#fc26-panel .meta-section{margin-top:8px}" +
+      // Compact square launchers, two across (Club Dashboard + SBC Reader). Keeps the
+      // Lineup column short without hiding either page away in a menu.
+      "#fc26-panel .mini-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}" +
+      "#fc26-panel .mini-launch{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:14px 8px;border-radius:10px;background:var(--card);border:1px solid var(--card-border);cursor:pointer;color:var(--ink);font-family:inherit}" +
+      "#fc26-panel .mini-launch:hover{border-color:var(--accent)}" +
+      "#fc26-panel .mini-ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:16px;background:var(--sel);border:1px solid var(--accent)}" +
+      "#fc26-panel .mini-tx{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;text-align:center;line-height:1.3}" +
       "#fc26-panel .meta-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:600}" +
       "#fc26-panel .meta-box{margin-top:6px;padding:8px;border-radius:8px;background:var(--card);border:1px solid var(--card-border)}" +
       "#fc26-panel .meta-controls{display:flex;gap:6px}" +
@@ -5314,6 +5321,11 @@
       // was picked to satisfy a rule rather than for its rating.
       "#fc26-panel .sbc-pchip.req{background:var(--sel);border-color:var(--accent)}" +
       "#fc26-panel .sbc-pchip i{font-style:normal;opacity:.75;font-size:9px}" +
+      // Chips you can tap (lock / unlock). Same look, but clearly pressable.
+      "#fc26-panel .sbc-pchip.tap{cursor:pointer;font-family:inherit;color:var(--ink)}" +
+      "#fc26-panel .sbc-pchip.tap:hover{border-color:var(--accent)}" +
+      "#fc26-panel .sbc-pchip.locked{background:var(--btnx);border-color:rgba(255,120,120,.45)}" +
+      "#fc26-panel .sbc-pchip.locked b{color:var(--btnx-ink)}" +
       // "8x 84" - the shape of the solved squad.
       "#fc26-panel .sbc-shape{display:flex;align-items:center;gap:4px;font-size:13px;font-weight:700;padding:5px 10px;border-radius:8px;background:var(--tile);border:1px solid var(--tile-border);font-variant-numeric:tabular-nums}" +
       "#fc26-panel .sbc-shape b{color:var(--accent);font-weight:800}" +
@@ -6638,17 +6650,11 @@
   // PlayStyle insights. (This step ships the page shell + the hero strip.)
   // ============================================================================
 
-  // The launcher tile (sits in the lineup column, next to Justaino Score + Squad Builder).
-  var dashLaunch = document.createElement("div");
-  dashLaunch.className = "meta-section";
+  // The launcher button. Its look (and the row it sits in) is set where the layout is
+  // assembled - it shares a compact two-across row with the SBC Reader.
   var dashLaunchBtn = document.createElement("button");
   dashLaunchBtn.type = "button";
-  dashLaunchBtn.className = "gt-launch";
-  dashLaunchBtn.innerHTML = "<span class='gt-launch-ic'>🏟️</span>" +
-    "<span class='gt-launch-tx'><b>Club Dashboard</b><i>Player stats and fun facts about your whole club</i></span>" +
-    "<span class='gt-launch-go'>›</span>";
   dashLaunchBtn.addEventListener("click", openDashPage);
-  dashLaunch.appendChild(dashLaunchBtn);
 
   // The full-screen page host (hidden until opened; reuses the .gt-builder shell styling:
   // flex column, own scroll, fills the panel).
@@ -6947,12 +6953,13 @@
   }
 
   // ============================================================================
-  // FEATURE 7 - SBC READER  (step 1 of 4: READ-ONLY)
+  // FEATURE 7 - SBC BUILDER  (read the SBC, pool your club, solve the rating, fill it)
   // ============================================================================
   // ### SBC-READER BEGIN ### (everything down to "### SBC-READER END ###" is this
-  // feature and nothing else. To remove the feature entirely: delete that block,
-  // delete the `sbcLaunch` entry from the squadMod.appendChild(...) line, and delete
-  // the `.sbc-*` rules in the stylesheet. Nothing else in the tool touches it.)
+  // feature and nothing else. To remove the feature entirely: delete that block; in the
+  // layout assembly, drop `sbcLaunchBtn` from the `miniRow` (and give Club Dashboard back
+  // its full-width `.gt-launch` look if you want); and delete the `.sbc-*` rules in the
+  // stylesheet. Nothing else in the tool touches it.)
   //
   // WHAT THIS DOES: shows the SBC you currently have OPEN in the game - its name,
   // how many slots it has, and what it requires in plain English. That's all.
@@ -7287,9 +7294,10 @@
       return false;
     }
 
-    var out = [], drop = { loan: 0, evolved: 0, inSquad: 0, special: 0, tradable: 0, rules: 0 }, keptSpecial = 0;
+    var out = [], drop = { locked: 0, loan: 0, evolved: 0, inSquad: 0, special: 0, tradable: 0, rules: 0 }, keptSpecial = 0;
     for (var i = 0; i < all.length; i++) {
       var it = all[i];
+      if (isSbcLocked(it)) { drop.locked++; continue; }     // you've said hands off this one
       if (isLoanPlayer(it)) { drop.loan++; continue; }
       // Evolved cards can't be submitted to an SBC.
       var evolved = false; try { evolved = !!it.upgrades; } catch (e) {}
@@ -7356,6 +7364,38 @@
     return Math.floor(Math.round(total + excess) / (size || n));
   }
 
+  // --------------------------------------------------------------------------
+  // LOCKED CARDS - "never feed this one to an SBC"
+  // --------------------------------------------------------------------------
+  // Cards you've said are off limits. Kept by ITEM id, so it's this exact card that's
+  // protected, not every version of that player - lock your 91 Mbappe and a spare 84
+  // one is still usable as fodder.
+  //
+  // Stored in the browser (same idea as the evo-eligible rarity list) so it survives
+  // reloads. A locked card is simply dropped from the candidate pool, which means the
+  // plan re-solves around it and the answer is still guaranteed to make the rating.
+  // That's the reason locking beats swapping a card by hand: a manual swap can quietly
+  // break the target, re-solving can't.
+  var SBC_LOCK_KEY = "fc26_sbc_locked";
+  function loadSbcLocked() {
+    try {
+      var raw = window.localStorage.getItem(SBC_LOCK_KEY);
+      if (!raw) return {};
+      var arr = JSON.parse(raw), out = {};
+      if (arr && arr.length) arr.forEach(function (id) { out[id] = 1; });
+      return out;
+    } catch (e) { return {}; }
+  }
+  function saveSbcLocked() {
+    try { window.localStorage.setItem(SBC_LOCK_KEY, JSON.stringify(Object.keys(state.sbcLocked))); } catch (e) {}
+  }
+  state.sbcLocked = loadSbcLocked();
+  function isSbcLocked(it) { try { return !!state.sbcLocked[it.id]; } catch (e) { return false; } }
+  function setSbcLocked(id, on) {
+    if (on) state.sbcLocked[id] = 1; else delete state.sbcLocked[id];
+    saveSbcLocked();
+  }
+
   // sbcCardCost(rating, floor): what a card at this rating really costs you.
   //
   // The obvious objective - "use the lowest total of ratings" - is WRONG, and it
@@ -7390,6 +7430,13 @@
 
   // sbcRatingStock(pool): group the candidates by rating, each group ordered so the
   // card you'd least mind spending comes first. -> { 88: [card, card, ...], 87: [...] }
+  //
+  // THE SAME PLAYER CAN'T APPEAR TWICE IN A SQUAD - the game rejects it, exactly as it
+  // does for a normal squad. So each rating keeps only ONE card per player (playerKey
+  // identifies the person, not the card). Two spare 88 Rodris count as one 88 available,
+  // because one is all you could ever put in. Doing this here rather than at the end
+  // matters: the solver counts how many cards it has at each rating, and counting
+  // unusable duplicates would let it plan a squad that can't legally be built.
   function sbcRatingStock(pool) {
     var byRating = {};
     pool.forEach(function (it) {
@@ -7397,7 +7444,16 @@
       if (!r) return;
       (byRating[r] = byRating[r] || []).push(it);
     });
-    Object.keys(byRating).forEach(function (k) { byRating[k].sort(sbcFodderRank); });
+    Object.keys(byRating).forEach(function (k) {
+      byRating[k].sort(sbcFodderRank);
+      var seenPlayer = {}, kept = [];
+      byRating[k].forEach(function (it) {
+        var key = playerKey(it);
+        if (seenPlayer[key]) return;      // already have this person at this rating
+        seenPlayer[key] = 1; kept.push(it);
+      });
+      byRating[k] = kept;
+    });
     return byRating;
   }
 
@@ -7527,8 +7583,11 @@
     if (!target || !slots) return { ok: false, reason: "Couldn't read the target rating or the squad size." };
 
     var pool = res.pool.slice();
-    var used = {};   // item ids already spoken for
+    var used = {};        // item ids already spoken for
+    var usedPlayer = {};  // PEOPLE already in the squad - nobody can appear twice
     var reserved = [];
+    function claim(it) { used[it.id] = 1; usedPlayer[playerKey(it)] = 1; }
+    function freeAgent(it) { return !used[it.id] && !usedPlayer[playerKey(it)]; }
 
     // 1. Lock in the cards that specific requirements demand.
     var counted = (info.reqs || []).filter(function (r) {
@@ -7536,17 +7595,24 @@
     });
     for (var c = 0; c < counted.length; c++) {
       var req = counted[c];
-      var matches = pool.filter(function (it) { return !used[it.id] && sbcMatchReq(it, req); });
-      if (matches.length < req.count) {
-        return { ok: false, reason: "Not enough players for “" + req.text + "” - you have " + matches.length + " and it needs " + req.count + "." };
-      }
+      // Only players not already committed, and never a second copy of someone already in.
+      var matches = pool.filter(function (it) { return freeAgent(it) && sbcMatchReq(it, req); });
+      // Two cards of the same player both qualifying would look like two options but can
+      // only ever fill one slot, so count distinct people, not cards.
+      var seenP = {}, distinct = [];
       matches.sort(sbcFodderRank);
-      for (var m = 0; m < req.count; m++) { used[matches[m].id] = 1; reserved.push({ card: matches[m], req: req }); }
+      matches.forEach(function (it) { var k = playerKey(it); if (!seenP[k]) { seenP[k] = 1; distinct.push(it); } });
+      if (distinct.length < req.count) {
+        return { ok: false, reason: "Not enough different players for “" + req.text + "” - you have " + distinct.length + " and it needs " + req.count + "." };
+      }
+      for (var m = 0; m < req.count; m++) { claim(distinct[m]); reserved.push({ card: distinct[m], req: req }); }
     }
     if (reserved.length > slots) return { ok: false, reason: "This SBC's requirements need more players than it has slots." };
 
     // 2. Solve the remaining slots for the target rating.
-    var rest = pool.filter(function (it) { return !used[it.id]; });
+    // Everyone still available - excluding anyone already locked into a reserved slot,
+    // so the solver can't plan around a player who's already in the squad.
+    var rest = pool.filter(freeAgent);
     var stock = sbcRatingStock(rest);
     var fixedRatings = reserved.map(function (x) { return x.card.rating || 0; });
     var solved = sbcSolveRating(stock, target, slots - reserved.length, fixedRatings);
@@ -7555,14 +7621,20 @@
     }
 
     // 3. Turn the winning ratings into actual named cards (cheapest-to-lose first).
+    // Each rating's list is already one-card-per-player, but the SAME person can own
+    // cards at DIFFERENT ratings (a base 84 and a TOTW 88, say). So skip anyone already
+    // in the squad and take the next distinct player at that rating instead.
     var take = {}, chosen = [];
     for (var p = 0; p < solved.picks.length; p++) {
       var r = solved.picks[p];
       var list = stock[r] || [];
       var idx = take[r] || 0;
-      while (idx < list.length && used[list[idx].id]) idx++;
-      if (idx >= list.length) return { ok: false, reason: "Ran out of cards at rating " + r + " while building the plan." };
-      used[list[idx].id] = 1;
+      while (idx < list.length && !freeAgent(list[idx])) idx++;
+      if (idx >= list.length) {
+        return { ok: false, reason: "Couldn't fill a " + r + "-rated slot without using a player who's already in the squad. " +
+          "Lock one of the picks below and it'll plan around them." };
+      }
+      claim(list[idx]);
       chosen.push(list[idx]);
       take[r] = idx + 1;
     }
@@ -7691,17 +7763,11 @@
     };
   };
 
-  // The launcher tile (sits in the lineup column with the other page launchers).
-  var sbcLaunch = document.createElement("div");
-  sbcLaunch.className = "meta-section";
+  // The launcher button. Its look (and the row it shares with Club Dashboard) is set
+  // where the layout is assembled - see "mini-row" there.
   var sbcLaunchBtn = document.createElement("button");
   sbcLaunchBtn.type = "button";
-  sbcLaunchBtn.className = "gt-launch";
-  sbcLaunchBtn.innerHTML = "<span class='gt-launch-ic'>🧩</span>" +
-    "<span class='gt-launch-tx'><b>SBC Reader</b><i>Reads the SBC you have open and lists what it needs</i></span>" +
-    "<span class='gt-launch-go'>›</span>";
   sbcLaunchBtn.addEventListener("click", openSbcPage);
-  sbcLaunch.appendChild(sbcLaunchBtn);
 
   // The full-screen page host (same shell as the Dashboard / Squad Builder pages).
   var sbcHost = document.createElement("div");
@@ -7765,6 +7831,12 @@
   // the Re-read button is just "call me again".
   function renderSbcPage() {
     if (!state.sbcOpen) return;
+    // Where were you scrolled to? This page rebuilds itself completely on every redraw
+    // (locking a card, the watcher spotting a new SBC), and without this you get thrown
+    // back to the top every time - which made locking a card from the plan unusable,
+    // since the plan is near the bottom.
+    var keepScroll = 0;
+    try { var oldBody = sbcHost.querySelector(".db-body"); if (oldBody) keepScroll = oldBody.scrollTop; } catch (e0) {}
     sbcHost.innerHTML = "";
 
     // Header (back + eyebrow + title) - same chrome as the other full-panel pages.
@@ -7777,10 +7849,26 @@
     var bodyEl = document.createElement("div"); bodyEl.className = "db-body";
 
     // "Re-read" - you'll switch to the game, open a different SBC, come back and tap it.
+    // This button reloads YOUR CLUB as well as re-reading the SBC. That matters after you
+    // submit one: the players you just spent are gone from the game but still sitting in
+    // the tool's cached club, so without a reload the next plan would happily try to spend
+    // them again. Switching between SBCs doesn't need this - the watcher handles that on
+    // its own - so the club reload is the real reason to press it.
     var tools = document.createElement("div"); tools.className = "sbc-tools";
     var again = document.createElement("button"); again.type = "button"; again.className = "sbc-again";
-    again.textContent = "↻ Re-read the open SBC";
-    again.addEventListener("click", renderSbcPage);
+    again.textContent = "↻ Reload club & re-read";
+    again.title = "Pull your club again (after submitting an SBC) and re-read the open challenge";
+    again.addEventListener("click", function () {
+      if (state.sbcReloading) return;
+      state.sbcReloading = true;
+      again.disabled = true; again.textContent = "Reloading club…";
+      // loadFullClub() takes 10-20s and shares one sweep between callers, so this is safe
+      // to press alongside the Lineup's own Reload. Redraw either way, success or not.
+      Promise.resolve(loadFullClub())["catch"](function () {})["then"](function () {
+        state.sbcReloading = false;
+        renderSbcPage();
+      });
+    });
     tools.appendChild(again);
     bodyEl.appendChild(tools);
 
@@ -7793,6 +7881,7 @@
       empty.innerHTML = esc(info.reason) + (info.screen ? ("<br><span style='opacity:.6;font-size:10px'>on screen: " + esc(info.screen) + "</span>") : "");
       bodyEl.appendChild(empty);
       sbcHost.appendChild(bodyEl);
+    try { bodyEl.scrollTop = keepScroll; } catch (eS) {}   // put you back where you were
       return;
     }
 
@@ -7864,6 +7953,7 @@
       pcard.appendChild(noClub);
       bodyEl.appendChild(pcard);
       sbcHost.appendChild(bodyEl);
+    try { bodyEl.scrollTop = keepScroll; } catch (eS) {}   // put you back where you were
       return;
     }
 
@@ -7914,6 +8004,7 @@
 
     // Who got dropped and why. Only reasons that actually removed somebody are shown.
     var reasons = [
+      ["locked", "locked by you"],
       ["inSquad", "in your active squad"], ["evolved", "evolved (SBCs won't take them)"],
       ["loan", "loan or expiring"], ["special", "special cards (toggle above)"],
       ["tradable", "tradeable (toggle above)"], ["rules", "don't meet this SBC's rules"]
@@ -8007,13 +8098,21 @@
 
         // Everyone else, cheapest-to-lose first.
         var flab = document.createElement("div"); flab.className = "sbc-note";
-        flab.textContent = "Plus these " + plan.chosen.length + " to make up the rating:";
+        flab.textContent = "Plus these " + plan.chosen.length + " to make up the rating (tap one to keep it out):";
         scard.appendChild(flab);
+        // Each pick is tappable: tap = "don't spend this one", and the plan immediately
+        // re-solves without it. Better than swapping a card by hand, because re-solving
+        // is still guaranteed to make the rating whereas a manual swap can quietly break it.
         var frow = document.createElement("div"); frow.className = "sbc-prev";
-        frow.innerHTML = plan.chosen.map(function (it) {
-          return "<span class='sbc-pchip'><b>" + (it.rating || "?") + "</b>" + esc(playerName(it)) +
-            (it.tradable === true ? "" : "<i title='untradeable'>&#128274;</i>") + "</span>";
-        }).join("");
+        plan.chosen.forEach(function (it) {
+          var chip = document.createElement("button");
+          chip.type = "button"; chip.className = "sbc-pchip tap";
+          chip.title = "Keep " + playerName(it) + " out of SBCs";
+          chip.innerHTML = "<b>" + (it.rating || "?") + "</b>" + esc(playerName(it)) +
+            (it.tradable === true ? "" : "<i title='untradeable'>&#128274;</i>");
+          chip.addEventListener("click", function () { setSbcLocked(it.id, true); renderSbcPage(); });
+          frow.appendChild(chip);
+        });
         scard.appendChild(frow);
 
         var topCard = Math.max.apply(null, plan.cards.map(function (it) { return it.rating || 0; }));
@@ -8066,7 +8165,38 @@
       bodyEl.appendChild(scard);
     }
 
+    // ---- Locked cards: always visible, always reversible ----
+    // A lock that you can't see is a lock you'll forget about and then wonder why a plan
+    // looks odd, so this card shows even when the list is empty.
+    var lockedIds = Object.keys(state.sbcLocked);
+    if (lockedIds.length) {
+      var lcard = document.createElement("div"); lcard.className = "db-card";
+      var lh = document.createElement("div"); lh.className = "db-h3";
+      lh.textContent = "Kept out of SBCs (" + lockedIds.length + ")";
+      lcard.appendChild(lh);
+      var lrow = document.createElement("div"); lrow.className = "sbc-prev";
+      var known = {};
+      getClubPlayers().forEach(function (it) { if (state.sbcLocked[it.id]) known[it.id] = it; });
+      lockedIds.forEach(function (id) {
+        var it = known[id];
+        var chip = document.createElement("button");
+        chip.type = "button"; chip.className = "sbc-pchip tap locked";
+        chip.title = "Allow this card in SBCs again";
+        chip.innerHTML = it
+          ? ("<b>" + (it.rating || "?") + "</b>" + esc(playerName(it)) + "<i>&times;</i>")
+          : ("<b>?</b>card " + esc(id) + "<i>&times;</i>");   // not in the loaded club (sold, or club not loaded)
+        chip.addEventListener("click", function () { setSbcLocked(id, false); renderSbcPage(); });
+        lrow.appendChild(chip);
+      });
+      lcard.appendChild(lrow);
+      var lnote = document.createElement("div"); lnote.className = "sbc-note";
+      lnote.textContent = "Tap one to allow it again. These are never used in any SBC plan, and the list is remembered between sessions.";
+      lcard.appendChild(lnote);
+      bodyEl.appendChild(lcard);
+    }
+
     sbcHost.appendChild(bodyEl);
+    try { bodyEl.scrollTop = keepScroll; } catch (eS) {}   // put you back where you were
   }
 
   // Console helpers: read the open SBC without opening the panel page.
@@ -8074,6 +8204,18 @@
   //   window.FC26.openSbcPage() -> open the page
   window.FC26.readSbc = readOpenSbc;
   window.FC26.openSbcPage = openSbcPage;
+  // Locked cards, from the Console:
+  //   window.FC26.sbcLocks.list()      -> the locked card ids (with names where known)
+  //   window.FC26.sbcLocks.clear()     -> unlock everything
+  window.FC26.sbcLocks = {
+    list: function () {
+      var known = {}; getClubPlayers().forEach(function (it) { known[it.id] = it; });
+      return Object.keys(state.sbcLocked).map(function (id) {
+        return known[id] ? ((known[id].rating || "?") + " " + playerName(known[id]) + " (" + id + ")") : ("card " + id);
+      });
+    },
+    clear: function () { state.sbcLocked = {}; saveSbcLocked(); try { renderSbcPage(); } catch (e) {} return "All locks cleared."; }
+  };
   // ### SBC-READER END ###
 
   // Console helper: open the dashboard without clicking (and a summary read-out).
@@ -8655,7 +8797,20 @@
 
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(clubStat); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(dashLaunch); squadMod.appendChild(sbcLaunch);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(clubStat); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub);   // The Lineup column was getting long: four full-width launcher tiles stacked up meant a
+  // lot of scrolling before you reached anything. Justaino Score and Squad Builder keep
+  // their big tiles (they're the main events); Club Dashboard and SBC Reader are demoted to
+  // a pair of compact squares side by side. Same buttons and same click handlers - only
+  // their look changes, which is why this re-skins them here rather than rebuilding them.
+  var miniRow = document.createElement("div");
+  miniRow.className = "meta-section mini-row";
+  dashLaunchBtn.className = "mini-launch";
+  dashLaunchBtn.innerHTML = "<span class='mini-ic'>🏟️</span><span class='mini-tx'>Club<br>Dashboard</span>";
+  sbcLaunchBtn.className = "mini-launch";
+  sbcLaunchBtn.innerHTML = "<span class='mini-ic'>🧩</span><span class='mini-tx'>SBC<br>Reader</span>";
+  miniRow.appendChild(dashLaunchBtn); miniRow.appendChild(sbcLaunchBtn);
+
+  squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(miniRow);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); oneOffs.forEach(function (s) { buildMod.appendChild(s.section); });

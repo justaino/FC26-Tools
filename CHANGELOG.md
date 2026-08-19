@@ -65,6 +65,24 @@ individual requirement has. Still read-only.
   built for - comparing slot counts wasn't enough, since nearly every SBC has eleven. The
   page also spots you switching SBC on its own and redraws within a second or two.
 
+**Also on dev: locking, a duplicate-player fix, and a tidier Lineup column.**
+
+- **Fixed: the plan could use the same player twice**, which the game rejects outright, the
+  same way it does for a normal squad. Spare copies of a card now count as one, and a player
+  who owns cards at two different ratings can only take one slot.
+- **Tap any card in the plan to keep it out of SBCs**, and it re-plans without them. Locked
+  cards are listed so you can allow them again, and the list is remembered between sessions.
+  This is better than swapping a card by hand, because re-planning still guarantees the
+  rating whereas a manual swap can quietly break it.
+- **The reload button now reloads your club too**, not just the SBC. After you submit one,
+  the players you spent are gone from the game but the tool was still holding them, so the
+  next plan could try to spend them again.
+- **It no longer throws you back to the top** of the page every time it redraws, which made
+  locking a card from the plan almost unusable.
+- **Club Dashboard and SBC Reader are now two small squares side by side** instead of two
+  full-width tiles. The Lineup column had got long enough that you were scrolling past
+  everything to reach anything.
+
 ---
 
 ## v44 - 2026-08-19
