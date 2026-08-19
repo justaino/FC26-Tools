@@ -920,6 +920,36 @@ data** - the list is already updated underneath.
 > always beats a stylesheet rule, so while the colours were inline the `.busy` / `.done` classes
 > went on but nothing changed on screen.
 
+### How the club load actually works (corrected in v44) ⚠️ READ BEFORE TOUCHING `sweepFullClub`
+
+The loader used to stop at **915 of 1785** players and think it was finished. Everything that
+reads the club - the picker, the Justaino Score rankings, Best XI, Squad Builder - was working
+off half a club. The comment in the source described the behaviour confidently and was wrong,
+so if you change this function, trust the measurements below rather than any intuition about
+how a paging API "should" work.
+
+Measured live in FC26, August 2026:
+
+| What you'd expect | What actually happens |
+|---|---|
+| `count` sets the page size | **Ignored.** Asking for 50 and for 150 both returned the same 982 items. |
+| Each reply is one page | **No.** Every reply is the *entire* client-side store. |
+| `offset` picks which page | **Not for the reply** - offsets 0, 50 and 500 all came back starting with the same player. But it *does* tell the app how far ahead to fetch from the server. |
+| `retrievedAll: true` means "done" | It means "that's all I have **right now**". It goes true almost immediately. |
+
+So the store fills up *as you ask for more* (982 → 996 → 1046 → 1092 over one test run).
+
+**The bug was one line:** `offset += items.length`. Since `items.length` is the whole store
+(915), the offset jumped past the end of the club after a single request, the app had no
+reason to fetch anything else, and `retrievedAll` said stop.
+
+**Now:** advance `offset` by a fixed `PAGE_STEP` (100), ignore `retrievedAll` completely, and
+stop only when `STABLE_NEEDED` (5) consecutive replies bring nobody new **and** the offset has
+been pushed past everyone collected so far. That second condition is what stops it quitting
+while the app still has more to send.
+
+Expect a full load to take **10-20 seconds** now. That's real fetching, not a regression.
+
 ### The BUILD ID (stop testing stale code)
 
 `node minify.js` stamps `FC26_VERSION` with `dev-<6 hex>`, a fingerprint of the code, and prints it.

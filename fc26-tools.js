@@ -4265,22 +4265,19 @@
   // state.clubItems, then redraw the picker. Read-only - it's the same search the
   // app's Club screen uses.
   //
-  // How services.Club.search really behaves (discovered live):
-  //  - FRESH load (club store still empty): it FETCHES from the server one page at a
-  //    time and DOES respect offset/count - a single offset-0 call only returns the
-  //    first ~90, so we MUST page with a rising offset to collect everyone.
-  //  - Once the whole club is in the client store: it returns the ENTIRE club from
-  //    memory and IGNORES offset, so the next page just repeats (no NEW players) and
-  //    reports `retrievedAll: true`-ish - that's our natural stop.
-  //  - The store also fills in over a few seconds after load (slower on mobile), so the
-  //    server may not have every page ready on the first pass.
-  // The old bug was ending the sweep on the FIRST empty/duplicate page; on mobile a
-  // transient blank page mid-fetch froze a partial club. So now we: (a) page by offset
-  // accumulating UNIQUE players, (b) RETRY a blank/errored page a few times before
-  // trusting it, (c) stop a pass only after TWO pages bring no new players (guards a
-  // one-off duplicate), and (d) RE-SWEEP a few times until the club stops growing or the
-  // app reports retrievedAll - so a still-filling club keeps getting picked up without a
-  // manual reload.
+  // How services.Club.search really behaves. The detail (and the measurements behind
+  // it) is in sweepFullClub below - read that before changing anything here. The short
+  // version, corrected Aug 2026 after this loader was found to be stopping at ~915 of a
+  // 1785-player club:
+  //  - It is NOT a paging API. `count` is ignored and every reply contains the whole
+  //    client-side store, not a page.
+  //  - `offset` doesn't change what comes back, but it DOES tell the app how far ahead
+  //    to fetch from the server. Pushing it out is what makes the store grow.
+  //  - `retrievedAll` means "that's all I have loaded right now", NOT "that's your whole
+  //    club". It goes true almost immediately, so we ignore it entirely.
+  // We therefore keep asking with a steadily rising offset, union the replies, and stop
+  // only once several requests in a row bring nobody new AND the offset has been pushed
+  // past everyone we've collected.
   //
   // RE-ENTRANCY: a sweep can run for many seconds, so it's easy to start a second one on top
   // of the first (tapping "Reload club" twice, or a retry-poll firing while the panel's own
@@ -4323,49 +4320,63 @@
     var svc = getServices();
     var S = svc && svc.Club;
     if (!S || !S.search || !window.UTSearchCriteriaDTO) { setClubStatus("Club search unavailable on this page.", "err"); return; }
-    var all = [], seen = {};                 // UNIQUE players kept across every pass (by item id)
-    var SWEEP_CAP = 8, PAGE_CAP = 200, BLANK_RETRY_MAX = 4;
-    var sweep = 0, lastTotal = -1, stableSweeps = 0, retrievedAll = false, hardFail = null;
+    var all = [], seen = {};                 // UNIQUE players kept, by item id
+    // HOW services.Club.search REALLY BEHAVES - measured live in FC26 on a 1785-player
+    // club (Aug 2026). The old code here assumed normal paging and was wrong, which is
+    // why the club stalled at ~915:
+    //   - `count` is IGNORED. Asking for 50 or for 150 both returned the same 982 items.
+    //     Every reply is "the whole client store", never a page of it.
+    //   - `offset` is IGNORED FOR THE REPLY - offsets 0, 50 and 500 all came back with
+    //     the same first player - but it DOES drive how far ahead the app fetches from
+    //     the server. Pushing the offset out is what makes the store grow.
+    //   - The store therefore FILLS UP AS YOU ASK (982 -> 996 -> 1046 -> 1092 during one test).
+    //   - `retrievedAll` goes true LONG before the club is actually all there. It means
+    //     "that's everything I have right now", not "that's your whole club". Trusting it
+    //     was what ended the load early, so we no longer stop on it at all.
+    // THE OLD BUG: `offset += items.length` added the size of the WHOLE STORE (915), so
+    // after one request the offset was already past the end of the club and nothing more
+    // was ever fetched. We now advance by a fixed step instead.
+    var PAGE_STEP = 100;        // how far we push the fetch window each request
+    var REQ_CAP = 80;           // hard ceiling (80 x 100 = room for 8000 players)
+    var STABLE_NEEDED = 5;      // consecutive replies with nobody new before we call it done
+    var BLANK_RETRY_MAX = 4;
+    var offset = 0, req = 0, noNew = 0, blankRetries = 0, hardFail = null, cleanFinish = false;
     setClubStatus("Loading full club…", "busy");
-    while (sweep++ < SWEEP_CAP) {
-      var offset = 0, pageGuard = 0, blankRetries = 0, noNewStreak = 0, passDone = false;
-      while (pageGuard++ < PAGE_CAP) {
-        var crit = makeClubCriteria(offset, 91);
-        if (!crit) { passDone = true; break; }
-        var res;
-        try { res = await awaitService(S.search(crit)); }
-        catch (e) {
-          if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(500); continue; }   // transient error - retry same offset
-          if (!all.length) hardFail = errMsg(e);
-          passDone = true; break;
-        }
-        var inner = (res && res.response) || (res && res.data) || {};
-        var items = inner.items || [];
-        if (inner.retrievedAll === true) retrievedAll = true;
-        if (!items.length) {
-          if (retrievedAll) { passDone = true; break; }
-          if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(400); continue; }    // transient blank page - retry
-          passDone = true; break;                                                  // genuinely empty -> end of this pass
-        }
-        blankRetries = 0;
-        var added = 0;
-        for (var i = 0; i < items.length; i++) { var it = items[i], id = it && it.id; if (id != null && !seen[id]) { seen[id] = 1; all.push(it); added++; } }
-        offset += items.length;
-        // Live count, both on the button and in the Lineup's status line, so you can SEE it working.
-        setClubStatus("Loading full club… " + all.length + " players", "busy");
-        setReloadBtn("busy", "Loading… " + all.length);
-        if (retrievedAll) { passDone = true; break; }
-        noNewStreak = (added === 0) ? (noNewStreak + 1) : 0;
-        if (noNewStreak >= 2) { passDone = true; break; }   // two pages, no new players -> seen them all this pass
-        await sleep(120);
+    while (req++ < REQ_CAP) {
+      var crit = makeClubCriteria(offset, PAGE_STEP);
+      if (!crit) break;
+      var res;
+      try { res = await awaitService(S.search(crit)); }
+      catch (e) {
+        if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(500); continue; }   // transient error - retry
+        if (!all.length) hardFail = errMsg(e);
+        break;
       }
-      if (hardFail && !all.length) { setClubStatus("Club load failed: " + hardFail, "err"); return; }
-      if (retrievedAll) break;                              // app confirms the whole club is loaded
-      if (all.length === lastTotal) { if (++stableSweeps >= 2) break; }   // total not growing across passes -> done
-      else stableSweeps = 0;
-      lastTotal = all.length;
-      await sleep(500);                                     // give the still-filling club a moment, then sweep again
+      var inner = (res && res.response) || (res && res.data) || {};
+      var items = inner.items || [];
+      if (!items.length) {
+        if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(400); continue; }   // transient blank - retry
+        cleanFinish = true; break;                                             // genuinely nothing there
+      }
+      blankRetries = 0;
+      var added = 0;
+      for (var i = 0; i < items.length; i++) { var it = items[i], id = it && it.id; if (id != null && !seen[id]) { seen[id] = 1; all.push(it); added++; } }
+      offset += PAGE_STEP;      // THE FIX: a fixed step, not items.length
+      // Live count, both on the button and in the Lineup's status line, so you can SEE it working.
+      setClubStatus("Loading full club… " + all.length + " players", "busy");
+      setReloadBtn("busy", "Loading… " + all.length);
+      noNew = (added === 0) ? (noNew + 1) : 0;
+      // Only give up once nobody new has turned up for several requests IN A ROW *and*
+      // we've pushed the fetch window past everyone we already have. Without that second
+      // half we'd stop while the app still had more to send us - the original bug.
+      if (noNew >= STABLE_NEEDED && offset > all.length + PAGE_STEP) { cleanFinish = true; break; }
+      await sleep(150);
     }
+    if (hardFail && !all.length) { setClubStatus("Club load failed: " + hardFail, "err"); return; }
+    // "complete" for mergeFresh means we finished because the club stopped growing - NOT
+    // because we hit the request cap or bailed on an error. It controls whether stale
+    // fresh-card overrides get pruned, and pruning on a partial load would lose them.
+    var retrievedAll = cleanFinish;
     // Overlay any card we KNOW is fresher than what the search returned, so a stale copy from
     // the app's in-memory store can't wipe out an evo we just applied (see FRESH-CARD OVERRIDES).
     state.clubItems = mergeFresh(all, retrievedAll);
