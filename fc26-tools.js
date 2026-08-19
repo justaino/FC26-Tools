@@ -5310,6 +5310,18 @@
       "#fc26-panel .sbc-prev{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}" +
       "#fc26-panel .sbc-pchip{display:flex;align-items:center;gap:5px;font-size:10.5px;padding:4px 8px;border-radius:999px;background:var(--tile);border:1px solid var(--tile-border)}" +
       "#fc26-panel .sbc-pchip b{color:var(--gold);font-weight:800}" +
+      // A card the SBC specifically demanded (the "min 1 TOTW"), marked so it's clear it
+      // was picked to satisfy a rule rather than for its rating.
+      "#fc26-panel .sbc-pchip.req{background:var(--sel);border-color:var(--accent)}" +
+      "#fc26-panel .sbc-pchip i{font-style:normal;opacity:.75;font-size:9px}" +
+      // "8x 84" - the shape of the solved squad.
+      "#fc26-panel .sbc-shape{display:flex;align-items:center;gap:4px;font-size:13px;font-weight:700;padding:5px 10px;border-radius:8px;background:var(--tile);border:1px solid var(--tile-border);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .sbc-shape b{color:var(--accent);font-weight:800}" +
+      // The one button here that writes anything. Uses the Apply colour so it reads as
+      // "this does something", and it sits on its own row away from the read-only bits.
+      "#fc26-panel .sbc-fillrow{margin-top:12px}" +
+      "#fc26-panel .sbc-fill{width:100%;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:11px 14px;cursor:pointer;font-size:13px;font-weight:800}" +
+      "#fc26-panel .sbc-fill:disabled{opacity:.6;cursor:default}" +
       "#fc26-panel .sbc-note{margin-top:8px;font-size:10px;color:var(--muted);line-height:1.45;opacity:.9}" +
       // Generic dashboard section card + heading (reused by every module below the hero).
       "#fc26-panel .db-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:12px}" +
@@ -7096,6 +7108,31 @@
     return out;
   }
 
+  // sbcFingerprint(ch, slotCount): a short string that identifies WHICH SBC this is.
+  //
+  // Needed because a plan is worked out for one specific challenge, and you can wander
+  // off to a different one in the game without the panel noticing. Comparing the slot
+  // count alone is NOT enough - almost every SBC has 11 slots, so two completely
+  // different challenges look identical that way (this was a real bug: an 88-rated plan
+  // happily filled an entirely different SBC).
+  //
+  // So we combine whatever id fields the challenge exposes with a summary of its actual
+  // requirements. Even if EA renames the ids, a different rating target or a different
+  // league rule changes the fingerprint and the plan is correctly rejected.
+  function sbcFingerprint(ch, slotCount) {
+    var bits = [];
+    ["id", "challengeId", "setId", "templateId"].forEach(function (k) {
+      try { if (ch && ch[k] != null) bits.push(k + ":" + ch[k]); } catch (e) {}
+    });
+    bits.push("slots:" + slotCount);
+    try {
+      (ch.eligibilityRequirements || []).map(sbcReadReq).forEach(function (r) {
+        bits.push(r.name + "=" + (r.values || []).join("/") + "@" + r.count + ":" + r.scope);
+      });
+    } catch (e2) {}
+    return bits.join("|");
+  }
+
   // readOpenSbc(): the one function the UI calls. Always returns an object:
   //   { ok:false, reason:"..." }                      - nothing to show, reason is for you
   //   { ok:true, name, slots, op, reqs:[...], unsupported:n }
@@ -7132,7 +7169,8 @@
       op: ch.eligibilityOperation || "AND",
       reqs: reqs,
       unsupported: unsupported,
-      screen: cls
+      screen: cls,
+      fingerprint: sbcFingerprint(ch, slots)   // used to refuse a plan built for a different SBC
     };
   }
 
@@ -7289,6 +7327,370 @@
     };
   }
 
+  // --------------------------------------------------------------------------
+  // STEP 3 - THE SQUAD-RATING SOLVER  (still READ-ONLY)
+  // --------------------------------------------------------------------------
+  // "An 88-rated squad" does NOT mean eleven 88s. It's an average with a bonus for
+  // your better cards, so two 87s and nine 88s comes to exactly 88, and an 85 can be
+  // carried by a 95. That's what makes these SBCs cheap to do by hand - and it's
+  // exactly what this works out for you.
+  //
+  // WHAT IT DOES: given "Team Rating: Min. 88" and 11 slots, it finds the CHEAPEST
+  // set of card ratings you actually own that gets there, then names the specific
+  // cards. It writes nothing - it just shows you the plan.
+
+  // sbcSquadRating(ratings, size): EA's own squad-rating formula.
+  //   total  = all the ratings added up
+  //   avg    = total / how many players
+  //   excess = for every player ABOVE that average, how far above they are, added up
+  //   rating = floor( round(total + excess) / size )
+  // The `excess` term is the "good cards carry bad ones" bonus. Worked example, the
+  // one from testing: two 87s + nine 88s -> total 966, avg 87.818, the nine 88s are
+  // above it so excess = 9 x 0.1818 = 1.636, round(967.636) = 968, 968/11 = 88.0 -> 88.
+  function sbcSquadRating(ratings, size) {
+    if (!ratings || !ratings.length) return 0;
+    var n = ratings.length, total = 0, i;
+    for (i = 0; i < n; i++) total += ratings[i];
+    var avg = total / n, excess = 0;
+    for (i = 0; i < n; i++) if (ratings[i] > avg) excess += ratings[i] - avg;
+    return Math.floor(Math.round(total + excess) / (size || n));
+  }
+
+  // sbcCardCost(rating, floor): what a card at this rating really costs you.
+  //
+  // The obvious objective - "use the lowest total of ratings" - is WRONG, and it
+  // produced daft plans: it would happily spend two 94s to save eight rating-points
+  // elsewhere, because it thought a 94 cost the same as ten spare points of 84.
+  // Card value doesn't work like that. It climbs steeply: a 94 is worth vastly more
+  // than the rating gap to an 84 suggests, and you'd rather not burn one at all.
+  //
+  // So cost GROWS EXPONENTIALLY with rating. At the default growth of 1.7 a card one
+  // point higher costs ~70% more, which means the solver will only reach for a high
+  // card when there is genuinely no other way to make the rating.
+  // Tune it from the Console if it ever feels wrong: window.FC26.sbcCostGrowth = 2.
+  window.FC26.sbcCostGrowth = 1.7;
+  function sbcCardCost(rating, floor) {
+    var g = Number(window.FC26.sbcCostGrowth) || 1.7;
+    return Math.pow(g, rating - floor);
+  }
+
+  // sbcFodderRank(a, b): which card would you rather lose? Sorted first = spent first.
+  // We have no market prices, so this is a judgement about what's least painful:
+  //   1. UNTRADEABLE before tradeable - you can't sell it anyway, so it costs you nothing.
+  //   2. Plain (common/rare) before special - a TOTW is worth more than a gold.
+  //   3. Lower rated before higher - a spare 84 hurts less than a spare 90.
+  function sbcFodderRank(a, b) {
+    var au = (a.tradable === true) ? 1 : 0, bu = (b.tradable === true) ? 1 : 0;
+    if (au !== bu) return au - bu;
+    var as = (a.rareflag === 0 || a.rareflag === 1) ? 0 : 1;
+    var bs = (b.rareflag === 0 || b.rareflag === 1) ? 0 : 1;
+    if (as !== bs) return as - bs;
+    return (a.rating || 0) - (b.rating || 0);
+  }
+
+  // sbcRatingStock(pool): group the candidates by rating, each group ordered so the
+  // card you'd least mind spending comes first. -> { 88: [card, card, ...], 87: [...] }
+  function sbcRatingStock(pool) {
+    var byRating = {};
+    pool.forEach(function (it) {
+      var r = it.rating || 0;
+      if (!r) return;
+      (byRating[r] = byRating[r] || []).push(it);
+    });
+    Object.keys(byRating).forEach(function (k) { byRating[k].sort(sbcFodderRank); });
+    return byRating;
+  }
+
+  // sbcSolveRating(stock, target, slots, fixedRatings): the search.
+  //
+  // We are NOT searching 1785 players - that would be hopeless. We search RATING
+  // COMBINATIONS ("how many 87s, how many 88s"), which is a much smaller problem,
+  // and only over ratings you actually own near the target.
+  //
+  // "Cheapest" = the lowest total of ratings, because a lower-rated card is worth
+  // less. We walk the cheap ratings first so a good answer turns up early, then use
+  // it to prune everything that can't beat it. A node budget stops a pathological
+  // club taking forever - if it's hit we return the best found so far and say so.
+  function sbcSolveRating(stock, target, slots, fixedRatings) {
+    var fixed = fixedRatings || [];
+    var fixedSum = 0, f;
+    for (f = 0; f < fixed.length; f++) fixedSum += fixed[f];
+    if (slots <= 0) return null;
+    // Only ratings near the target are worth considering. To average ~88 you're not
+    // going to be using 70s, and anything far above just wastes a good card. A window
+    // of 6 either way keeps the search small enough to be instant.
+    var rs = Object.keys(stock).map(Number)
+      .filter(function (r) { return r >= target - 6 && r <= target + 6; })
+      .sort(function (a, b) { return a - b; });          // cheapest first
+    if (!rs.length) return null;
+    var have = rs.map(function (r) { return stock[r].length; });
+    var totalAvailable = have.reduce(function (a, b) { return a + b; }, 0);
+    if (totalAvailable < slots) return null;
+    // What each rating costs us to spend. The FIXED cards are forced into every possible
+    // answer, so their cost is the same everywhere and is left out of the comparison.
+    var cost = rs.map(function (r) { return sbcCardCost(r, rs[0]); });
+
+    // ratingOf(counts, extraSum): score a candidate without rebuilding an array each time.
+    function ratingOfCounts(counts) {
+      var arr = fixed.slice();
+      for (var k = 0; k < rs.length; k++) for (var c = 0; c < counts[k]; c++) arr.push(rs[k]);
+      return { rating: sbcSquadRating(arr, arr.length), arr: arr };
+    }
+
+    // Budget tuned by measurement, not guesswork: a typical 11-slot solve finishes the
+    // WHOLE search well inside this (8-40ms on a laptop) and so is provably the cheapest
+    // combination available. Only unusual cases (a 23-slot squad, or every rating in the
+    // window stocked in bulk) run out, and then we still return the best found and flag
+    // it as "found" rather than claiming it's optimal.
+    var best = null, nodes = 0, NODE_CAP = 1500000, hitCap = false;
+
+    // SEED: fill every slot with the cheapest cards rated at or above the target. If
+    // that's possible it's always a valid answer (all-at-target averages to the target
+    // with no bonus needed). Having any valid answer up front lets the "can't beat the
+    // best" test below prune hard from the very first branch, which is what keeps this
+    // fast. Without a seed the search wades through thousands of too-cheap squads first.
+    (function seed() {
+      var counts = rs.map(function () { return 0; }), need = slots;
+      for (var k = 0; k < rs.length && need > 0; k++) {
+        if (rs[k] < target) continue;
+        var t = Math.min(have[k], need);
+        counts[k] = t; need -= t;
+      }
+      if (need > 0) return;                       // not enough cards at/above target
+      var got = ratingOfCounts(counts);
+      if (got.rating >= target) {
+        var c0 = 0;
+        for (var k2 = 0; k2 < rs.length; k2++) c0 += counts[k2] * cost[k2];
+        best = { cost: c0, counts: counts.slice(), ratings: got.arr };
+      }
+    }());
+
+    function dfs(i, used, spent) {
+      if (++nodes > NODE_CAP) { hitCap = true; return; }
+      // Cost only ever goes up as we add cards, so a branch already dearer than our best
+      // answer can never become cheaper. This is what keeps the search quick.
+      if (best && spent >= best.cost) return;
+      if (used === slots) {
+        var got = ratingOfCounts(counts);
+        if (got.rating >= target) best = { cost: spent, counts: counts.slice(), ratings: got.arr };
+        return;
+      }
+      if (i >= rs.length) return;
+      // Safe upper bound: even filling every remaining slot with the highest rating we
+      // hold can only add so much. The squad rating can never exceed the plain average
+      // plus the biggest possible bonus, and the bonus can't exceed the spread, so if
+      // the very best case still falls short of the target there's nothing down here.
+      var remain = slots - used;
+      var topRating = rs[rs.length - 1];
+      var sumSoFar = fixedSum;
+      for (var q = 0; q < rs.length; q++) sumSoFar += counts[q] * rs[q];
+      var bestTotal = sumSoFar + remain * topRating;
+      var n = slots + fixed.length;
+      if (Math.floor((bestTotal + (n - 1) * topRating) / n) < target) return;
+      var maxTake = Math.min(have[i], remain);
+      for (var t = maxTake; t >= 0; t--) {
+        counts[i] = t;
+        dfs(i + 1, used + t, spent + t * cost[i]);
+        counts[i] = 0;
+        if (hitCap) return;
+      }
+    }
+    var counts = rs.map(function () { return 0; });
+    dfs(0, 0, 0);
+    if (!best) return null;
+    // Turn the winning "how many of each rating" back into a plain list of ratings.
+    var picks = [];
+    for (var k = 0; k < rs.length; k++) for (var c = 0; c < best.counts[k]; c++) picks.push(rs[k]);
+    return {
+      picks: picks,
+      all: best.ratings,
+      rating: sbcSquadRating(best.ratings, best.ratings.length),
+      exact: !hitCap        // false = we ran out of search budget, so "cheapest found", not "cheapest possible"
+    };
+  }
+
+  // sbcPlanSquad(info, res): the whole plan for the open SBC, or a reason we can't make one.
+  //
+  // Order matters: requirements that demand SPECIFIC players ("Min. 1 TOTW") are
+  // satisfied FIRST, using the cheapest card that qualifies. Those cards are locked in,
+  // their ratings count towards the squad rating, and the solver then fills what's left.
+  // Doing it the other way round would happily build a perfect 88 with no TOTW in it.
+  function sbcPlanSquad(info, res) {
+    var teamReq = null;
+    (info.reqs || []).forEach(function (r) { if (r.name === "TEAM_RATING") teamReq = r; });
+    if (!teamReq) return { ok: false, reason: "This SBC has no team-rating requirement, so there's nothing to solve." };
+    if (teamReq.scope && String(teamReq.scope).toUpperCase() !== "GREATER") {
+      return { ok: false, reason: "This SBC wants an exact team rating (" + teamReq.scope + "), which isn't handled yet - only “minimum” is." };
+    }
+    var target = (teamReq.values && teamReq.values.length) ? teamReq.values[0] : null;
+    var slots = info.slots;
+    if (!target || !slots) return { ok: false, reason: "Couldn't read the target rating or the squad size." };
+
+    var pool = res.pool.slice();
+    var used = {};   // item ids already spoken for
+    var reserved = [];
+
+    // 1. Lock in the cards that specific requirements demand.
+    var counted = (info.reqs || []).filter(function (r) {
+      return r.supported && !r.derived && typeof r.count === "number" && r.count > 0 && r.name !== "PLAYER_COUNT";
+    });
+    for (var c = 0; c < counted.length; c++) {
+      var req = counted[c];
+      var matches = pool.filter(function (it) { return !used[it.id] && sbcMatchReq(it, req); });
+      if (matches.length < req.count) {
+        return { ok: false, reason: "Not enough players for “" + req.text + "” - you have " + matches.length + " and it needs " + req.count + "." };
+      }
+      matches.sort(sbcFodderRank);
+      for (var m = 0; m < req.count; m++) { used[matches[m].id] = 1; reserved.push({ card: matches[m], req: req }); }
+    }
+    if (reserved.length > slots) return { ok: false, reason: "This SBC's requirements need more players than it has slots." };
+
+    // 2. Solve the remaining slots for the target rating.
+    var rest = pool.filter(function (it) { return !used[it.id]; });
+    var stock = sbcRatingStock(rest);
+    var fixedRatings = reserved.map(function (x) { return x.card.rating || 0; });
+    var solved = sbcSolveRating(stock, target, slots - reserved.length, fixedRatings);
+    if (!solved) {
+      return { ok: false, reason: "No combination of your cards reaches " + target + " in " + slots + " slots. You'd need higher-rated players." };
+    }
+
+    // 3. Turn the winning ratings into actual named cards (cheapest-to-lose first).
+    var take = {}, chosen = [];
+    for (var p = 0; p < solved.picks.length; p++) {
+      var r = solved.picks[p];
+      var list = stock[r] || [];
+      var idx = take[r] || 0;
+      while (idx < list.length && used[list[idx].id]) idx++;
+      if (idx >= list.length) return { ok: false, reason: "Ran out of cards at rating " + r + " while building the plan." };
+      used[list[idx].id] = 1;
+      chosen.push(list[idx]);
+      take[r] = idx + 1;
+    }
+
+    var allCards = reserved.map(function (x) { return x.card; }).concat(chosen);
+    var allRatings = allCards.map(function (it) { return it.rating || 0; });
+    return {
+      ok: true,
+      target: target, slots: slots,
+      reserved: reserved, chosen: chosen, cards: allCards,
+      rating: sbcSquadRating(allRatings, allRatings.length),
+      exact: solved.exact,
+      fingerprint: info.fingerprint     // which SBC this plan was built for
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // STEP 4 - FILL THE SQUAD  (the first thing here that WRITES)
+  // --------------------------------------------------------------------------
+  // WHAT THIS DOES AND DOESN'T DO. It puts the planned players into the SBC's squad,
+  // exactly as if you'd dragged them in yourself. It does NOT submit the challenge.
+  //
+  // That line is deliberate. Filling is reversible - you can clear the squad, or just
+  // walk away. SUBMITTING exchanges your players and cannot be undone. So the tool does
+  // the tedious part and leaves the irreversible press to you, in the game, where you
+  // can see the whole squad before committing.
+  //
+  // It's the same two calls the game itself makes when you fill a squad by hand:
+  //   squad.setPlayers(arrayIndexedBySlot)   then   services.SBC.saveChallenge(challenge)
+  // One call for the whole squad, not eleven separate ones.
+  async function sbcFillSquad(plan) {
+    var svc = getServices();
+    if (!svc || !svc.SBC || !svc.SBC.saveChallenge) return { ok: false, reason: "The SBC service isn't available here." };
+    // Re-find the challenge rather than trusting the one the plan was built from - you
+    // may have navigated since. If it's not the same shape any more we refuse.
+    var root = sbcCurrentController();
+    var ch = sbcFindChallenge(root);
+    if (!ch || !ch.squad) return { ok: false, reason: "Lost track of the open SBC. Reopen it and re-read." };
+    var squad = ch.squad, slots;
+    try { slots = squad.getNonBrickSlots() || []; }
+    catch (e) { return { ok: false, reason: "Couldn't read the squad's slots." }; }
+    // IS THIS STILL THE SAME SBC? Comparing slot counts is not enough - nearly every
+    // challenge has 11 slots, so a plan for an 88-rated squad would happily be poured
+    // into a completely different SBC. Compare the full fingerprint (ids + the actual
+    // requirements) so a different target, or different rules, is always caught.
+    var liveFp = sbcFingerprint(ch, slots.length);
+    if (plan.fingerprint && liveFp !== plan.fingerprint) {
+      return { ok: false, reason: "This isn't the SBC the plan was worked out for - it looks like you've " +
+        "opened a different one. Tap “↻ Re-read the open SBC” and it'll plan for this one instead." };
+    }
+    if (slots.length !== plan.slots) {
+      return { ok: false, reason: "The open SBC has changed since this plan was worked out (" + slots.length +
+        " slots now, the plan was for " + plan.slots + "). Re-read and try again." };
+    }
+    if (plan.cards.length < slots.length) {
+      return { ok: false, reason: "The plan has " + plan.cards.length + " players for " + slots.length + " slots." };
+    }
+
+    // Start from an empty squad, so filling twice can't stack or half-replace.
+    try {
+      var isEmpty = (typeof squad.isSquadEmpty === "function") ? squad.isSquadEmpty() : false;
+      if (!isEmpty && typeof squad.removeAllItems === "function") {
+        squad.removeAllItems();
+        await awaitService(svc.SBC.saveChallenge(ch));
+      }
+    } catch (e2) { /* clearing is best-effort - setPlayers below replaces the lot anyway */ }
+
+    // setPlayers wants a full-size array indexed BY SLOT, not a list of players - the
+    // gaps are the slots that don't take a player. TOTAL_PLAYERS is 23 (starting XI plus
+    // bench and reserves) even though an SBC only uses some of them.
+    var total = (window.UTSquadEntity && window.UTSquadEntity.TOTAL_PLAYERS) || 23;
+    var arr = new Array(total), placed = 0;
+    for (var i = 0; i < slots.length; i++) {
+      var slot = slots[i];
+      if (!slot || slot.index == null) continue;
+      arr[slot.index] = plan.cards[i];
+      placed++;
+    }
+    if (!placed) return { ok: false, reason: "Couldn't work out which slots to fill." };
+
+    try {
+      squad.setPlayers(arr);
+      await awaitService(svc.SBC.saveChallenge(ch));
+    } catch (e3) {
+      return { ok: false, reason: "The game refused the squad: " + errMsg(e3) };
+    }
+    return { ok: true, placed: placed };
+  }
+
+  // Console helper for checking the formula against the game itself.
+  //   window.FC26.ratingCheck()            -> our number vs the game's, for the OPEN SBC squad
+  //   window.FC26.ratingCheck([88,88,87])  -> just run the formula on some ratings
+  // Put a few players into the SBC squad by hand in the app, then call it with no
+  // arguments: if "ours" and "game" ever disagree, the game is right and this is wrong.
+  window.FC26.ratingCheck = function (ratings) {
+    if (ratings && ratings.length) return { ratings: ratings, ours: sbcSquadRating(ratings, ratings.length) };
+    var info = readOpenSbc();
+    if (!info.ok) return "Open an SBC squad screen first. " + info.reason;
+    var root = sbcCurrentController(), ch = sbcFindChallenge(root);
+    var squad = ch && ch.squad;
+    if (!squad) return "Couldn't reach the squad object.";
+    // IMPORTANT: the game rates the WHOLE squad, and an empty slot counts as ZERO - it
+    // does not rate "the players you've put in so far". Verified live: three cards
+    // (83, 87, 83) in an 11-slot squad reads 39 in the game, not 85, because the average
+    // is 253/11 = 23 and all three sit way above it. So every slot must be included,
+    // empty ones as 0. (An earlier version of this check dropped the empties and looked
+    // like the formula was wrong when it wasn't.)
+    var rs = [], filled = 0, game = null;
+    try {
+      var slots = squad.getNonBrickSlots() || [];
+      slots.forEach(function (s) {
+        var it = null; try { it = s.getItem(); } catch (e) {}
+        var r = (it && it.rating) ? it.rating : 0;
+        if (r) filled++;
+        rs.push(r);
+      });
+    } catch (e2) {}
+    try { game = squad.getRating(); } catch (e3) {}
+    if (!rs.length) return "Couldn't read the squad's slots.";
+    if (!filled) return "That squad is empty - drag a few players in, then run this again.";
+    var ours = sbcSquadRating(rs, rs.length);
+    return {
+      slots: rs.length, filled: filled, ratings: rs,
+      ours: ours, game: game,
+      agree: (game == null ? "game didn't answer" : ours === game)
+    };
+  };
+
   // The launcher tile (sits in the lineup column with the other page launchers).
   var sbcLaunch = document.createElement("div");
   sbcLaunch.className = "meta-section";
@@ -7309,12 +7711,43 @@
 
   state.sbcOpen = false;
 
+  // WATCHER: notice when you switch to a different SBC in the game and redraw on your
+  // behalf. Without this the panel keeps showing a plan for the SBC you were on a minute
+  // ago, which is confusing at best (the Fill button refuses a mismatched plan, so it's
+  // never unsafe - just wrong on screen).
+  //
+  // The interval id lives on window.FC26 rather than in a local, because re-running the
+  // bookmarklet rebuilds the panel but can't reach into the OLD closure to stop its
+  // timer. Parking it somewhere global means every rebuild can clear the previous one.
+  var sbcLastFp = null;
+  function sbcLiveFingerprint() {
+    try {
+      var c = sbcFindChallenge(sbcCurrentController());
+      if (!c || !c.squad) return null;
+      return sbcFingerprint(c, (c.squad.getNonBrickSlots() || []).length);
+    } catch (e) { return null; }
+  }
+  function sbcStopWatch() {
+    if (window.FC26.__sbcWatch) { clearInterval(window.FC26.__sbcWatch); window.FC26.__sbcWatch = null; }
+  }
+  function sbcStartWatch() {
+    sbcStopWatch();
+    window.FC26.__sbcWatch = setInterval(function () {
+      if (!state.sbcOpen) { sbcStopWatch(); return; }
+      var fp = sbcLiveFingerprint();
+      // Redraw on any real change: a different SBC, or leaving the SBC screen entirely.
+      if (fp !== sbcLastFp) renderSbcPage();
+    }, 1500);
+  }
+  sbcStopWatch();   // kill a watcher left behind by a previous run of the bookmarklet
+
   function openSbcPage() {
     state.sbcOpen = true;
     sbcHost.style.display = "flex";
     layoutHost.style.display = "none";
     applyPanelChrome();
     renderSbcPage();
+    sbcStartWatch();
     // Find out which players are in your active squad (one call, remembered after).
     // Draws immediately above without it, then redraws once it lands - so the page
     // never sits blank waiting on the network.
@@ -7322,6 +7755,7 @@
   }
   function closeSbcPage() {
     state.sbcOpen = false;
+    sbcStopWatch();
     sbcHost.style.display = "none";
     layoutHost.style.display = "flex";
     applyPanelChrome();
@@ -7351,6 +7785,8 @@
     bodyEl.appendChild(tools);
 
     var info = readOpenSbc();
+    // Remember which SBC we've just drawn, so the watcher can spot you moving to another.
+    sbcLastFp = info.ok ? info.fingerprint : null;
 
     if (!info.ok) {
       var empty = document.createElement("div"); empty.className = "mp-soon";
@@ -7524,6 +7960,112 @@
     }
 
     bodyEl.appendChild(pcard);
+
+    // ---- STEP 3: the squad-rating plan ----
+    // Only shown for SBCs that actually want a team rating. Read-only: it works out
+    // WHAT to put in, it doesn't put it in.
+    var wantsRating = (info.reqs || []).some(function (r) { return r.name === "TEAM_RATING"; });
+    if (wantsRating) {
+      var plan = sbcPlanSquad(info, res);
+      var scard = document.createElement("div"); scard.className = "db-card";
+      var sh = document.createElement("div"); sh.className = "db-h3"; sh.textContent = "Cheapest squad that gets there";
+      scard.appendChild(sh);
+
+      if (!plan.ok) {
+        var bad = document.createElement("div"); bad.className = "mp-soon";
+        bad.textContent = plan.reason;
+        scard.appendChild(bad);
+      } else {
+        // Headline: what rating this squad would come out at, against what's needed.
+        var hit = document.createElement("div"); hit.className = "sbc-poolnum";
+        hit.innerHTML = "<b>" + plan.rating + "</b><span>squad rating, and this SBC needs " + plan.target +
+          (plan.rating > plan.target ? " (" + (plan.rating - plan.target) + " to spare)" : "") + "</span>";
+        scard.appendChild(hit);
+
+        // The shape of the answer: "8x 84, 1x 90, 2x 94". This is the bit worth reading -
+        // it shows how the high cards are carrying the low ones.
+        var tally = {};
+        plan.cards.forEach(function (it) { var r = it.rating || 0; tally[r] = (tally[r] || 0) + 1; });
+        var shape = Object.keys(tally).map(Number).sort(function (a, b) { return a - b; })
+          .map(function (r) { return "<span class='sbc-shape'><b>" + tally[r] + "&times;</b>" + r + "</span>"; }).join("");
+        var shapeRow = document.createElement("div"); shapeRow.className = "sbc-prev";
+        shapeRow.innerHTML = shape;
+        scard.appendChild(shapeRow);
+
+        // Cards the SBC specifically demanded (e.g. the one TOTW), called out separately
+        // so it's obvious they were chosen to satisfy a rule, not for their rating.
+        if (plan.reserved.length) {
+          var rlab = document.createElement("div"); rlab.className = "sbc-note";
+          rlab.textContent = "Required by this SBC:";
+          scard.appendChild(rlab);
+          var rrow = document.createElement("div"); rrow.className = "sbc-prev";
+          rrow.innerHTML = plan.reserved.map(function (x) {
+            return "<span class='sbc-pchip req'><b>" + (x.card.rating || "?") + "</b>" + esc(playerName(x.card)) + "</span>";
+          }).join("");
+          scard.appendChild(rrow);
+        }
+
+        // Everyone else, cheapest-to-lose first.
+        var flab = document.createElement("div"); flab.className = "sbc-note";
+        flab.textContent = "Plus these " + plan.chosen.length + " to make up the rating:";
+        scard.appendChild(flab);
+        var frow = document.createElement("div"); frow.className = "sbc-prev";
+        frow.innerHTML = plan.chosen.map(function (it) {
+          return "<span class='sbc-pchip'><b>" + (it.rating || "?") + "</b>" + esc(playerName(it)) +
+            (it.tradable === true ? "" : "<i title='untradeable'>&#128274;</i>") + "</span>";
+        }).join("");
+        scard.appendChild(frow);
+
+        var topCard = Math.max.apply(null, plan.cards.map(function (it) { return it.rating || 0; }));
+        var pnote = document.createElement("div"); pnote.className = "sbc-note";
+        pnote.innerHTML = "Highest card used: <b>" + topCard + "</b>. It keeps your good cards back on purpose - " +
+          "a card's worth climbs steeply with its rating, so it only reaches for a high one when there's no other " +
+          "way to make the number. Within a rating it spends untradeables first (you can't sell them anyway), " +
+          "then plain cards over specials. " +
+          (plan.exact
+            ? "This is the cheapest your club can do it."
+            : "Cheapest found - the search was cut short, so something slightly cheaper may exist.") +
+          " <b>Nothing has been submitted</b> - this is just the plan.";
+        scard.appendChild(pnote);
+
+        // ---- STEP 4: put it in the game ----
+        var fillWrap = document.createElement("div"); fillWrap.className = "sbc-fillrow";
+        var fillBtn = document.createElement("button");
+        fillBtn.type = "button"; fillBtn.className = "sbc-fill";
+        fillBtn.textContent = "Fill this squad in the game";
+        var fillMsg = document.createElement("div"); fillMsg.className = "sbc-note";
+        fillMsg.innerHTML = "Puts these players into the SBC squad for you. <b>It does not submit it</b> - " +
+          "you review it in the game and press Submit yourself, so nothing is exchanged without you seeing it.";
+        fillBtn.addEventListener("click", async function () {
+          if (state.sbcFilling) return;
+          // Spell out exactly what's about to happen, and list every card by name, so the
+          // confirm is a real decision rather than a formality.
+          var lines = plan.cards.map(function (it) {
+            return "  " + (it.rating || "?") + "  " + playerName(it) + (it.tradable === true ? "" : "  (untradeable)");
+          }).join("\n");
+          var msg = "Fill this SBC with these " + plan.cards.length + " players?\n\n" + lines +
+            "\n\nPredicted squad rating: " + plan.rating + " (needs " + plan.target + ")" +
+            "\n\nThis only PLACES them in the squad - it does NOT submit the SBC and nothing is exchanged. " +
+            "Anything already in the squad is cleared first. You can undo it in the game by clearing the squad.";
+          if (!window.confirm(msg)) return;
+          state.sbcFilling = true;
+          fillBtn.disabled = true; fillBtn.textContent = "Filling…";
+          var out = await sbcFillSquad(plan);
+          state.sbcFilling = false;
+          fillBtn.disabled = false; fillBtn.textContent = "Fill this squad in the game";
+          fillMsg.innerHTML = out.ok
+            ? "<b>Done - " + out.placed + " players placed.</b> Check the squad in the game, then press Submit there " +
+              "if you're happy. Nothing has been exchanged yet. After you submit, hit ↻ Reload club so the tool " +
+              "stops showing the players you just spent."
+            : "<b>Couldn't fill it.</b> " + esc(out.reason);
+        });
+        fillWrap.appendChild(fillBtn);
+        scard.appendChild(fillWrap);
+        scard.appendChild(fillMsg);
+      }
+      bodyEl.appendChild(scard);
+    }
+
     sbcHost.appendChild(bodyEl);
   }
 

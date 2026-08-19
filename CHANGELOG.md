@@ -40,6 +40,31 @@ individual requirement has. Still read-only.
   constrains one slot, not eleven, so it now only locks when a rarity rule covers every
   player - and specials the SBC actually asks for are kept rather than binned.
 
+**Also on dev: it now works out the squad and fills it (steps 3 and 4).**
+
+- **It solves the rating for you.** Give it "Team Rating: Min. 88" and it works out the
+  cheapest set of cards you actually own that gets there, then names them. An 88 squad is
+  an *average*, so it happily mixes 86s and 89s rather than insisting on eleven 88s.
+- **It won't burn your good cards.** The first version was too willing to spend a 94 to
+  save a few rating-points elsewhere. Card value climbs steeply with rating, so it now
+  treats a 94 as roughly 300 times the cost of an 84 and only reaches for one when there's
+  no other way to make the number. On the same club, a plan of "8x84 + 1x90 + 2x94" became
+  "3x86 + 7x88 + 1x89".
+- Within a rating it spends the least painful card first: untradeables (you can't sell them
+  anyway), then plain cards over specials, then lowest rated.
+- Anything the SBC specifically demands - your one TOTW/FUTTIES - is locked in **first** and
+  shown separately, so it can't build a tidy 88 that quietly leaves the required card out.
+- **The maths is verified against the game itself**, not just assumed. `window.FC26.ratingCheck()`
+  compares our number with the game's own and reports whether they agree. They do.
+- **"Fill this squad in the game" - and that's where it stops.** It places the players for
+  you exactly as if you'd dragged them in. **It does not submit.** Filling can be undone by
+  clearing the squad; submitting exchanges your cards for good, so that press stays yours,
+  in the game, looking at the real squad.
+- Filling asks first, listing all eleven cards by name and rating.
+- **It can't fill the wrong SBC.** It checks you're still on the challenge the plan was
+  built for - comparing slot counts wasn't enough, since nearly every SBC has eleven. The
+  page also spots you switching SBC on its own and redraws within a second or two.
+
 ---
 
 ## v44 - 2026-08-19

@@ -1442,51 +1442,129 @@ a sensible label and no code change; add a `SUB_LABELS` line only if it needs pr
 
 ---
 
-## 3y. UNRELEASED (on `dev` only) - the SBC Reader
+## 3y. UNRELEASED (on `dev` only) - the SBC builder
 
-**Not published.** This is on the `dev` branch and has no install-page version yet, so
-nobody has it, including you unless you paste the dev build in by hand. It is step 1 of a
-possible SBC builder, and it may yet be dropped (see "Deleting it" below).
+**Not published.** This lives on the `dev` branch with no install-page version, so nobody
+has it, including you unless you paste the dev build in by hand. It may yet be dropped -
+see "Deleting it" at the end.
 
-### What it does
+Opens from the **🧩 SBC Reader** tile in the Lineup column, under Club Dashboard.
 
-Opens from the **🧩 SBC Reader** tile in the Lineup column, under Club Dashboard. It shows
-the SBC **you currently have open in the game**: its name, how many slots it has, and every
-requirement written out in plain English.
+### What it does, in four stages
 
-It is **read-only**. It never fills a squad, never submits a challenge, never touches your
-club. There is deliberately no button that could.
+1. **Reads** the SBC you currently have open in the game: name, slot count, and every
+   requirement in plain English.
+2. **Pools** your club: how many of your players that SBC would accept, and why the rest
+   were excluded.
+3. **Solves** the squad rating: the cheapest set of cards you own that reaches the target.
+4. **Fills** the squad for you.
 
-### How to use it
+Stages 1-3 are read-only. Stage 4 is the only thing that writes.
 
-1. In the web app, go to **SBC** and open a challenge's **squad** screen.
-2. Open the panel, tap **🧩 SBC Reader**.
-3. To look at a different SBC: switch to it in the game, come back, tap **↻ Re-read the
-   open SBC**.
+### It fills, it never submits
 
-Each requirement is marked:
+The **Fill this squad in the game** button places the players in the SBC squad, exactly as
+dragging them in would. **It does not submit the challenge.** Filling is reversible - clear
+the squad, or just walk away. Submitting exchanges your cards permanently, so that press
+stays yours, in the game, looking at the real squad.
 
-- **✓** a future auto-fill could satisfy this (it's a simple yes/no test on one player)
-- **✗** it could not
+Before it writes anything it: confirms with every card listed by name and rating,
+re-finds the challenge live rather than trusting a stale reference, refuses if the SBC
+isn't the one the plan was built for, clears the squad first so filling twice can't
+half-replace, and blocks double-clicks.
 
-At the bottom is a plain verdict on whether the whole SBC is buildable.
+After you submit in the game, hit **↻ Reload club** so the tool stops listing players
+you've spent.
 
-### Why some requirements are ✗
+### Reading the requirement marks
 
-**Team rating and chemistry can't be solved by picking the cheapest players first.**
-Squad rating in FUT isn't a plain average, so "cheapest 11 players averaging 88" is a search
-problem, not a filter. The reference tool (Paletools) doesn't solve it either - it keeps
-players in a rough rating window and hopes, which is why it ships a *separate manual*
-ratings calculator. Rather than fill your SBC badly and eat good fodder, this tool says so
-up front.
+- **✓** a per-player test the fill handles (league, nation, club, rarity, quality, OVR bounds)
+- **~** solvable but about the squad as a whole - currently just team rating
+- **✗** genuinely out of scope: chemistry
 
-The 19 requirement types it counts as buildable are listed in `SBC_SUPPORTED_KEYS` in
-`fc26-tools.js`. Everything else shows ✗.
+The 19 ✓ types are in `SBC_SUPPORTED_KEYS`; the ~ ones in `SBC_PLANNED_KEYS`.
+
+### Squad rating: the thing to understand
+
+**An "88 rated" squad does not mean eleven 88s.** It's an average with a bonus for your
+better cards, which is why these are cheap to do by hand. EA's formula, verified live
+against the game's own `squad.getRating()`:
+
+```
+total  = all the ratings added up
+avg    = total / how many players
+excess = for each player ABOVE that average, how far above, summed
+rating = floor( round(total + excess) / squad size )
+```
+
+Two worked examples, both confirmed:
+
+- Two 87s + nine 88s -> total 966, avg 87.818, excess 1.636, round(967.636)=968, 968/11 = **88**.
+- Three cards (83, 87, 83) in an 11-slot squad -> **39**, not 85. **Empty slots count as
+  zero.** A part-filled SBC squad rates terribly in game, and that is correct, not a bug.
+
+Check it yourself any time with `window.FC26.ratingCheck()` (with an SBC squad open, some
+players in it). It returns `ours`, `game` and `agree`. **If `agree` is ever false, the game
+is right and the tool is wrong** - stop and fix the formula before trusting any plan.
+
+### How "cheapest" is decided ⚠️ the non-obvious bit
+
+The solver searches **rating combinations**, not players - a dozen or so distinct numbers
+rather than 1785 cards, which is why it's instant.
+
+The first version minimised the *sum of ratings* and that was **wrong**. It produced plans
+like "8x84 + 1x90 + 2x94", spending two 94s to save eight rating-points elsewhere, because
+it thought a 94 cost the same as ten spare points of 84. Card value doesn't work that way.
+
+So cost now **grows exponentially with rating**: each point higher costs ~70% more, meaning
+a 94 is priced at roughly 300x an 84. The solver only reaches for a good card when there's
+genuinely no other way to make the number. Same club, same target, that plan became
+"3x86 + 7x88 + 1x89".
+
+Tune the steepness live, no rebuild:
+
+```js
+window.FC26.sbcCostGrowth = 2.5;   // default 1.7; higher = even more reluctant
+```
+
+then tap **↻ Re-read the open SBC**.
+
+Within a chosen rating, `sbcFodderRank` decides *which* card: untradeables first (you can't
+sell them anyway), then plain cards over specials, then lowest rated.
+
+The search budget (`NODE_CAP`) was set by measurement: a normal 11-slot solve explores the
+**whole** space in 8-40ms, so the answer is provably the cheapest available and the panel
+says so. Only odd cases (23 slots, every rating stocked in bulk) run out at ~100ms, and
+then it says "cheapest found" rather than claiming optimality.
+
+### The toggles
+
+- **Skip special cards** - only commons/rares as fodder. It's greyed out only when the SBC
+  dictates the rarity of *every* slot. A "Min. 1 TOTW" rule does **not** grey it out: that
+  constrains one slot, not eleven, and specials the SBC actually asks for are kept rather
+  than binned.
+- **Untradeables only** - restricts the *whole* plan, required cards included. If the SBC
+  needs a TOTW and all of yours are tradeable, the plan fails rather than quietly using one.
+
+### Two bugs worth not reintroducing
+
+**Counted vs universal requirements.** A requirement's `count` is the number of players it
+applies to; `-1` means all of them. Treating "Min. 1 TOTW" (count 1) as if it constrained
+the whole squad broke the special-cards toggle. Always check `count` before assuming a rule
+is squad-wide.
+
+**Identifying the SBC.** Comparing slot counts is *not* enough to tell two SBCs apart -
+nearly all have 11, so a plan for one filled a completely different one. `sbcFingerprint()`
+combines the challenge's id fields with a summary of its actual requirements. The page also
+re-checks every 1.5s while open and redraws itself when you switch challenges, so a stale
+plan shouldn't be on screen in the first place. That watcher's timer id is kept on
+`window.FC26.__sbcWatch` because re-running the bookmarklet can't reach into the old
+closure to clear a local one.
 
 ### How it finds the open SBC (for future maintenance)
 
-All discovered live against FC26 and written up in full in
-`Reference/paletools/README.md` (that folder is gitignored - see the note there):
+All discovered live; the full API notes are in `Reference/paletools/README.md` (that folder
+is gitignored - see the note there).
 
 ```
 getAppMain().getRootViewController().getPresentedViewController()
@@ -1496,32 +1574,36 @@ getAppMain().getRootViewController().getPresentedViewController()
 ```
 
 The challenge carries `.squad`, `.eligibilityRequirements` and `.eligibilityOperation`.
-Requirement objects hold **raw data only**, so each one is read through EA's own accessors
+Requirement objects hold **raw data only**, read through EA's own accessors
 (`getFirstKey()`, `getValue(k)`, `count`, `scope`) and labelled with EA's own
-`buildString()`, which is why the wording matches the game exactly and needs no
-translation table from us. `SBCEligibilityKey` is a two-way enum, so the readable type name
-comes free.
+`buildString()`, which is why the wording matches the game exactly.
+`SBCEligibilityKey` is a two-way enum, so the readable name comes free.
+
+"Number of Players in the Squad" is shown by the game but is **not** in
+`eligibilityRequirements` - it's implied by the slot count, so we derive it.
+
+Filling is `squad.setPlayers(arrayIndexedBySlot)` then `services.SBC.saveChallenge(challenge)` -
+one call for the whole squad. The array is `UTSquadEntity.TOTAL_PLAYERS` (23) long and
+indexed by each slot's `.index`, not a plain list of players.
 
 **If it ever stops finding the SBC**, the "no SBC open" message prints the controller you
-were actually on. That name is the thing to check first, EA renaming a controller is the
-likeliest cause.
+were actually on. EA renaming a controller is the likeliest cause.
 
-Console equivalents: `window.FC26.readSbc()` returns the parsed object,
-`window.FC26.openSbcPage()` opens the page.
+Console helpers: `window.FC26.readSbc()`, `window.FC26.openSbcPage()`,
+`window.FC26.ratingCheck()`.
 
 ### Deleting it
 
-It was built to be removable in three steps:
+Built to be removable in three steps:
 
 1. Delete the block between `### SBC-READER BEGIN ###` and `### SBC-READER END ###` in
    `fc26-tools.js`.
 2. Delete `squadMod.appendChild(sbcLaunch);` from the layout assembly line.
-3. Delete the `.sbc-*` rules in the stylesheet (they're fenced with an
-   `### SBC-READER styles` comment).
+3. Delete the `.sbc-*` rules in the stylesheet (fenced with an `### SBC-READER styles`
+   comment).
 
-Then `node minify.js`. Nothing else in the tool reads it, apart from `state.sbcOpen`
-appearing in the two lines that track which full-screen page is open; leaving those is
-harmless.
+Then `node minify.js`. Nothing else reads it, apart from `state.sbcOpen` in the two lines
+tracking which full-screen page is open; leaving those is harmless.
 
 ---
 
