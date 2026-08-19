@@ -4265,22 +4265,19 @@
   // state.clubItems, then redraw the picker. Read-only - it's the same search the
   // app's Club screen uses.
   //
-  // How services.Club.search really behaves (discovered live):
-  //  - FRESH load (club store still empty): it FETCHES from the server one page at a
-  //    time and DOES respect offset/count - a single offset-0 call only returns the
-  //    first ~90, so we MUST page with a rising offset to collect everyone.
-  //  - Once the whole club is in the client store: it returns the ENTIRE club from
-  //    memory and IGNORES offset, so the next page just repeats (no NEW players) and
-  //    reports `retrievedAll: true`-ish - that's our natural stop.
-  //  - The store also fills in over a few seconds after load (slower on mobile), so the
-  //    server may not have every page ready on the first pass.
-  // The old bug was ending the sweep on the FIRST empty/duplicate page; on mobile a
-  // transient blank page mid-fetch froze a partial club. So now we: (a) page by offset
-  // accumulating UNIQUE players, (b) RETRY a blank/errored page a few times before
-  // trusting it, (c) stop a pass only after TWO pages bring no new players (guards a
-  // one-off duplicate), and (d) RE-SWEEP a few times until the club stops growing or the
-  // app reports retrievedAll - so a still-filling club keeps getting picked up without a
-  // manual reload.
+  // How services.Club.search really behaves. The detail (and the measurements behind
+  // it) is in sweepFullClub below - read that before changing anything here. The short
+  // version, corrected Aug 2026 after this loader was found to be stopping at ~915 of a
+  // 1785-player club:
+  //  - It is NOT a paging API. `count` is ignored and every reply contains the whole
+  //    client-side store, not a page.
+  //  - `offset` doesn't change what comes back, but it DOES tell the app how far ahead
+  //    to fetch from the server. Pushing it out is what makes the store grow.
+  //  - `retrievedAll` means "that's all I have loaded right now", NOT "that's your whole
+  //    club". It goes true almost immediately, so we ignore it entirely.
+  // We therefore keep asking with a steadily rising offset, union the replies, and stop
+  // only once several requests in a row bring nobody new AND the offset has been pushed
+  // past everyone we've collected.
   //
   // RE-ENTRANCY: a sweep can run for many seconds, so it's easy to start a second one on top
   // of the first (tapping "Reload club" twice, or a retry-poll firing while the panel's own
@@ -4323,49 +4320,63 @@
     var svc = getServices();
     var S = svc && svc.Club;
     if (!S || !S.search || !window.UTSearchCriteriaDTO) { setClubStatus("Club search unavailable on this page.", "err"); return; }
-    var all = [], seen = {};                 // UNIQUE players kept across every pass (by item id)
-    var SWEEP_CAP = 8, PAGE_CAP = 200, BLANK_RETRY_MAX = 4;
-    var sweep = 0, lastTotal = -1, stableSweeps = 0, retrievedAll = false, hardFail = null;
+    var all = [], seen = {};                 // UNIQUE players kept, by item id
+    // HOW services.Club.search REALLY BEHAVES - measured live in FC26 on a 1785-player
+    // club (Aug 2026). The old code here assumed normal paging and was wrong, which is
+    // why the club stalled at ~915:
+    //   - `count` is IGNORED. Asking for 50 or for 150 both returned the same 982 items.
+    //     Every reply is "the whole client store", never a page of it.
+    //   - `offset` is IGNORED FOR THE REPLY - offsets 0, 50 and 500 all came back with
+    //     the same first player - but it DOES drive how far ahead the app fetches from
+    //     the server. Pushing the offset out is what makes the store grow.
+    //   - The store therefore FILLS UP AS YOU ASK (982 -> 996 -> 1046 -> 1092 during one test).
+    //   - `retrievedAll` goes true LONG before the club is actually all there. It means
+    //     "that's everything I have right now", not "that's your whole club". Trusting it
+    //     was what ended the load early, so we no longer stop on it at all.
+    // THE OLD BUG: `offset += items.length` added the size of the WHOLE STORE (915), so
+    // after one request the offset was already past the end of the club and nothing more
+    // was ever fetched. We now advance by a fixed step instead.
+    var PAGE_STEP = 100;        // how far we push the fetch window each request
+    var REQ_CAP = 80;           // hard ceiling (80 x 100 = room for 8000 players)
+    var STABLE_NEEDED = 5;      // consecutive replies with nobody new before we call it done
+    var BLANK_RETRY_MAX = 4;
+    var offset = 0, req = 0, noNew = 0, blankRetries = 0, hardFail = null, cleanFinish = false;
     setClubStatus("Loading full club…", "busy");
-    while (sweep++ < SWEEP_CAP) {
-      var offset = 0, pageGuard = 0, blankRetries = 0, noNewStreak = 0, passDone = false;
-      while (pageGuard++ < PAGE_CAP) {
-        var crit = makeClubCriteria(offset, 91);
-        if (!crit) { passDone = true; break; }
-        var res;
-        try { res = await awaitService(S.search(crit)); }
-        catch (e) {
-          if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(500); continue; }   // transient error - retry same offset
-          if (!all.length) hardFail = errMsg(e);
-          passDone = true; break;
-        }
-        var inner = (res && res.response) || (res && res.data) || {};
-        var items = inner.items || [];
-        if (inner.retrievedAll === true) retrievedAll = true;
-        if (!items.length) {
-          if (retrievedAll) { passDone = true; break; }
-          if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(400); continue; }    // transient blank page - retry
-          passDone = true; break;                                                  // genuinely empty -> end of this pass
-        }
-        blankRetries = 0;
-        var added = 0;
-        for (var i = 0; i < items.length; i++) { var it = items[i], id = it && it.id; if (id != null && !seen[id]) { seen[id] = 1; all.push(it); added++; } }
-        offset += items.length;
-        // Live count, both on the button and in the Lineup's status line, so you can SEE it working.
-        setClubStatus("Loading full club… " + all.length + " players", "busy");
-        setReloadBtn("busy", "Loading… " + all.length);
-        if (retrievedAll) { passDone = true; break; }
-        noNewStreak = (added === 0) ? (noNewStreak + 1) : 0;
-        if (noNewStreak >= 2) { passDone = true; break; }   // two pages, no new players -> seen them all this pass
-        await sleep(120);
+    while (req++ < REQ_CAP) {
+      var crit = makeClubCriteria(offset, PAGE_STEP);
+      if (!crit) break;
+      var res;
+      try { res = await awaitService(S.search(crit)); }
+      catch (e) {
+        if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(500); continue; }   // transient error - retry
+        if (!all.length) hardFail = errMsg(e);
+        break;
       }
-      if (hardFail && !all.length) { setClubStatus("Club load failed: " + hardFail, "err"); return; }
-      if (retrievedAll) break;                              // app confirms the whole club is loaded
-      if (all.length === lastTotal) { if (++stableSweeps >= 2) break; }   // total not growing across passes -> done
-      else stableSweeps = 0;
-      lastTotal = all.length;
-      await sleep(500);                                     // give the still-filling club a moment, then sweep again
+      var inner = (res && res.response) || (res && res.data) || {};
+      var items = inner.items || [];
+      if (!items.length) {
+        if (blankRetries++ < BLANK_RETRY_MAX) { await sleep(400); continue; }   // transient blank - retry
+        cleanFinish = true; break;                                             // genuinely nothing there
+      }
+      blankRetries = 0;
+      var added = 0;
+      for (var i = 0; i < items.length; i++) { var it = items[i], id = it && it.id; if (id != null && !seen[id]) { seen[id] = 1; all.push(it); added++; } }
+      offset += PAGE_STEP;      // THE FIX: a fixed step, not items.length
+      // Live count, both on the button and in the Lineup's status line, so you can SEE it working.
+      setClubStatus("Loading full club… " + all.length + " players", "busy");
+      setReloadBtn("busy", "Loading… " + all.length);
+      noNew = (added === 0) ? (noNew + 1) : 0;
+      // Only give up once nobody new has turned up for several requests IN A ROW *and*
+      // we've pushed the fetch window past everyone we already have. Without that second
+      // half we'd stop while the app still had more to send us - the original bug.
+      if (noNew >= STABLE_NEEDED && offset > all.length + PAGE_STEP) { cleanFinish = true; break; }
+      await sleep(150);
     }
+    if (hardFail && !all.length) { setClubStatus("Club load failed: " + hardFail, "err"); return; }
+    // "complete" for mergeFresh means we finished because the club stopped growing - NOT
+    // because we hit the request cap or bailed on an error. It controls whether stale
+    // fresh-card overrides get pruned, and pruning on a partial load would lose them.
+    var retrievedAll = cleanFinish;
     // Overlay any card we KNOW is fresher than what the search returned, so a stale copy from
     // the app's in-memory store can't wipe out an evo we just applied (see FRESH-CARD OVERRIDES).
     state.clubItems = mergeFresh(all, retrievedAll);
@@ -5260,6 +5271,9 @@
       // A requirement a future auto-fill can't satisfy is dimmed and flagged, never hidden -
       // you should always see the whole SBC, not a filtered version of it.
       "#fc26-panel .sbc-req.no{opacity:.62}" +
+      // "~" = solvable, just not built yet. Deliberately NOT dimmed like a blocked one.
+      "#fc26-panel .sbc-req.soon .sbc-req-dot{background:var(--tile-psp);border-color:var(--tile-psp-border);color:var(--gold)}" +
+      "#fc26-panel .sbc-verdict.soon{background:var(--tile-psp);border-color:var(--tile-psp-border)}" +
       "#fc26-panel .sbc-req-dot{flex:none;width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:10px;font-weight:800;background:var(--sel);border:1px solid var(--accent);color:var(--accent)}" +
       "#fc26-panel .sbc-req.no .sbc-req-dot{background:transparent;border-color:var(--border);color:var(--muted)}" +
       "#fc26-panel .sbc-req-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" +
@@ -5270,6 +5284,33 @@
       "#fc26-panel .sbc-verdict span{font-size:11px;color:var(--muted);line-height:1.45}" +
       "#fc26-panel .sbc-verdict.ok{background:var(--sel);border-color:var(--accent)}" +
       "#fc26-panel .sbc-verdict.warn{background:var(--tile);border-color:var(--border)}" +
+      // Step 2 - the candidate pool read-out.
+      "#fc26-panel .sbc-togs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}" +
+      "#fc26-panel .sbc-tog{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:5px 9px;border-radius:8px;background:var(--tile);border:1px solid var(--tile-border);cursor:pointer}" +
+      "#fc26-panel .sbc-tog input{margin:0;cursor:pointer}" +
+      // A toggle the current SBC makes meaningless: visibly dead, not silently dead.
+      "#fc26-panel .sbc-tog.off{opacity:.45;cursor:not-allowed}" +
+      "#fc26-panel .sbc-tog.off input{cursor:not-allowed}" +
+      "#fc26-panel .sbc-poolnum{display:flex;align-items:baseline;gap:8px}" +
+      "#fc26-panel .sbc-poolnum b{font-size:30px;font-weight:800;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .sbc-poolnum span{font-size:11px;color:var(--muted)}" +
+      "#fc26-panel .sbc-drops{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}" +
+      "#fc26-panel .sbc-drops span{font-size:10px;color:var(--muted);padding:3px 7px;border-radius:6px;background:var(--tile);border:1px solid var(--tile-border)}" +
+      "#fc26-panel .sbc-drops b{color:var(--ink);font-weight:700}" +
+      "#fc26-panel .sbc-perreq{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}" +
+      "#fc26-panel .sbc-prq{display:flex;flex-direction:column;gap:1px;padding:6px 9px;border-radius:8px;background:var(--tile);border:1px solid var(--tile-border);font-size:10.5px}" +
+      "#fc26-panel .sbc-prq b{font-size:14px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .sbc-prq i{font-style:normal;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
+      // A requirement you don't have enough players for is the reason a fill would fail,
+      // so it's called out in the warning colour rather than blending in.
+      // Reuses the themed red already used for the close button and pending removals,
+      // rather than inventing a new colour outside the token block.
+      "#fc26-panel .sbc-prq.short{border-color:rgba(255,120,120,.45)}" +
+      "#fc26-panel .sbc-prq.short b{color:var(--btnx-ink)}" +
+      "#fc26-panel .sbc-prev{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}" +
+      "#fc26-panel .sbc-pchip{display:flex;align-items:center;gap:5px;font-size:10.5px;padding:4px 8px;border-radius:999px;background:var(--tile);border:1px solid var(--tile-border)}" +
+      "#fc26-panel .sbc-pchip b{color:var(--gold);font-weight:800}" +
+      "#fc26-panel .sbc-note{margin-top:8px;font-size:10px;color:var(--muted);line-height:1.45;opacity:.9}" +
       // Generic dashboard section card + heading (reused by every module below the hero).
       "#fc26-panel .db-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:12px}" +
       "#fc26-panel .db-h3{margin:0 0 10px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800;display:flex;align-items:center;gap:8px}" +
@@ -6920,6 +6961,21 @@
   // one: squad rating isn't a plain average, so hitting an exact team rating cheaply
   // is a real optimisation problem (the reference tool doesn't solve it either - it
   // just guesses a rating window). Chemistry is likewise out.
+  // Requirements we CAN'T filter for player-by-player, but which are still solvable -
+  // they're about the squad as a whole. These show as "~" (not yet), NOT as "✗", because
+  // marking them ✗ read as "you can't complete this SBC", which isn't true at all.
+  //
+  // TEAM_RATING is the big one and it is NOT impossible. Squad rating is:
+  //     total  = sum of the 11 ratings
+  //     avg    = total / 11
+  //     excess = sum of (rating - avg) for every player ABOVE the average
+  //     rating = floor( round(total + excess) / 11 )
+  // (EA's own formula.) The `excess` term is why a 95 can carry an 85, and why an
+  // "88 rated" squad does NOT mean eleven 88s - e.g. two 87s and nine 88s comes to
+  // exactly 88. Solving it means searching RATING COMBINATIONS (a dozen or so distinct
+  // numbers), not searching players, which is a small problem. Planned as step 3.
+  var SBC_PLANNED_KEYS = { TEAM_RATING: 1 };
+
   var SBC_SUPPORTED_KEYS = {
     PLAYER_COUNT: 1, PLAYER_QUALITY: 1, PLAYER_LEVEL: 1, PLAYER_RARITY: 1,
     PLAYER_RARITY_GROUP: 1, PLAYER_MIN_OVR: 1, PLAYER_MAX_OVR: 1, PLAYER_EXACT_OVR: 1,
@@ -7036,6 +7092,7 @@
         (out.count > 0 ? (" (" + out.count + " players)") : "");
     }
     out.supported = !!SBC_SUPPORTED_KEYS[out.name];
+    out.planned = !out.supported && !!SBC_PLANNED_KEYS[out.name];   // solvable, just not built yet
     return out;
   }
 
@@ -7057,6 +7114,16 @@
     try { slots = ch.squad.getNonBrickSlots().length; } catch (e2) {}
     var reqs = [];
     try { reqs = (ch.eligibilityRequirements || []).map(sbcReadReq); } catch (e3) {}
+    // "Number of Players in the Squad: N" IS shown as a requirement in the game, but EA
+    // does NOT put it in eligibilityRequirements - it's implied by how many slots the
+    // squad has. Without this the panel lists fewer requirements than the game does and
+    // looks like it's missing one, so we add it back from the slot count.
+    if (slots != null) {
+      reqs.push({
+        name: "PLAYER_COUNT", key: null, values: [slots], count: slots, scope: "EXACT",
+        text: "Number of Players in the Squad: " + slots, supported: true, derived: true
+      });
+    }
     var unsupported = reqs.filter(function (r) { return !r.supported; }).length;
     return {
       ok: true,
@@ -7066,6 +7133,159 @@
       reqs: reqs,
       unsupported: unsupported,
       screen: cls
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // STEP 2 - THE CANDIDATE POOL  (still READ-ONLY)
+  // --------------------------------------------------------------------------
+  // "Which of my club players is this SBC even willing to accept?"
+  //
+  // WHY OURS IS SIMPLER THAN THE REFERENCE TOOL'S. Paletools fires off a dozen
+  // separate club searches per SBC (one per requirement value) because it doesn't
+  // keep your club in memory. We already load the WHOLE club into state.clubItems
+  // for the evo picker, so this is just a filter over a list we're holding. No
+  // searches, no rate-limiting, no waiting.
+  //
+  // Nothing here writes. It counts and lists.
+
+  // sbcMatchReq(it, r): does ONE player satisfy ONE requirement?
+  // The field mapping is the fiddly part (EA's names aren't guessable), so:
+  //   CLUB_ID -> teamId, LEAGUE_ID -> leagueId, NATION_ID -> nationId,
+  //   PLAYER_RARITY -> rareflag, quality/level -> the item's own getTier(),
+  //   rarity groups -> the item's own belongsToGroup().
+  // A requirement can allow SEVERAL values ("Premier League OR La Liga"), which is
+  // why the id rules test "is the player's value in the list" rather than equality.
+  function sbcMatchReq(it, r) {
+    var vals = r.values || [];
+    var one = vals.length ? vals[0] : null;
+    function has(x) { return vals.indexOf(x) !== -1; }
+    try {
+      switch (r.name) {
+        case "CLUB_ID": return has(it.teamId);
+        case "LEAGUE_ID": return has(it.leagueId);
+        case "NATION_ID": return has(it.nationId);
+        case "PLAYER_EXACT_OVR": return has(it.rating);
+        case "PLAYER_RARITY": return has(it.rareflag);
+        case "PLAYER_MIN_OVR": return it.rating >= one;
+        case "PLAYER_MAX_OVR": return it.rating <= one;
+        case "PLAYER_QUALITY":
+        case "PLAYER_LEVEL":
+          return typeof it.hasQualityTiers === "function" && it.hasQualityTiers() && it.getTier() === one;
+        case "PLAYER_RARITY_GROUP":
+          return typeof it.belongsToGroup === "function" && !!it.belongsToGroup(one);
+        case "PLAYER_TRADABILITY": return it.tradable === one;
+        case "FIRST_OWNER_PLAYERS_COUNT": return it.owners === 0;
+        // These are rules about the SQUAD as a whole ("at least 3 different leagues"),
+        // not tests on one player, so they never rule anybody out of the pool. They get
+        // handled when we actually pick the squad (step 4).
+        case "PLAYER_COUNT": case "NATION_COUNT": case "LEAGUE_COUNT": case "CLUB_COUNT":
+        case "SAME_NATION_COUNT": case "SAME_LEAGUE_COUNT": case "SAME_CLUB_COUNT":
+          return true;
+      }
+    } catch (e) {}
+    return false;   // anything we don't understand excludes the player rather than risking a bad fill
+  }
+
+  // Your ACTIVE squad, so we never offer up your starting XI as fodder. This is the
+  // one thing here we can't read from memory, so it's fetched once and remembered.
+  // defIds identify the PLAYER, so every version of that player is protected.
+  var sbcSquadIds = null;        // null = not fetched yet, {} = fetched
+  var sbcSquadBusy = false;
+  function sbcLoadActiveSquad(done) {
+    if (sbcSquadIds || sbcSquadBusy) { if (done) done(); return; }
+    if (!window.UTItemSearchViewModel) { sbcSquadIds = {}; if (done) done(); return; }
+    sbcSquadBusy = true;
+    var finish = function (ids) {
+      sbcSquadIds = {};
+      (ids || []).forEach(function (d) { sbcSquadIds[d] = 1; });
+      sbcSquadBusy = false;
+      if (done) done();
+    };
+    try {
+      awaitService(new window.UTItemSearchViewModel().requestActiveSquadDefIds()).then(
+        function (res) { finish((res && res.data && res.data.defIds) || []); },
+        function () { finish([]); }        // can't read it - protect nobody rather than block
+      );
+    } catch (e) { finish([]); }
+  }
+
+  // sbcBuildPool(info, opts): the candidate list, plus an honest breakdown of who got
+  // dropped and why. opts = { noSpecials, untradeablesOnly }.
+  //
+  // Order of exclusions matters only for the breakdown numbers (each player is counted
+  // against the FIRST reason that ruled them out), so the tallies always add up.
+  function sbcBuildPool(info, opts) {
+    opts = opts || {};
+    var all = getClubPlayers();
+    // The rules every single player has to meet (count -1 = "applies to all players").
+    // Rules with a count are about a subset, so they don't shrink the pool.
+    var universal = (info.reqs || []).filter(function (r) {
+      return r.supported && (r.count === -1 || r.count == null);
+    });
+    // Does a rarity rule apply to the WHOLE squad, or just to some of it?
+    //
+    // This distinction matters and getting it wrong was a real bug. The common FC26
+    // pattern is "Any TOTW/TOTS/FOF/FUTTIES: Min. 1 Players" alongside "Team Rating:
+    // Min. 88" - that rule has count 1, so ONE player must be special and the other ten
+    // can be plain gold. Only a rule with count -1 ("all players must be Gold") actually
+    // dictates the rarity of every slot.
+    //
+    // The old code just asked "is there a rarity rule at all", which switched the
+    // "skip special cards" toggle off for any SBC wanting a single special card.
+    var rarityLocksAll = (info.reqs || []).some(function (r) {
+      return (r.name === "PLAYER_RARITY" || r.name === "PLAYER_RARITY_GROUP") &&
+             (r.count === -1 || r.count == null);
+    });
+    // Counted rules ("min 1 TOTW") are satisfied by SPECIFIC players. Those players have
+    // to survive the "skip special cards" filter or the SBC becomes unfillable - you'd
+    // have thrown away the very card it asked for. So specials that answer a counted
+    // rule are always kept; every other special is dropped as normal.
+    var countedReqs = (info.reqs || []).filter(function (r) {
+      return r.supported && !r.derived && typeof r.count === "number" && r.count > 0;
+    });
+    function neededForCounted(it) {
+      for (var q = 0; q < countedReqs.length; q++) if (sbcMatchReq(it, countedReqs[q])) return true;
+      return false;
+    }
+
+    var out = [], drop = { loan: 0, evolved: 0, inSquad: 0, special: 0, tradable: 0, rules: 0 }, keptSpecial = 0;
+    for (var i = 0; i < all.length; i++) {
+      var it = all[i];
+      if (isLoanPlayer(it)) { drop.loan++; continue; }
+      // Evolved cards can't be submitted to an SBC.
+      var evolved = false; try { evolved = !!it.upgrades; } catch (e) {}
+      if (evolved) { drop.evolved++; continue; }
+      if (sbcSquadIds && it.definitionId != null && sbcSquadIds[it.definitionId]) { drop.inSquad++; continue; }
+      if (opts.noSpecials && !rarityLocksAll && !(it.rareflag === 0 || it.rareflag === 1)) {
+        // Keep it only if this SBC specifically asks for a card like it.
+        if (neededForCounted(it)) { keptSpecial++; }
+        else { drop.special++; continue; }
+      }
+      if (opts.untradeablesOnly && it.tradable === true) { drop.tradable++; continue; }
+      var ok = true;
+      for (var j = 0; j < universal.length; j++) { if (!sbcMatchReq(it, universal[j])) { ok = false; break; } }
+      if (!ok) { drop.rules++; continue; }
+      out.push(it);
+    }
+
+    // How many candidates each individual requirement has, so a "0" instantly shows you
+    // WHICH rule you can't meet rather than just "couldn't build it".
+    var perReq = (info.reqs || []).map(function (r) {
+      var n = r.supported ? all.filter(function (it) {
+        return !isLoanPlayer(it) && sbcMatchReq(it, r);
+      }).length : null;
+      return { req: r, matches: n };
+    });
+
+    return {
+      pool: out,
+      total: all.length,
+      drop: drop,
+      perReq: perReq,
+      squadKnown: !!sbcSquadIds,
+      rarityLocksAll: rarityLocksAll,  // true only when EVERY slot's rarity is dictated
+      keptSpecial: keptSpecial         // specials kept because the SBC asks for them
     };
   }
 
@@ -7095,6 +7315,10 @@
     layoutHost.style.display = "none";
     applyPanelChrome();
     renderSbcPage();
+    // Find out which players are in your active squad (one call, remembered after).
+    // Draws immediately above without it, then redraws once it lands - so the page
+    // never sits blank waiting on the network.
+    sbcLoadActiveSquad(function () { if (state.sbcOpen) renderSbcPage(); });
   }
   function closeSbcPage() {
     state.sbcOpen = false;
@@ -7160,11 +7384,11 @@
       var list = document.createElement("div"); list.className = "sbc-reqs";
       info.reqs.forEach(function (r) {
         var row = document.createElement("div");
-        row.className = "sbc-req" + (r.supported ? "" : " no");
+        row.className = "sbc-req" + (r.supported ? "" : (r.planned ? " soon" : " no"));
         // count -1 means "every player must match this", anything else is "N players".
         var appliesTo = (r.count === -1 || r.count == null) ? "all players" : (r.count + " player" + (r.count === 1 ? "" : "s"));
         row.innerHTML =
-          "<span class='sbc-req-dot'>" + (r.supported ? "✓" : "✗") + "</span>" +
+          "<span class='sbc-req-dot'>" + (r.supported ? "✓" : (r.planned ? "~" : "✗")) + "</span>" +
           "<span class='sbc-req-tx'>" +
             "<b>" + esc(r.text) + "</b>" +
             "<i>" + esc(r.name) + " · " + esc(appliesTo) + (r.scope ? (" · " + esc(String(r.scope).toLowerCase())) : "") + "</i>" +
@@ -7176,14 +7400,130 @@
     bodyEl.appendChild(card);
 
     // ---- Honest verdict on whether a future auto-fill could handle this one ----
+    // Three outcomes, not two. "Blocked" and "not built yet" are very different things,
+    // and lumping them together made solvable SBCs look impossible.
+    var planned = info.reqs.filter(function (r) { return r.planned; }).length;
+    var blocked = info.reqs.filter(function (r) { return !r.supported && !r.planned; }).length;
     var verdict = document.createElement("div");
-    verdict.className = "sbc-verdict " + (info.unsupported ? "warn" : "ok");
-    verdict.innerHTML = info.unsupported
-      ? "<b>Auto-fill could not build this one.</b><span>" + info.unsupported + " of " + info.reqs.length +
-        " requirements are marked ✗. Team rating and chemistry can't be solved by picking cheapest-first, so they're out of scope.</span>"
-      : "<b>Auto-fill could build this one.</b><span>Every requirement is a simple per-player test, which is exactly what a cheapest-fodder fill handles.</span>";
+    verdict.className = "sbc-verdict " + (blocked ? "warn" : (planned ? "soon" : "ok"));
+    verdict.innerHTML = blocked
+      ? "<b>Auto-fill can't build this one.</b><span>" + blocked + " requirement" + (blocked === 1 ? " is" : "s are") +
+        " marked ✗ - chemistry can't be worked out by picking players, so it stays out of scope.</span>"
+      : (planned
+        ? "<b>Buildable, but not yet.</b><span>" + planned + " requirement" + (planned === 1 ? " needs" : "s need") +
+          " squad-rating solving (marked ~). That's a real thing this can do - an “88 rated” squad doesn't mean eleven 88s, " +
+          "it's an average, so mixing e.g. two 87s with nine 88s gets there. It's the next thing to build.</span>"
+        : "<b>Auto-fill could build this one.</b><span>Every requirement is a simple per-player test, which is exactly what a cheapest-fodder fill handles.</span>");
     bodyEl.appendChild(verdict);
 
+    // ---- STEP 2: which of your club players this SBC would accept ----
+    var pcard = document.createElement("div"); pcard.className = "db-card";
+    var ph = document.createElement("div"); ph.className = "db-h3"; ph.textContent = "Your candidates";
+    pcard.appendChild(ph);
+
+    var club = getClubPlayers();
+    if (!club.length) {
+      var noClub = document.createElement("div"); noClub.className = "mp-soon";
+      noClub.textContent = "No club loaded yet. Go back, tap ↻ Reload club, then re-read.";
+      pcard.appendChild(noClub);
+      bodyEl.appendChild(pcard);
+      sbcHost.appendChild(bodyEl);
+      return;
+    }
+
+    // Two toggles that genuinely change who's eligible. Kept on state so they survive
+    // a re-read within the session (deliberately not saved to storage - this is step 2).
+    var opts = { noSpecials: state.sbcNoSpecials !== false, untradeablesOnly: !!state.sbcUntradeOnly };
+    var res = sbcBuildPool(info, opts);
+
+    // "Skip special cards" is only genuinely inert when EVERY slot's rarity is dictated
+    // ("all players must be Gold"). A "Min. 1 TOTW" style rule does NOT lock the toggle -
+    // it just means the cards answering that rule are kept while other specials are still
+    // skipped, which is the normal FC26 shape (1 special + 10 golds to hit a rating).
+    var rarityLocked = !!res.rarityLocksAll;
+    var togs = document.createElement("div"); togs.className = "sbc-togs";
+    [["noSpecials", "Skip special cards", "Only commons and rares count as fodder"],
+     ["untradeablesOnly", "Untradeables only", "Burn cards you can't sell anyway"]].forEach(function (t) {
+      var off = (t[0] === "noSpecials" && rarityLocked);
+      var lab = document.createElement("label"); lab.className = "sbc-tog" + (off ? " off" : "");
+      lab.title = off ? "This SBC asks for a specific rarity, so this can't apply." : t[2];
+      var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!opts[t[0]];
+      cb.disabled = off;
+      cb.addEventListener("change", function () {
+        if (t[0] === "noSpecials") state.sbcNoSpecials = cb.checked; else state.sbcUntradeOnly = cb.checked;
+        renderSbcPage();
+      });
+      var sp = document.createElement("span"); sp.textContent = t[1];
+      lab.appendChild(cb); lab.appendChild(sp);
+      togs.appendChild(lab);
+    });
+    pcard.appendChild(togs);
+    if (rarityLocked) {
+      var lockNote = document.createElement("div"); lockNote.className = "sbc-note";
+      lockNote.textContent = "This SBC dictates the rarity of every player, so “Skip special cards” can't apply here.";
+      pcard.appendChild(lockNote);
+    } else if (opts.noSpecials && res.keptSpecial) {
+      // Reassure you that skipping specials hasn't thrown away the card the SBC needs.
+      var keepNote = document.createElement("div"); keepNote.className = "sbc-note";
+      keepNote.textContent = "Skipping specials, but " + res.keptSpecial + " special card" +
+        (res.keptSpecial === 1 ? " was" : "s were") + " kept because this SBC asks for them.";
+      pcard.appendChild(keepNote);
+    }
+
+    // Headline number.
+    var big = document.createElement("div"); big.className = "sbc-poolnum";
+    big.innerHTML = "<b>" + res.pool.length + "</b><span>of your " + res.total +
+      " club players could go into this SBC</span>";
+    pcard.appendChild(big);
+
+    // Who got dropped and why. Only reasons that actually removed somebody are shown.
+    var reasons = [
+      ["inSquad", "in your active squad"], ["evolved", "evolved (SBCs won't take them)"],
+      ["loan", "loan or expiring"], ["special", "special cards (toggle above)"],
+      ["tradable", "tradeable (toggle above)"], ["rules", "don't meet this SBC's rules"]
+    ].filter(function (r) { return res.drop[r[0]] > 0; });
+    if (reasons.length) {
+      var dl = document.createElement("div"); dl.className = "sbc-drops";
+      dl.innerHTML = reasons.map(function (r) {
+        return "<span><b>" + res.drop[r[0]] + "</b> " + esc(r[1]) + "</span>";
+      }).join("");
+      pcard.appendChild(dl);
+    }
+    if (!res.squadKnown) {
+      var warn = document.createElement("div"); warn.className = "sbc-note";
+      warn.textContent = "Still checking which players are in your active squad…";
+      pcard.appendChild(warn);
+    }
+
+    // Per-requirement candidate counts. A zero here is the exact reason a fill would fail.
+    var counted = res.perReq.filter(function (p) { return p.matches != null; });
+    if (counted.length) {
+      var pr = document.createElement("div"); pr.className = "sbc-perreq";
+      pr.innerHTML = counted.map(function (p) {
+        var need = (p.req.count === -1 || p.req.count == null) ? 0 : p.req.count;
+        var short = need > 0 && p.matches < need;
+        return "<span class='sbc-prq" + (short ? " short" : "") + "'>" +
+          "<b>" + p.matches + "</b>" + (need ? (" / " + need + " needed") : " match") +
+          "<i>" + esc(p.req.name.replace(/_/g, " ").toLowerCase()) + "</i></span>";
+      }).join("");
+      pcard.appendChild(pr);
+    }
+
+    // A peek at the pool. Sorted by rating, lowest first, purely so the list is stable -
+    // this is NOT the order a fill would use. Choosing that order is step 3.
+    if (res.pool.length) {
+      var preview = res.pool.slice().sort(function (a, b) { return (a.rating || 0) - (b.rating || 0); }).slice(0, 12);
+      var pl = document.createElement("div"); pl.className = "sbc-prev";
+      pl.innerHTML = preview.map(function (it) {
+        return "<span class='sbc-pchip'><b>" + (it.rating || "?") + "</b>" + esc(playerName(it)) + "</span>";
+      }).join("");
+      pcard.appendChild(pl);
+      var note = document.createElement("div"); note.className = "sbc-note";
+      note.textContent = "Lowest-rated first, just so the list is stable. Picking the real order (cheapest, untradeable-first and so on) comes next.";
+      pcard.appendChild(note);
+    }
+
+    bodyEl.appendChild(pcard);
     sbcHost.appendChild(bodyEl);
   }
 
