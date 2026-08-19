@@ -27,6 +27,46 @@ cut for it**. Nobody has this yet. It moves under a real `vN` heading if and whe
 - This is step 1 of a possible SBC builder. It might not go any further, so it was built to
   be removed cleanly if not (see RUNBOOK §3y).
 
+**Also on dev: the candidate pool (step 2).** Shows how many of your club players a given
+SBC would actually accept, why the rest were excluded, and how many candidates each
+individual requirement has. Still read-only.
+
+- Requirements now show one of **three** marks, not two: **✓** the fill handles it, **~**
+  solvable but not built yet (squad rating), **✗** genuinely out of scope (chemistry).
+- **"~" replaced a wrong "✗" on team rating.** Marking it ✗ implied you couldn't complete
+  the SBC at all, which isn't true - an "88 rated" squad is an *average*, so two 87s and
+  nine 88s gets there. That's a solvable problem and it's the next thing to build.
+- Fixed: "skip special cards" was switched off by *any* rarity requirement. "Min. 1 TOTW"
+  constrains one slot, not eleven, so it now only locks when a rarity rule covers every
+  player - and specials the SBC actually asks for are kept rather than binned.
+
+---
+
+## v44 - 2026-08-19
+
+**The tool was only ever seeing about half your club.**
+
+- **The bug:** "↻ Reload club" stopped early. On my club it loaded **915** players out of
+  **1785** and reported itself finished. No error, no warning - it just quietly had half.
+- **What that broke:** everything that reads your club. The player picker was missing
+  players, the Justaino Score rankings were ranking half your club, and **Best XI was
+  picking your best eleven out of the wrong pool**. If your Best XI or rankings change
+  after this update, that's them being right, not them breaking.
+- **Why:** the tool assumed the game's club search worked like normal pages - "give me 91
+  players, then the next 91". It doesn't. Every reply hands back your **whole** loaded club,
+  not a page of it. So when the tool moved its marker forward by "how many came back", it
+  moved it by 915 instead of 91 and shot straight past the end of your club after a single
+  request. The game then had no reason to fetch any more, and said it was done.
+- The game's own "that's everything" flag turned out to mean "that's everything I've loaded
+  so far", not "that's your whole club" - it goes true almost immediately. The tool believed
+  it. It no longer does.
+- **The fix:** walk the marker forward in fixed steps, and only stop once several requests
+  in a row bring back nobody new **and** the marker has gone past everyone already found.
+- **Reloading now takes a bit longer** - roughly 10 to 20 seconds instead of a few. That's
+  the tool actually fetching the rest of your club rather than giving up early. The counter
+  on the button shows it climbing the whole way.
+- Nothing else changed. This is one fix on its own.
+
 ---
 
 ## v43 - 2026-08-15
