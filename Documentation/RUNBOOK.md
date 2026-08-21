@@ -1442,6 +1442,291 @@ a sensible label and no code change; add a `SUB_LABELS` line only if it needs pr
 
 ---
 
+## 3y. New in v45 - the SBC Solver
+
+Shipped in v45. It is still fenced off in the source so it can be removed cleanly if it ever
+stops earning its place - see "Deleting it" at the end.
+
+Opens from the **🧩 SBC Solver** square in the Lineup column. It shares a compact
+two-across row (`mini-row`) with **🏟️ Club Dashboard** - both used to be full-width tiles
+and the column got too long. Justaino Score and Squad Builder keep their big tiles.
+
+### What it does, in four stages
+
+1. **Reads** the SBC you currently have open in the game: name, slot count, and every
+   requirement in plain English.
+2. **Pools** your club (plus SBC storage): how many of your players that SBC would accept,
+   and why the rest were excluded.
+3. **Solves** the squad rating: the cheapest set of cards you own that reaches the target.
+4. **Fills** the squad for you.
+
+Stages 1-3 are read-only. Stage 4 is the only thing that writes, and even that stops short
+of submitting.
+
+### SBC storage
+
+Stored duplicates are a separate search - `services.Item.searchStorageItems(new
+UTSearchCriteriaDTO())` - not part of the club. They come back in one go (no paging), are
+always untradeable, and carry the same fields and methods club cards do, so the matcher and
+solver need no special cases **except price**.
+
+Price is the catch, and it is not optional. Storage is typically full of HIGH-rated cards (a
+real club: 23 spare 95s, 11 spare 96s). Priced on rating alone the solver would never touch
+them, and the whole pile would sit unused even though those cards are free and can be used
+for nothing else. So storage gets its own multiplier, `window.FC26.sbcStorageDiscount`
+(default 0.1): the same rating curve, scaled right down, so a stored card is worth using if
+it's up to about 4 ratings above what you'd otherwise have spent from the club.
+
+That is also why the solver picks from **(source, rating) buckets** rather than one pile per
+rating - a stored 95 and a club 95 are identical to the maths and nothing alike to you.
+
+### It fills, it never submits
+
+The **Fill this squad in the game** button places the players in the SBC squad, exactly as
+dragging them in would. **It does not submit the challenge.** Filling is reversible - clear
+the squad, or just walk away. Submitting exchanges your cards permanently, so that press
+stays yours, in the game, looking at the real squad.
+
+Before it writes anything it: confirms with every card listed by name and rating,
+re-finds the challenge live rather than trusting a stale reference, refuses if the SBC
+isn't the one the plan was built for, clears the squad first so filling twice can't
+half-replace, and blocks double-clicks.
+
+After you submit in the game, press **↻ Reload club & re-read** on the SBC page. That button
+pulls your club again as well as re-reading the challenge, which matters because the players
+you just spent are gone from the game but still sitting in the tool's cached club - without
+it, the next plan would try to spend them again. It takes 10-20s (see §3s on the club load).
+
+You rarely need it for *switching* SBC: the page polls every 1.5s and redraws itself when
+you open a different challenge.
+
+### Reading the requirement marks
+
+- **✓** a per-player test the fill handles (league, nation, club, rarity, quality, OVR bounds)
+- **~** solvable but about the squad as a whole - currently just team rating
+- **✗** genuinely out of scope: chemistry
+
+The 19 ✓ types are in `SBC_SUPPORTED_KEYS`; the ~ ones in `SBC_PLANNED_KEYS`.
+
+### Squad rating: the thing to understand
+
+**An "88 rated" squad does not mean eleven 88s.** It's an average with a bonus for your
+better cards, which is why these are cheap to do by hand. EA's formula, verified live
+against the game's own `squad.getRating()`:
+
+```
+total  = all the ratings added up
+avg    = total / how many players
+excess = for each player ABOVE that average, how far above, summed
+rating = floor( round(total + excess) / squad size )
+```
+
+Two worked examples, both confirmed:
+
+- Two 87s + nine 88s -> total 966, avg 87.818, excess 1.636, round(967.636)=968, 968/11 = **88**.
+- Three cards (83, 87, 83) in an 11-slot squad -> **39**, not 85. **Empty slots count as
+  zero.** A part-filled SBC squad rates terribly in game, and that is correct, not a bug.
+
+Check it yourself any time with `window.FC26.ratingCheck()` (with an SBC squad open, some
+players in it). It returns `ours`, `game` and `agree`. **If `agree` is ever false, the game
+is right and the tool is wrong** - stop and fix the formula before trusting any plan.
+
+### How "cheapest" is decided ⚠️ the non-obvious bit
+
+The solver searches **rating combinations**, not players - a dozen or so distinct numbers
+rather than 1785 cards, which is why it's instant.
+
+The first version minimised the *sum of ratings* and that was **wrong**. It produced plans
+like "8x84 + 1x90 + 2x94", spending two 94s to save eight rating-points elsewhere, because
+it thought a 94 cost the same as ten spare points of 84. Card value doesn't work that way.
+
+So cost now **grows exponentially with rating**: each point higher costs ~70% more, meaning
+a 94 is priced at roughly 300x an 84. The solver only reaches for a good card when there's
+genuinely no other way to make the number. Same club, same target, that plan became
+"3x86 + 7x88 + 1x89".
+
+Tune the steepness live, no rebuild:
+
+```js
+window.FC26.sbcCostGrowth = 2.5;   // default 1.7; higher = even more reluctant
+```
+
+then tap **↻ Re-read the open SBC**.
+
+Within a chosen rating, `sbcFodderRank` decides *which* card: untradeables first (you can't
+sell them anyway), then plain cards over specials, then lowest rated.
+
+The search budget (`NODE_CAP`) was set by measurement: a normal 11-slot solve explores the
+**whole** space in 8-40ms, so the answer is provably the cheapest available and the panel
+says so. Only odd cases (23 slots, every rating stocked in bulk) run out at ~100ms, and
+then it says "cheapest found" rather than claiming optimality.
+
+### Locking cards you don't want to spend
+
+**Tap any card in the plan to keep it out of SBCs**, and the plan re-solves without it.
+Locked cards appear in a "Kept out of SBCs" card; tap one there to allow it again. The list
+is stored in the browser (`fc26_sbc_locked`) so it survives reloads, and locked cards show
+in the exclusion breakdown as "locked by you" so a shrunken pool is never a mystery.
+
+Locking is by **item id**, so it's that exact card. Lock your 91 Mbappe and a spare 84 of
+him is still usable as fodder.
+
+Why locking rather than a bench you swap from: re-solving is still **guaranteed** to make
+the rating, whereas swapping a card by hand can quietly break it. That's why there's no
+bench feature - SBC squads are 11 players with no bench anyway (`getNonBrickSlots()` returns
+11, and the game lists "Number of Players in the Squad: 11" as a requirement). The fill code
+doesn't hardcode 11 though: it fills whatever slots the game reports, so a bigger SBC would
+just work.
+
+From the Console: `window.FC26.sbcLocks.list()` and `window.FC26.sbcLocks.clear()`.
+
+### Evolutions: only IN-PROGRESS ones are barred ⚠️
+
+EA's rule is that a card **part-way through an evolution** can't be submitted to an SBC, but
+once the evolution is **finished** it can be used like any other card.
+
+The check is `it.upgrades && it.upgrades.enrolled === true`. It is **not** `!!it.upgrades`,
+and that mistake is easy to make because the field name invites it:
+
+`upgrades` is an object describing a card's evolution **state**, and a great many cards
+carry one without being enrolled in anything. On a real club it flagged **146** cards -
+almost all of them 94-98 promos - and shut every one of them out of every plan. Measured
+live on that same club: of the 146, exactly **one** had `enrolled: true`, and it was the
+single evolution actually running at the time.
+
+`evolutionStatus` is NOT on club items (it comes back `undefined`); it only exists as a
+`UTSearchCriteriaDTO` filter, with `EvolutionStatus` = `any` / `complete` / `in_progress`.
+`upgrades` also carries an `activeInEvolution` flag - not needed so far, but it's the first
+thing to check if an in-progress card ever slips through.
+
+### The same player can't appear twice ⚠️
+
+The game rejects a squad containing one player twice, exactly as it does for a normal squad
+(the Squad Builder hits the same rule as error 460). This is enforced in **three** places,
+and all three are needed:
+
+1. `sbcRatingStock()` keeps only one card **per player per rating**. Three spare 88 Rodris
+   count as one available 88. This one matters most: the solver counts how many cards it has
+   at each rating, and counting unusable duplicates would let it plan a squad that can't
+   legally be built.
+2. The reserved picks for counted requirements ("Min. 1 TOTW") count **distinct people**,
+   not cards.
+3. Assignment skips anyone already in the squad, because the same person can own cards at
+   **different** ratings (a base 84 and a TOTW 88).
+
+All of it uses the existing `playerKey()` helper - do not invent a second notion of "same
+player", `playerKey()` already handles the case where `assetId` comes back 0 on club items.
+
+### The toggles
+
+- **Skip special cards** - only commons/rares as fodder. It's greyed out only when the SBC
+  dictates the rarity of *every* slot. A "Min. 1 TOTW" rule does **not** grey it out: that
+  constrains one slot, not eleven, and specials the SBC actually asks for are kept rather
+  than binned.
+- **Untradeables only** - restricts the *whole* plan, required cards included. If the SBC
+  needs a TOTW and all of yours are tradeable, the plan fails rather than quietly using one.
+
+### Two bugs worth not reintroducing
+
+**Counted vs universal requirements.** A requirement's `count` is the number of players it
+applies to; `-1` means all of them. Treating "Min. 1 TOTW" (count 1) as if it constrained
+the whole squad broke the special-cards toggle. Always check `count` before assuming a rule
+is squad-wide.
+
+**Identifying the SBC.** Comparing slot counts is *not* enough to tell two SBCs apart -
+nearly all have 11, so a plan for one filled a completely different one. `sbcFingerprint()`
+combines the challenge's id fields with a summary of its actual requirements. The page also
+re-checks every 1.5s while open and redraws itself when you switch challenges, so a stale
+plan shouldn't be on screen in the first place. That watcher's timer id is kept on
+`window.FC26.__sbcWatch` because re-running the bookmarklet can't reach into the old
+closure to clear a local one.
+
+### How it finds the open SBC (for future maintenance)
+
+All discovered live; the full API notes are in `Reference/paletools/README.md` (that folder
+is gitignored - see the note there).
+
+```
+getAppMain().getRootViewController().getPresentedViewController()
+            .getCurrentViewController().getCurrentController()
+   -> UTSBCSquadSplitViewController
+      .leftController._challenge        <- the challenge
+```
+
+The challenge carries `.squad`, `.eligibilityRequirements` and `.eligibilityOperation`.
+Requirement objects hold **raw data only**, read through EA's own accessors
+(`getFirstKey()`, `getValue(k)`, `count`, `scope`) and labelled with EA's own
+`buildString()`, which is why the wording matches the game exactly.
+`SBCEligibilityKey` is a two-way enum, so the readable name comes free.
+
+"Number of Players in the Squad" is shown by the game but is **not** in
+`eligibilityRequirements` - it's implied by the slot count, so we derive it.
+
+Filling is `squad.setPlayers(arrayIndexedBySlot)` then `services.SBC.saveChallenge(challenge)` -
+one call for the whole squad. The array is `UTSquadEntity.TOTAL_PLAYERS` (23) long and
+indexed by each slot's `.index`, not a plain list of players.
+
+**If it ever stops finding the SBC**, the "no SBC open" message prints the controller you
+were actually on. EA renaming a controller is the likeliest cause.
+
+Console helpers: `window.FC26.readSbc()`, `window.FC26.openSbcPage()`,
+`window.FC26.ratingCheck()`.
+
+### Deleting it
+
+Built to be removable in three steps:
+
+1. Delete the block between `### SBC-SOLVER BEGIN ###` and `### SBC-SOLVER END ###` in
+   `fc26-tools.js`.
+2. Delete `squadMod.appendChild(sbcLaunch);` from the layout assembly line.
+3. Delete the `.sbc-*` rules in the stylesheet (fenced with an `### SBC-SOLVER styles`
+   comment).
+
+Then `node minify.js`. Nothing else reads it, apart from `state.sbcOpen` in the two lines
+tracking which full-screen page is open; leaving those is harmless.
+
+---
+
+## 3z. New in v45 - the PS+ cap is 5, and what that touched
+
+**`CAP_PLUS` is the only place the number lives.** Everything reads it, so if EA moves it
+again that one line is the change - the pips, the selection caps, the "with room left"
+filter and the Apply loop all follow.
+
+Two things do NOT follow automatically, and both have bitten already:
+
+**1. The ROLES lists are a hard ceiling on Suggest.** Suggest stops as soon as nothing raises
+the score, and a PlayStyle a role doesn't list is worth zero. So a role listing 12 PlayStyles
+can never fill 13 slots. This has now happened twice - at the 3 to 4 change and again at 4 to
+5 - and both times Suggest quietly filled one short. **Lengthen the lists BEFORE raising the
+cap.** They are 13 long now; a cap of 6 would need 14.
+
+**2. The score's "full marks" ceiling** is `CFG.psCeilPlus` (`PS_CEIL_PLUS`), how many PS+ a
+card is assumed to hold at full marks. It happened to already be 5 when the cap moved to 5,
+so nothing needed doing - but if the cap and that number disagree, scores clip at 100 and
+stop discriminating. Check them together.
+
+### Where the role lists come from
+
+fut.gg's "Best PlayStyles by Role", read at the setting matching our caps. The page renders
+only its DEFAULT split server-side and the count buttons are client-side state with no URL
+parameter, so `curl` cannot get a non-default split. Set the page to 5 and 8 in a browser and
+scrape the rendered DOM instead - gold diamond fill (`#e3c075`) marks a PlayStyle+, white
+marks a base. The scrape command is in the session notes; regenerate it if needed.
+
+Always diff the scraped names against the tool's 36 before writing anything. Four differ:
+`Low Driven` -> Low Driven Shot, `Game Changer` -> Gamechanger, `Long Ball` -> Long Ball
+Pass, `Rush Out` -> 1v1 Close Down.
+
+### Every rarity is eligible now
+
+EA opened PlayStyle evos to every card, so the curated eligible-rarity list stopped being a
+real restriction. "Manage eligible rarities" has a **Tick every rarity** action. It only ever
+ADDS - the old bulk actions were removed because it was too easy to WIPE the list by
+accident, and this one cannot - and it still stages until you press Save.
+
+---
+
 ## 4. The evo-eligible list (important)
 
 Only certain card **rarities** can receive PlayStyles. The tool keeps its own list

@@ -141,7 +141,12 @@
   var FC26_VERSION = "dev";
 
   var TRAIT_OFFSET = 301;   // traitId = rewardId - 301
-  var CAP_PLUS = 4;         // a player can hold at most 4 PlayStyle+  (PS+)  [EA raised this from 3 to 4]
+  // EA has raised this twice now: 3 -> 4 -> 5. If they raise it again this is the only
+  // number to change; everything reads it rather than hardcoding a count.
+  // NOTE: Suggest can only fill as many slots as each role has PlayStyles listed for it,
+  // and the ROLES lists currently hold 12 each (built for the old 4+8). With 5+8=13 it will
+  // fill 12 and stop - see RUNBOOK 3v. Raising the cap does NOT lengthen those lists.
+  var CAP_PLUS = 5;         // a player can hold at most 5 PlayStyle+  (PS+)
   var CAP_BASIC = 8;        // a player can hold at most 8 basic PlayStyles (PS)
 
   // PS = the 36 basic PlayStyles.
@@ -796,78 +801,87 @@
   // EXACTLY 12 PER ROLE, AND THAT NUMBER MATTERS. A PlayStyle that isn't on a role's list
   // gets weight 0 (see roleWeightsFromList), and Suggest stops as soon as the best remaining
   // candidate would add nothing - so the list length is a hard ceiling on how many Suggest
-  // can pick. 12 = the caps (4 PS+ + 8 basic). When these were 11 long, Suggest could only
-  // ever fill 11 of the 12 slots. If you ever shorten a list, you shorten Suggest with it.
+  // can pick. 13 = the caps (5 PS+ + 8 basic). These have been lengthened TWICE now to keep
+  // up with EA raising the PS+ cap: 11 -> 12 (cap 4) -> 13 (cap 5). Each time, Suggest had
+  // quietly been filling one slot short until the lists caught up. If EA raises the cap
+  // again, these lists need a 14th BEFORE Suggest can use it, and if you ever shorten a
+  // list you shorten Suggest with it.
   //
   // Source: fut.gg's "Best PlayStyles by Role" (https://www.fut.gg/playstyles/best-by-role/)
-  // read at its 4-PlayStyles+ / 8-base setting, which is exactly our caps. Their role names
-  // and position groups match ours 1:1, all 37. Three of their names are spelled differently
-  // and were mapped: Game Changer -> Gamechanger, Long Ball -> Long Ball Pass, Rush Out ->
-  // 1v1 Close Down. Still offline curated data - no network call, edit freely if one looks
-  // wrong to you.
+  // read at its 5-PlayStyles+ / 8-base setting, which is exactly our caps. Their role names
+  // and position groups match ours 1:1, all 37, and every one of the 13x37 names maps to a
+  // PlayStyle we know. Four of their names are spelled differently and were mapped:
+  //   Low Driven -> Low Driven Shot,  Game Changer -> Gamechanger,
+  //   Long Ball  -> Long Ball Pass,   Rush Out     -> 1v1 Close Down
+  // (Rush Out is an inference: both lists carry exactly 6 GK-only styles and the other 5
+  // match by name, so it can only be our 1v1 Close Down. EA may simply have renamed it -
+  // if so our display name is the stale one, though nothing breaks either way because
+  // PlayStyles are matched by slot id, not by name.)
+  // Still offline curated data - no network call, edit freely if one looks wrong to you.
   //
-  // Only the ORDER of the top 6 really matters: the rank curve is [4,3,2,1], so ranks 1-2
-  // weigh 4, ranks 3-4 weigh 3, ranks 5-6 weigh 2, and ranks 7-12 ALL weigh 1. Which six sit
-  // in the tail counts; their order among themselves doesn't.
+  // ORDER: fut.gg's 5 PlayStyle+ picks come first, then its 8 base picks. The rank curve is
+  // [4,3,2,1], so ranks 1-2 weigh 4, ranks 3-4 weigh 3, ranks 5-6 weigh 2, and ranks 7-13
+  // ALL weigh 1 - so which styles sit in that tail matters, but their order among themselves
+  // doesn't.
   //
   // NB: Suggest does NOT simply take the top 4 as PS+. It picks whatever raises the score
   // most, so a high-weight style the card already owns as a basic is usually upgraded first.
   // This list sets priorities, not a fixed 4-and-8 split.
   var ROLES = {
     "ST": {
-      "Advanced Forward":     ["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","Gamechanger","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer","Pinged Pass"],
-      "Target Forward":       ["Finesse Shot","Enforcer","Precision Header","Low Driven Shot","Incisive Pass","Rapid","First Touch","Gamechanger","Tiki Taka","Press Proven","Pinged Pass","Technical"],
-      "Poacher":              ["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","First Touch","Gamechanger","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer","Tiki Taka"],
-      "False 9":              ["Finesse Shot","Incisive Pass","Low Driven Shot","Technical","Gamechanger","Rapid","Tiki Taka","Pinged Pass","Quick Step","Inventive","First Touch","Press Proven"]
+      "Advanced Forward":   ["Finesse Shot","Rapid","Low Driven Shot","Incisive Pass","Pinged Pass","Gamechanger","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer","Inventive"],
+      "Target Forward":     ["Enforcer","Finesse Shot","Precision Header","Low Driven Shot","Incisive Pass","Rapid","First Touch","Gamechanger","Tiki Taka","Press Proven","Pinged Pass","Technical","Quick Step"],
+      "Poacher":            ["Finesse Shot","Rapid","Low Driven Shot","Incisive Pass","Tiki Taka","First Touch","Gamechanger","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer","Inventive"],
+      "False 9":            ["Finesse Shot","Incisive Pass","Low Driven Shot","Technical","Quick Step","Gamechanger","Rapid","Tiki Taka","Pinged Pass","Inventive","First Touch","Press Proven","Chip Shot"]
     },
     "RW / LW": {
-      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
-      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
-      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive","Quick Step"]
+      "Inside Forward":   ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven","Enforcer"],
+      "Winger":           ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Enforcer","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
+      "Wide Playmaker":   ["Finesse Shot","Technical","Incisive Pass","Rapid","Press Proven","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Inventive","Quick Step","Enforcer"]
     },
     "CAM": {
-      "Shadow Striker":       ["Finesse Shot","Incisive Pass","Rapid","Technical","Low Driven Shot","Quick Step","Tiki Taka","Gamechanger","First Touch","Pinged Pass","Inventive","Press Proven"],
-      "Playmaker":            ["Finesse Shot","Incisive Pass","Low Driven Shot","Technical","Tiki Taka","Pinged Pass","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid"],
-      "Classic 10":           ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid"],
-      "Half Winger":          ["Incisive Pass","Rapid","Technical","Finesse Shot","Tiki Taka","Pinged Pass","Gamechanger","Quick Step","First Touch","Press Proven","Inventive","Low Driven Shot"]
+      "Shadow Striker":   ["Finesse Shot","Technical","Rapid","Incisive Pass","Tiki Taka","Low Driven Shot","Quick Step","Gamechanger","First Touch","Pinged Pass","Inventive","Press Proven","Relentless"],
+      "Playmaker":        ["Low Driven Shot","Finesse Shot","Incisive Pass","Technical","Pinged Pass","Tiki Taka","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid","Long Ball Pass"],
+      "Classic 10":       ["Finesse Shot","Incisive Pass","Technical","Low Driven Shot","Pinged Pass","Tiki Taka","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid","Long Ball Pass"],
+      "Half Winger":      ["Finesse Shot","Rapid","Technical","Incisive Pass","Pinged Pass","Tiki Taka","Gamechanger","Quick Step","First Touch","Press Proven","Inventive","Low Driven Shot","Whipped Pass"]
     },
     "CM": {
-      "Box to Box":           ["Incisive Pass","Pinged Pass","Intercept","Finesse Shot","Tiki Taka","Bruiser","Anticipate","Quick Step","Technical","Relentless","Press Proven","First Touch"],
-      "Playmaker":            ["Incisive Pass","Pinged Pass","Finesse Shot","Tiki Taka","Technical","Intercept","Low Driven Shot","Anticipate","First Touch","Quick Step","Inventive","Press Proven"],
-      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Incisive Pass","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive"],
-      "Holding":              ["Intercept","Pinged Pass","Bruiser","Anticipate","Tiki Taka","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless"],
-      "Half Winger":          ["Pinged Pass","Intercept","Quick Step","Tiki Taka","Incisive Pass","Finesse Shot","Anticipate","Technical","Jockey","Bruiser","Rapid","Relentless"]
+      "Box to Box":             ["Incisive Pass","Pinged Pass","Finesse Shot","Intercept","Bruiser","Tiki Taka","Anticipate","Quick Step","Technical","Relentless","Press Proven","First Touch","Low Driven Shot"],
+      "Playmaker":              ["Finesse Shot","Pinged Pass","Intercept","Technical","Incisive Pass","Tiki Taka","Low Driven Shot","Anticipate","First Touch","Quick Step","Inventive","Press Proven","Rapid"],
+      "Deep Lying Playmaker":   ["Pinged Pass","Bruiser","Incisive Pass","Intercept","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive","Relentless"],
+      "Holding":                ["Pinged Pass","Intercept","Bruiser","Incisive Pass","Anticipate","Tiki Taka","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless","Inventive"],
+      "Half Winger":            ["Pinged Pass","Intercept","Quick Step","Bruiser","Anticipate","Tiki Taka","Incisive Pass","Finesse Shot","Technical","Jockey","Rapid","Relentless","Press Proven"]
     },
     "RM / LM": {
-      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
-      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
-      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive","Quick Step"],
-      "Wide Midfielder":      ["Rapid","Quick Step","Pinged Pass","Intercept","Tiki Taka","Incisive Pass","Anticipate","Relentless","Whipped Pass","Jockey","Press Proven","Bruiser"]
+      "Inside Forward":    ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven","Enforcer"],
+      "Winger":            ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Enforcer","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
+      "Wide Playmaker":    ["Finesse Shot","Technical","Incisive Pass","Rapid","Press Proven","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Inventive","Quick Step","Enforcer"],
+      "Wide Midfielder":   ["Rapid","Quick Step","Pinged Pass","Bruiser","Jockey","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Whipped Pass","Press Proven","Inventive"]
     },
     "CDM": {
-      "Holding":              ["Intercept","Pinged Pass","Bruiser","Anticipate","Tiki Taka","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless"],
-      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Incisive Pass","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive"],
-      "Box Crasher":          ["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Tiki Taka","Quick Step","Bruiser","Anticipate","Technical","Press Proven","Relentless","First Touch"],
-      "Centre Half":          ["Intercept","Bruiser","Jockey","Anticipate","Quick Step","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass","Relentless"],
-      "Wide Half":            ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle"]
+      "Holding":                ["Pinged Pass","Intercept","Bruiser","Incisive Pass","Anticipate","Tiki Taka","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless","Inventive"],
+      "Deep Lying Playmaker":   ["Pinged Pass","Bruiser","Incisive Pass","Intercept","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive","Relentless"],
+      "Box Crasher":            ["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Bruiser","Tiki Taka","Quick Step","Anticipate","Technical","Press Proven","Relentless","First Touch","Low Driven Shot"],
+      "Centre Half":            ["Bruiser","Intercept","Jockey","Quick Step","Anticipate","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass","Relentless","First Touch"],
+      "Wide Half":              ["Bruiser","Anticipate","Quick Step","Intercept","Jockey","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle","Aerial Fortress"]
     },
     "RB / LB": {
-      "Fullback":             ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle"],
-      "Wingback":             ["Intercept","Pinged Pass","Quick Step","Bruiser","Anticipate","Tiki Taka","Jockey","Incisive Pass","Rapid","Relentless","Press Proven","Whipped Pass"],
-      "Falseback":            ["Intercept","Pinged Pass","Anticipate","Bruiser","Jockey","Tiki Taka","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless"],
-      "Inverted Wingback":    ["Incisive Pass","Tiki Taka","Quick Step","Anticipate","Intercept","Rapid","Pinged Pass","Jockey","Press Proven","Relentless","Bruiser","First Touch"],
-      "Attacking Wingback":   ["Rapid","Quick Step","Pinged Pass","Intercept","Tiki Taka","Incisive Pass","Anticipate","Relentless","Jockey","First Touch","Bruiser","Whipped Pass"]
+      "Fullback":             ["Bruiser","Anticipate","Quick Step","Intercept","Jockey","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle","Aerial Fortress"],
+      "Wingback":             ["Intercept","Quick Step","Pinged Pass","Rapid","Jockey","Anticipate","Bruiser","Tiki Taka","Incisive Pass","Relentless","Press Proven","Whipped Pass","First Touch"],
+      "Falseback":            ["Pinged Pass","Anticipate","Bruiser","Intercept","Jockey","Tiki Taka","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless","Rapid"],
+      "Inverted Wingback":    ["Quick Step","Incisive Pass","Tiki Taka","Anticipate","Jockey","Intercept","Rapid","Pinged Pass","Press Proven","Relentless","Bruiser","First Touch","Inventive"],
+      "Attacking Wingback":   ["Pinged Pass","Quick Step","Rapid","Bruiser","Intercept","Tiki Taka","Incisive Pass","Anticipate","Relentless","Jockey","First Touch","Whipped Pass","Press Proven"]
     },
     "CB": {
-      "Defender":             ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless"],
-      "Stopper":              ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","Aerial Fortress","First Touch"],
-      "Wide Back":            ["Intercept","Anticipate","Quick Step","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless"],
-      "Ball Playing Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress","Slide Tackle"]
+      "Defender":                ["Intercept","Bruiser","Quick Step","Anticipate","Jockey","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless","First Touch"],
+      "Stopper":                 ["Intercept","Bruiser","Anticipate","Quick Step","Aerial Fortress","Jockey","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","First Touch","Long Ball Pass"],
+      "Wide Back":               ["Intercept","Quick Step","Anticipate","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless","First Touch"],
+      "Ball Playing Defender":   ["Intercept","Bruiser","Quick Step","Anticipate","Jockey","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress","Slide Tackle","Relentless"]
     },
     "GK": {
-      "Goalkeeper":           ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass"],
-      "Ball Playing":         ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass"],
-      "Sweeper Keeper":       ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass"]
+      "Goalkeeper":       ["Footwork","Far Reach","1v1 Close Down","Far Throw","Cross Claimer","Deflector","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass","Finesse Shot"],
+      "Ball Playing":     ["Footwork","Far Reach","1v1 Close Down","Cross Claimer","Deflector","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass","Finesse Shot"],
+      "Sweeper Keeper":   ["Footwork","1v1 Close Down","Far Reach","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass","Finesse Shot"]
     }
   };
 
@@ -3034,6 +3048,18 @@
   var eligReset = document.createElement("button"); eligReset.type = "button"; eligReset.textContent = "Update to OG list"; eligReset.className = "elig-act elig-reset";
   eligReset.title = "Stage a reset back to your original (OG) seed list, then Save to apply";
   eligActions.appendChild(eligReset);
+  // "Tick every rarity" - EA has opened PlayStyle evos up to every card, so the curated
+  // list is now a needless restriction and ticking ~50 rarities by hand would be miserable.
+  // The old bulk actions were removed because it was too easy to WIPE the list by accident;
+  // this one only ever ADDS, so it can't lose anything, and it still stages rather than
+  // saving, so nothing changes until you press Save.
+  var eligAll = document.createElement("button"); eligAll.type = "button"; eligAll.textContent = "Tick every rarity"; eligAll.className = "elig-act";
+  eligAll.title = "Stage every rarity as eligible (adds only, never removes), then Save to apply";
+  eligAll.addEventListener("click", function () {
+    state.rarityDefs.forEach(function (r) { stagedElig.add(r.id); });
+    renderRarityManager();
+  });
+  eligActions.appendChild(eligAll);
   var eligListEl = document.createElement("div");
   eligListEl.className = "elig-list";
   var eligMgrNote = document.createElement("div");
@@ -3724,6 +3750,42 @@
       picks.push(best);
     }
 
+    // ---- SPARE SLOTS ----------------------------------------------------------
+    // The loop above stops when nothing raises the score, and that happens as soon as the
+    // card holds everything the ROLE lists. Those lists hold 12 PlayStyles each, which was
+    // exactly the old 4+8 capacity - so when EA raised the PS+ cap to 5 (13 slots), Suggest
+    // filled 12 and left one empty. Same shape as the v41 bug, one slot further along.
+    //
+    // An empty slot is wasted though: a PlayStyle the role doesn't rank is still better than
+    // nothing on the actual card. So once the score has nothing more to say, fall back to the
+    // POSITION-level list (PLAYSTYLE_WEIGHTS) - our own existing ranking, not a made-up one -
+    // and take its best entry the card doesn't already hold.
+    //
+    // These picks are flagged `spare:true` and reported separately, because they are NOT
+    // score-driven and shouldn't be presented as though they were.
+    var posList = PLAYSTYLE_WEIGHTS[pos] || {};
+    var spareGuard = 0;
+    while (spareGuard++ < CAP_PLUS + CAP_BASIC) {
+      var uPlus = countOf(have, true), uBase = countOf(have, false);
+      if (uPlus >= CAP_PLUS && uBase >= CAP_BASIC) break;             // genuinely full
+      var cands = Object.keys(posList)
+        .filter(function (nm) {
+          var b = psByName[nm];
+          if (!b || !pspByName[nm]) return false;
+          if (b.g && !gk) return false;                               // GK-only style on an outfielder
+          var trait = b.r - TRAIT_OFFSET;
+          return !have.some(function (p) { return p.traitId === trait; });
+        })
+        .sort(function (a, b) { return posList[b] - posList[a]; });
+      if (!cands.length) break;                                       // no opinion left to offer
+      var nm2 = cands[0], base2 = psByName[nm2], trait2 = base2.r - TRAIT_OFFSET;
+      // Fill a basic slot first - it's the cheaper evo, and the "+" can come later.
+      var asPlus = !(uBase < CAP_BASIC);
+      if (asPlus && uPlus >= CAP_PLUS) break;
+      have = withStyle(have, trait2, asPlus);
+      picks.push({ evo: asPlus ? pspByName[nm2] : base2, name: nm2, kind: asPlus ? "PS+" : "PS", upgrade: false, gain: 0, spare: true });
+    }
+
     // Hand the picks to the deck as ticked evos.
     state.selected = new Set();
     picks.forEach(function (p) { state.selected.add(p.evo.s); });
@@ -3741,10 +3803,17 @@
         ? playerName(it) + " has no slots left."
         : "Nothing left to add for " + against + " - the PlayStyle score is already maxed at " + startScore.toFixed(1) + ".";
     } else {
+      // Spare picks are counted separately and named, because the role has no opinion on
+      // them - they're filling an otherwise empty slot, not raising the score.
+      var spares = picks.filter(function (p) { return p.spare; });
       status.textContent = "Suggested " + picks.length + " for " + against + ": " +
         nPlus + " PS+, " + (picks.length - nPlus) + " basic" +
         (nUp ? " (" + nUp + " upgrade" + (nUp === 1 ? "" : "s") + ")" : "") +
-        " - score as " + against + " " + startScore.toFixed(1) + " -> " + endScore.toFixed(1) + ".";
+        " - score as " + against + " " + startScore.toFixed(1) + " -> " + endScore.toFixed(1) + "." +
+        (spares.length
+          ? (" Last " + spares.length + " (" + spares.map(function (p) { return p.name; }).join(", ") +
+             ") just fill the spare slot" + (spares.length === 1 ? "" : "s") + " - this role doesn't rank them.")
+          : "");
     }
   }
 
@@ -4972,6 +5041,15 @@
       "#fc26-panel .elig-cancel{flex:none;background:transparent;color:var(--muted);border:1px solid var(--field-border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:10px;font-weight:700}" +
       // ---- Feature 2: Meta rating section --------------------------------------
       "#fc26-panel .meta-section{margin-top:8px}" +
+      // Compact square launchers, two across (Club Dashboard + SBC Solver). Keeps the
+      // Lineup column short without hiding either page away in a menu.
+      "#fc26-panel .mini-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}" +
+      // Low, horizontal pills: icon and label on one line. The stacked version was as tall
+      // as the full-width tiles it replaced, which rather defeated the point.
+      "#fc26-panel .mini-launch{display:flex;align-items:center;justify-content:center;gap:7px;padding:8px 9px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);cursor:pointer;color:var(--ink);font-family:inherit;min-width:0}" +
+      "#fc26-panel .mini-launch:hover{border-color:var(--accent)}" +
+      "#fc26-panel .mini-ic{flex:none;font-size:14px;line-height:1}" +
+      "#fc26-panel .mini-tx{min-width:0;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
       "#fc26-panel .meta-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:600}" +
       "#fc26-panel .meta-box{margin-top:6px;padding:8px;border-radius:8px;background:var(--card);border:1px solid var(--card-border)}" +
       "#fc26-panel .meta-controls{display:flex;gap:6px}" +
@@ -5245,7 +5323,10 @@
       "#fc26-panel .pv-detail{margin-top:2px}" +
       "#fc26-panel .pv-detail .pv-metaline{margin-top:8px}" +
       // Pinned mobile mini-spotlight (rating + name + caps), always visible below the tabs.
-      "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-launch-tx b{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:10.5px;color:var(--muted)}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:20px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-tabsel{width:100%;margin-top:7px;padding:5px 7px;font-size:11px;font-weight:700}" + "#fc26-panel .gt-mform{flex:none;display:flex;align-items:center;gap:8px;padding-bottom:8px}" + "#fc26-panel .gt-mform-lab{flex:none;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-mform-sel{flex:1;min-width:0}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" +
+      // The two big launchers (Justaino Score, Squad Builder). Slimmed down to sit better
+      // next to the compact Dashboard / SBC Solver pair below them - same layout, just
+      // less padding and smaller type throughout.
+      "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:9px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:9px;padding:8px 11px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:13px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}" + "#fc26-panel .gt-launch-tx b{font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:9.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:16px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-tabsel{width:100%;margin-top:7px;padding:5px 7px;font-size:11px;font-weight:700}" + "#fc26-panel .gt-mform{flex:none;display:flex;align-items:center;gap:8px;padding-bottom:8px}" + "#fc26-panel .gt-mform-lab{flex:none;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-mform-sel{flex:1;min-width:0}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" +
       // ---- Feature 5: Club Dashboard (display only) ----------------------------
       // Scrolling page body that fills the panel under the shared gt-bd-top header.
       "#fc26-panel .db-body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding-right:2px}" +
@@ -5258,6 +5339,76 @@
       "#fc26-panel .db-hl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
       // On a phone 5 across is too tight - drop to 3 columns (5 cells wrap to 3 + 2).
       "#fc26-panel.fc26-mobile .db-hero{grid-template-columns:repeat(3,1fr)}" +
+      // ---- SBC Solver (### SBC-SOLVER styles - delete with the feature) ----
+      // Deliberately reuses .db-card/.db-h3/.db-body from the dashboard, so this is
+      // only the handful of rules the reader adds of its own.
+      "#fc26-panel .sbc-tools{display:flex;justify-content:flex-end}" +
+      "#fc26-panel .sbc-again{background:var(--btn);color:var(--btn-ink);border:0;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:11px;font-weight:700}" +
+      "#fc26-panel .sbc-name{font-size:17px;font-weight:800;letter-spacing:-.01em}" +
+      "#fc26-panel .sbc-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}" +
+      "#fc26-panel .sbc-pill{font-size:10px;font-weight:700;padding:4px 8px;border-radius:999px;background:var(--tile);border:1px solid var(--tile-border);color:var(--muted)}" +
+      "#fc26-panel .sbc-reqs{display:flex;flex-direction:column;gap:6px}" +
+      "#fc26-panel .sbc-req{display:flex;gap:9px;align-items:flex-start;padding:9px 10px;border-radius:10px;background:var(--tile);border:1px solid var(--tile-border)}" +
+      // A requirement a future auto-fill can't satisfy is dimmed and flagged, never hidden -
+      // you should always see the whole SBC, not a filtered version of it.
+      "#fc26-panel .sbc-req.no{opacity:.62}" +
+      // "~" = solvable, just not built yet. Deliberately NOT dimmed like a blocked one.
+      "#fc26-panel .sbc-req.soon .sbc-req-dot{background:var(--tile-psp);border-color:var(--tile-psp-border);color:var(--gold)}" +
+      "#fc26-panel .sbc-verdict.soon{background:var(--tile-psp);border-color:var(--tile-psp-border)}" +
+      "#fc26-panel .sbc-req-dot{flex:none;width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:10px;font-weight:800;background:var(--sel);border:1px solid var(--accent);color:var(--accent)}" +
+      "#fc26-panel .sbc-req.no .sbc-req-dot{background:transparent;border-color:var(--border);color:var(--muted)}" +
+      "#fc26-panel .sbc-req-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" +
+      "#fc26-panel .sbc-req-tx b{font-size:12.5px;font-weight:700;line-height:1.3}" +
+      "#fc26-panel .sbc-req-tx i{font-style:normal;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
+      "#fc26-panel .sbc-verdict{border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;gap:4px;border:1px solid}" +
+      "#fc26-panel .sbc-verdict b{font-size:12.5px}" +
+      "#fc26-panel .sbc-verdict span{font-size:11px;color:var(--muted);line-height:1.45}" +
+      "#fc26-panel .sbc-verdict.ok{background:var(--sel);border-color:var(--accent)}" +
+      "#fc26-panel .sbc-verdict.warn{background:var(--tile);border-color:var(--border)}" +
+      // Step 2 - the candidate pool read-out.
+      "#fc26-panel .sbc-togs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}" +
+      "#fc26-panel .sbc-tog{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:5px 9px;border-radius:8px;background:var(--tile);border:1px solid var(--tile-border);cursor:pointer}" +
+      "#fc26-panel .sbc-tog input{margin:0;cursor:pointer}" +
+      // A toggle the current SBC makes meaningless: visibly dead, not silently dead.
+      "#fc26-panel .sbc-tog.off{opacity:.45;cursor:not-allowed}" +
+      "#fc26-panel .sbc-tog.off input{cursor:not-allowed}" +
+      "#fc26-panel .sbc-poolnum{display:flex;align-items:baseline;gap:8px}" +
+      "#fc26-panel .sbc-poolnum b{font-size:30px;font-weight:800;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .sbc-poolnum span{font-size:11px;color:var(--muted)}" +
+      "#fc26-panel .sbc-drops{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}" +
+      "#fc26-panel .sbc-drops span{font-size:10px;color:var(--muted);padding:3px 7px;border-radius:6px;background:var(--tile);border:1px solid var(--tile-border)}" +
+      "#fc26-panel .sbc-drops b{color:var(--ink);font-weight:700}" +
+      "#fc26-panel .sbc-perreq{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}" +
+      "#fc26-panel .sbc-prq{display:flex;flex-direction:column;gap:1px;padding:6px 9px;border-radius:8px;background:var(--tile);border:1px solid var(--tile-border);font-size:10.5px}" +
+      "#fc26-panel .sbc-prq b{font-size:14px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .sbc-prq i{font-style:normal;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
+      // A requirement you don't have enough players for is the reason a fill would fail,
+      // so it's called out in the warning colour rather than blending in.
+      // Reuses the themed red already used for the close button and pending removals,
+      // rather than inventing a new colour outside the token block.
+      "#fc26-panel .sbc-prq.short{border-color:rgba(255,120,120,.45)}" +
+      "#fc26-panel .sbc-prq.short b{color:var(--btnx-ink)}" +
+      "#fc26-panel .sbc-prev{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}" +
+      "#fc26-panel .sbc-pchip{display:flex;align-items:center;gap:5px;font-size:10.5px;padding:4px 8px;border-radius:999px;background:var(--tile);border:1px solid var(--tile-border)}" +
+      "#fc26-panel .sbc-pchip b{color:var(--gold);font-weight:800}" +
+      // A card the SBC specifically demanded (the "min 1 TOTW"), marked so it's clear it
+      // was picked to satisfy a rule rather than for its rating.
+      "#fc26-panel .sbc-pchip.req{background:var(--sel);border-color:var(--accent)}" +
+      "#fc26-panel .sbc-pchip i{font-style:normal;opacity:.75;font-size:9px}" +
+      // Chips you can tap (lock / unlock). Same look, but clearly pressable.
+      "#fc26-panel .sbc-pchip.tap{cursor:pointer;font-family:inherit;color:var(--ink)}" +
+      "#fc26-panel .sbc-pchip.tap:hover{border-color:var(--accent)}" +
+      "#fc26-panel .sbc-pchip.locked{background:var(--btnx);border-color:rgba(255,120,120,.45)}" +
+      "#fc26-panel .sbc-pchip.locked b{color:var(--btnx-ink)}" +
+      // "8x 84" - the shape of the solved squad.
+      "#fc26-panel .sbc-shape{display:flex;align-items:center;gap:4px;font-size:13px;font-weight:700;padding:5px 10px;border-radius:8px;background:var(--tile);border:1px solid var(--tile-border);font-variant-numeric:tabular-nums}" +
+      "#fc26-panel .sbc-shape b{color:var(--accent);font-weight:800}" +
+      // The one button here that writes anything. Uses the Apply colour so it reads as
+      // "this does something", and it sits on its own row away from the read-only bits.
+      "#fc26-panel .sbc-fillrow{margin-top:12px}" +
+      "#fc26-panel .sbc-fill{width:100%;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:11px 14px;cursor:pointer;font-size:13px;font-weight:800}" +
+      "#fc26-panel .sbc-fill:disabled{opacity:.6;cursor:default}" +
+      "#fc26-panel .sbc-note{margin-top:8px;font-size:10px;color:var(--muted);line-height:1.45;opacity:.9}" +
       // Generic dashboard section card + heading (reused by every module below the hero).
       "#fc26-panel .db-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:12px}" +
       "#fc26-panel .db-h3{margin:0 0 10px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800;display:flex;align-items:center;gap:8px}" +
@@ -5579,7 +5730,7 @@
     // rule it OUT-SPECIFICS the 1-class pill rule (.fc26-min) - so a panel minimized with the
     // builder open would keep its full height and only "half close". Minimized never needs the
     // builder height, so we simply don't add gt-open when minimized.
-    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + ((state.builderOpen || state.metaPageOpen || state.dashOpen || state.scorePageOpen) && !state.minimized ? " gt-open" : "");
+    panel.className = (m === "mobile" ? "fc26-mobile" : "fc26-desktop") + (state.minimized ? " fc26-min" : "") + ((state.builderOpen || state.metaPageOpen || state.dashOpen || state.scorePageOpen || state.sbcOpen) && !state.minimized ? " gt-open" : "");
     applyPanelSize();     // set/clear our explicit size BEFORE clamping position (so the rect is right)
     var slot = posSlot();
     var pos = slot ? positions[slot] : null;
@@ -6573,17 +6724,11 @@
   // PlayStyle insights. (This step ships the page shell + the hero strip.)
   // ============================================================================
 
-  // The launcher tile (sits in the lineup column, next to Justaino Score + Squad Builder).
-  var dashLaunch = document.createElement("div");
-  dashLaunch.className = "meta-section";
+  // The launcher button. Its look (and the row it sits in) is set where the layout is
+  // assembled - it shares a compact two-across row with the SBC Solver.
   var dashLaunchBtn = document.createElement("button");
   dashLaunchBtn.type = "button";
-  dashLaunchBtn.className = "gt-launch";
-  dashLaunchBtn.innerHTML = "<span class='gt-launch-ic'>🏟️</span>" +
-    "<span class='gt-launch-tx'><b>Club Dashboard</b><i>Player stats and fun facts about your whole club</i></span>" +
-    "<span class='gt-launch-go'>›</span>";
   dashLaunchBtn.addEventListener("click", openDashPage);
-  dashLaunch.appendChild(dashLaunchBtn);
 
   // The full-screen page host (hidden until opened; reuses the .gt-builder shell styling:
   // flex column, own scroll, fills the panel).
@@ -6880,6 +7025,1444 @@
 
     dashHost.appendChild(bodyEl);
   }
+
+  // ============================================================================
+  // FEATURE 7 - SBC SOLVER  (read the SBC, pool your club, solve the rating, fill it)
+  // ============================================================================
+  // ### SBC-SOLVER BEGIN ### (everything down to "### SBC-SOLVER END ###" is this
+  // feature and nothing else. To remove the feature entirely: delete that block; in the
+  // layout assembly, drop `sbcLaunchBtn` from the `miniRow` (and give Club Dashboard back
+  // its full-width `.gt-launch` look if you want); and delete the `.sbc-*` rules in the
+  // stylesheet. Nothing else in the tool touches it.)
+  //
+  // WHAT THIS DOES: shows the SBC you currently have OPEN in the game - its name,
+  // how many slots it has, and what it requires in plain English. That's all.
+  // It reads. It never fills a squad, never submits, never touches your club.
+  //
+  // WHY IT'S SEPARATE: the SBC Solver may yet be dropped, so this block is fenced to
+  // delete cleanly if it is (see above).
+  //
+  // HOW WE FIND THE OPEN SBC (all discovered live - see Reference/paletools/README.md):
+  // the app keeps a stack of "view controllers" (one per screen). Ask it for the
+  // current one and you land on UTSBCSquadSplitViewController when an SBC squad is
+  // open. The challenge object hangs off its LEFT controller as `_challenge`.
+  // Property names vary, so we try both `_leftController` and `leftController`
+  // styles, and fall back to a general search if the known path ever changes.
+
+  // Requirement types the future FILL step will be able to satisfy. Everything not
+  // in here we can still SHOW, we just can't build for it. TEAM_RATING is the big
+  // one: squad rating isn't a plain average, so hitting an exact team rating cheaply
+  // is a real optimisation problem (the reference tool doesn't solve it either - it
+  // just guesses a rating window). Chemistry is likewise out.
+  // Requirements we CAN'T filter for player-by-player, but which are still solvable -
+  // they're about the squad as a whole. These show as "~" (not yet), NOT as "✗", because
+  // marking them ✗ read as "you can't complete this SBC", which isn't true at all.
+  //
+  // TEAM_RATING is the big one and it is NOT impossible. Squad rating is:
+  //     total  = sum of the 11 ratings
+  //     avg    = total / 11
+  //     excess = sum of (rating - avg) for every player ABOVE the average
+  //     rating = floor( round(total + excess) / 11 )
+  // (EA's own formula.) The `excess` term is why a 95 can carry an 85, and why an
+  // "88 rated" squad does NOT mean eleven 88s - e.g. two 87s and nine 88s comes to
+  // exactly 88. Solving it means searching RATING COMBINATIONS (a dozen or so distinct
+  // numbers), not searching players, which is a small problem. Planned as step 3.
+  var SBC_PLANNED_KEYS = { TEAM_RATING: 1 };
+
+  var SBC_SUPPORTED_KEYS = {
+    PLAYER_COUNT: 1, PLAYER_QUALITY: 1, PLAYER_LEVEL: 1, PLAYER_RARITY: 1,
+    PLAYER_RARITY_GROUP: 1, PLAYER_MIN_OVR: 1, PLAYER_MAX_OVR: 1, PLAYER_EXACT_OVR: 1,
+    PLAYER_TRADABILITY: 1, FIRST_OWNER_PLAYERS_COUNT: 1,
+    NATION_ID: 1, LEAGUE_ID: 1, CLUB_ID: 1,
+    NATION_COUNT: 1, LEAGUE_COUNT: 1, CLUB_COUNT: 1,
+    SAME_NATION_COUNT: 1, SAME_LEAGUE_COUNT: 1, SAME_CLUB_COUNT: 1
+  };
+
+  // sbcKids(c): every child controller hanging off one controller, whatever the app
+  // decided to call the properties this year. Returns a plain array.
+  function sbcKids(c) {
+    if (!c) return [];
+    var out = [];
+    var left = c._leftController || c.leftController;
+    var right = c._rightController || c.rightController;
+    var kids = c._childViewControllers || c.childViewControllers;
+    if (left) out.push(left);
+    if (right) out.push(right);
+    if (kids && kids.length) { for (var i = 0; i < kids.length; i++) if (kids[i]) out.push(kids[i]); }
+    return out;
+  }
+
+  // sbcAppMain(): the app's own entry point, read the same "window.X or bare global"
+  // way getServices() reads services (a bare global isn't always mirrored on window).
+  function sbcAppMain() {
+    if (window.getAppMain) return window.getAppMain;
+    try { if (typeof getAppMain !== "undefined") return getAppMain; } catch (e) {}
+    return null;
+  }
+
+  // sbcCurrentController(): the controller for whatever screen is on top right now,
+  // or null if the app isn't in a state where we can ask.
+  function sbcCurrentController() {
+    var main = sbcAppMain();
+    if (!main) return null;
+    try {
+      return main().getRootViewController()
+        .getPresentedViewController().getCurrentViewController().getCurrentController();
+    } catch (e) { return null; }
+  }
+
+  // sbcFindChallenge(root): hunt down the open challenge. Tries the known path first
+  // (cheap), then a breadth-first search as a safety net if EA moves it. A "challenge"
+  // is any object carrying BOTH `squad` and `eligibilityRequirements`.
+  function sbcFindChallenge(root) {
+    function looksLikeChallenge(o) {
+      return !!(o && typeof o === "object" && o.squad && o.eligibilityRequirements);
+    }
+    if (!root) return null;
+    // Known path: root -> leftController -> _challenge
+    var stack = [root].concat(sbcKids(root));
+    for (var i = 0; i < stack.length; i++) {
+      var c = stack[i];
+      var ch = c && (c._challenge || c.challenge);
+      if (looksLikeChallenge(ch)) return ch;
+    }
+    // Safety net: walk the controller tree a few levels deep.
+    var queue = [[root, 0]], seen = [], guard = 0;
+    while (queue.length && guard++ < 400) {
+      var pair = queue.shift(), node = pair[0], depth = pair[1];
+      if (!node || depth > 5 || seen.indexOf(node) !== -1) continue;
+      seen.push(node);
+      var cand = node._challenge || node.challenge;
+      if (looksLikeChallenge(cand)) return cand;
+      if (looksLikeChallenge(node)) return node;
+      var kids = sbcKids(node);
+      for (var k = 0; k < kids.length; k++) queue.push([kids[k], depth + 1]);
+    }
+    return null;
+  }
+
+  // sbcSetName(root, challenge): the SBC's display name. It is NOT on the challenge
+  // (checked live - `challenge.setName` came back undefined), so we look at the `_set`
+  // the split controller is holding, then fall back to the challenge's own name field.
+  function sbcSetName(root, challenge) {
+    var tries = [];
+    try { tries.push(root && (root._set || root.set)); } catch (e) {}
+    try { tries.push(challenge); } catch (e2) {}
+    for (var i = 0; i < tries.length; i++) {
+      var o = tries[i];
+      if (!o) continue;
+      var n = o.name || o.setName || o.title;
+      if (n && typeof n === "string") return n;
+    }
+    return "Current SBC";
+  }
+
+  // sbcReadReq(raw): turn ONE of EA's raw requirement objects into something we can
+  // read. EA hands us raw data only - no "does this player match" helper - so the
+  // useful fields have to be pulled out through its accessor methods:
+  //   raw.getFirstKey()      -> a NUMBER identifying the rule type
+  //   SBCEligibilityKey[num] -> the readable name (the enum maps both ways)
+  //   raw.getValue(key)      -> an ARRAY of values (a rule can allow several)
+  //   raw.count              -> how many players must match (-1 = all of them)
+  //   raw.scope              -> GREATER / LOWER / EXACT
+  //   raw.buildString()      -> EA's OWN human sentence, e.g. "Team Rating: Min. 88"
+  // We lean on buildString for display: it's already localised and always correct.
+  function sbcReadReq(raw) {
+    var K = window.SBCEligibilityKey || {};
+    var S = window.SBCEligibilityScope || {};
+    var out = { name: "UNKNOWN", key: null, values: [], count: null, scope: null, text: "", supported: false };
+    try { out.key = raw.getFirstKey(); } catch (e) {}
+    if (out.key != null && K[out.key] != null) out.name = String(K[out.key]);
+    try { var v = raw.getValue(out.key); out.values = (v && v.length) ? [].slice.call(v) : []; } catch (e2) {}
+    try { out.count = raw.count; } catch (e3) {}
+    try { out.scope = (S[raw.scope] != null) ? String(S[raw.scope]) : raw.scope; } catch (e4) {}
+    // EA's own sentence is the best label we can show. If it ever throws or comes back
+    // blank, fall back to something built from the pieces above.
+    try { if (typeof raw.buildString === "function") out.text = String(raw.buildString() || ""); } catch (e5) {}
+    if (!out.text) {
+      out.text = out.name.replace(/_/g, " ").toLowerCase() +
+        (out.values.length ? (": " + out.values.join(", ")) : "") +
+        (out.count > 0 ? (" (" + out.count + " players)") : "");
+    }
+    out.supported = !!SBC_SUPPORTED_KEYS[out.name];
+    out.planned = !out.supported && !!SBC_PLANNED_KEYS[out.name];   // solvable, just not built yet
+    return out;
+  }
+
+  // sbcFingerprint(ch, slotCount): a short string that identifies WHICH SBC this is.
+  //
+  // Needed because a plan is worked out for one specific challenge, and you can wander
+  // off to a different one in the game without the panel noticing. Comparing the slot
+  // count alone is NOT enough - almost every SBC has 11 slots, so two completely
+  // different challenges look identical that way (this was a real bug: an 88-rated plan
+  // happily filled an entirely different SBC).
+  //
+  // So we combine whatever id fields the challenge exposes with a summary of its actual
+  // requirements. Even if EA renames the ids, a different rating target or a different
+  // league rule changes the fingerprint and the plan is correctly rejected.
+  function sbcFingerprint(ch, slotCount) {
+    var bits = [];
+    ["id", "challengeId", "setId", "templateId"].forEach(function (k) {
+      try { if (ch && ch[k] != null) bits.push(k + ":" + ch[k]); } catch (e) {}
+    });
+    bits.push("slots:" + slotCount);
+    try {
+      (ch.eligibilityRequirements || []).map(sbcReadReq).forEach(function (r) {
+        bits.push(r.name + "=" + (r.values || []).join("/") + "@" + r.count + ":" + r.scope);
+      });
+    } catch (e2) {}
+    return bits.join("|");
+  }
+
+  // readOpenSbc(): the one function the UI calls. Always returns an object:
+  //   { ok:false, reason:"..." }                      - nothing to show, reason is for you
+  //   { ok:true, name, slots, op, reqs:[...], unsupported:n }
+  // Read-only from top to bottom.
+  function readOpenSbc() {
+    if (!sbcAppMain()) return { ok: false, reason: "The web app isn't ready yet." };
+    var root = sbcCurrentController();
+    if (!root) return { ok: false, reason: "Couldn't read the current screen." };
+    var cls = "";
+    try { cls = (root.constructor && root.constructor.name) || ""; } catch (e) {}
+    var ch = sbcFindChallenge(root);
+    if (!ch) {
+      return { ok: false, reason: "No SBC squad open. Go to SBC, pick a challenge, then reopen this page.", screen: cls };
+    }
+    var slots = null;
+    try { slots = ch.squad.getNonBrickSlots().length; } catch (e2) {}
+    var reqs = [];
+    try { reqs = (ch.eligibilityRequirements || []).map(sbcReadReq); } catch (e3) {}
+    // "Number of Players in the Squad: N" IS shown as a requirement in the game, but EA
+    // does NOT put it in eligibilityRequirements - it's implied by how many slots the
+    // squad has. Without this the panel lists fewer requirements than the game does and
+    // looks like it's missing one, so we add it back from the slot count.
+    if (slots != null) {
+      reqs.push({
+        name: "PLAYER_COUNT", key: null, values: [slots], count: slots, scope: "EXACT",
+        text: "Number of Players in the Squad: " + slots, supported: true, derived: true
+      });
+    }
+    var unsupported = reqs.filter(function (r) { return !r.supported; }).length;
+    return {
+      ok: true,
+      name: sbcSetName(root, ch),
+      slots: slots,
+      op: ch.eligibilityOperation || "AND",
+      reqs: reqs,
+      unsupported: unsupported,
+      screen: cls,
+      fingerprint: sbcFingerprint(ch, slots)   // used to refuse a plan built for a different SBC
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // STEP 2 - THE CANDIDATE POOL  (still READ-ONLY)
+  // --------------------------------------------------------------------------
+  // "Which of my club players is this SBC even willing to accept?"
+  //
+  // WHY OURS IS SIMPLER THAN THE REFERENCE TOOL'S. Paletools fires off a dozen
+  // separate club searches per SBC (one per requirement value) because it doesn't
+  // keep your club in memory. We already load the WHOLE club into state.clubItems
+  // for the evo picker, so this is just a filter over a list we're holding. No
+  // searches, no rate-limiting, no waiting.
+  //
+  // Nothing here writes. It counts and lists.
+
+  // sbcMatchReq(it, r): does ONE player satisfy ONE requirement?
+  // The field mapping is the fiddly part (EA's names aren't guessable), so:
+  //   CLUB_ID -> teamId, LEAGUE_ID -> leagueId, NATION_ID -> nationId,
+  //   PLAYER_RARITY -> rareflag, quality/level -> the item's own getTier(),
+  //   rarity groups -> the item's own belongsToGroup().
+  // A requirement can allow SEVERAL values ("Premier League OR La Liga"), which is
+  // why the id rules test "is the player's value in the list" rather than equality.
+  function sbcMatchReq(it, r) {
+    var vals = r.values || [];
+    var one = vals.length ? vals[0] : null;
+    function has(x) { return vals.indexOf(x) !== -1; }
+    try {
+      switch (r.name) {
+        case "CLUB_ID": return has(it.teamId);
+        case "LEAGUE_ID": return has(it.leagueId);
+        case "NATION_ID": return has(it.nationId);
+        case "PLAYER_EXACT_OVR": return has(it.rating);
+        case "PLAYER_RARITY": return has(it.rareflag);
+        case "PLAYER_MIN_OVR": return it.rating >= one;
+        case "PLAYER_MAX_OVR": return it.rating <= one;
+        case "PLAYER_QUALITY":
+        case "PLAYER_LEVEL":
+          return typeof it.hasQualityTiers === "function" && it.hasQualityTiers() && it.getTier() === one;
+        case "PLAYER_RARITY_GROUP":
+          return typeof it.belongsToGroup === "function" && !!it.belongsToGroup(one);
+        case "PLAYER_TRADABILITY": return it.tradable === one;
+        case "FIRST_OWNER_PLAYERS_COUNT": return it.owners === 0;
+        // These are rules about the SQUAD as a whole ("at least 3 different leagues"),
+        // not tests on one player, so they never rule anybody out of the pool. They get
+        // handled when we actually pick the squad (step 4).
+        case "PLAYER_COUNT": case "NATION_COUNT": case "LEAGUE_COUNT": case "CLUB_COUNT":
+        case "SAME_NATION_COUNT": case "SAME_LEAGUE_COUNT": case "SAME_CLUB_COUNT":
+          return true;
+      }
+    } catch (e) {}
+    return false;   // anything we don't understand excludes the player rather than risking a bad fill
+  }
+
+  // Your ACTIVE squad, so we never offer up your starting XI as fodder. This is the
+  // one thing here we can't read from memory, so it's fetched once and remembered.
+  // defIds identify the PLAYER, so every version of that player is protected.
+  var sbcSquadIds = null;        // null = not fetched yet, {} = fetched
+  var sbcSquadBusy = false;
+  function sbcLoadActiveSquad(done) {
+    if (sbcSquadIds || sbcSquadBusy) { if (done) done(); return; }
+    if (!window.UTItemSearchViewModel) { sbcSquadIds = {}; if (done) done(); return; }
+    sbcSquadBusy = true;
+    var finish = function (ids) {
+      sbcSquadIds = {};
+      (ids || []).forEach(function (d) { sbcSquadIds[d] = 1; });
+      sbcSquadBusy = false;
+      if (done) done();
+    };
+    try {
+      awaitService(new window.UTItemSearchViewModel().requestActiveSquadDefIds()).then(
+        function (res) { finish((res && res.data && res.data.defIds) || []); },
+        function () { finish([]); }        // can't read it - protect nobody rather than block
+      );
+    } catch (e) { finish([]); }
+  }
+
+  // sbcBuildPool(info, opts): the candidate list, plus an honest breakdown of who got
+  // dropped and why. opts = { noSpecials, untradeablesOnly }.
+  //
+  // Order of exclusions matters only for the breakdown numbers (each player is counted
+  // against the FIRST reason that ruled them out), so the tallies always add up.
+  function sbcBuildPool(info, opts) {
+    opts = opts || {};
+    // Your club, plus the SBC storage pile if you've asked for it. Stored cards are
+    // untradeable duplicates that can ONLY go into an SBC, so they're free fodder - but
+    // they're priced separately (see SBC_STORAGE_DISCOUNT) rather than by rating alone.
+    var all = getClubPlayers();
+    var storeCount = 0;
+    if (opts.useStorage && sbcStorage && sbcStorage.length) {
+      all = all.concat(sbcStorage);
+      storeCount = sbcStorage.length;
+    }
+    // The rules every single player has to meet (count -1 = "applies to all players").
+    // Rules with a count are about a subset, so they don't shrink the pool.
+    var universal = (info.reqs || []).filter(function (r) {
+      return r.supported && (r.count === -1 || r.count == null);
+    });
+    // Does a rarity rule apply to the WHOLE squad, or just to some of it?
+    //
+    // This distinction matters and getting it wrong was a real bug. The common FC26
+    // pattern is "Any TOTW/TOTS/FOF/FUTTIES: Min. 1 Players" alongside "Team Rating:
+    // Min. 88" - that rule has count 1, so ONE player must be special and the other ten
+    // can be plain gold. Only a rule with count -1 ("all players must be Gold") actually
+    // dictates the rarity of every slot.
+    //
+    // The old code just asked "is there a rarity rule at all", which switched the
+    // "skip special cards" toggle off for any SBC wanting a single special card.
+    var rarityLocksAll = (info.reqs || []).some(function (r) {
+      return (r.name === "PLAYER_RARITY" || r.name === "PLAYER_RARITY_GROUP") &&
+             (r.count === -1 || r.count == null);
+    });
+    // Counted rules ("min 1 TOTW") are satisfied by SPECIFIC players. Those players have
+    // to survive the "skip special cards" filter or the SBC becomes unfillable - you'd
+    // have thrown away the very card it asked for. So specials that answer a counted
+    // rule are always kept; every other special is dropped as normal.
+    var countedReqs = (info.reqs || []).filter(function (r) {
+      return r.supported && !r.derived && typeof r.count === "number" && r.count > 0;
+    });
+    function neededForCounted(it) {
+      for (var q = 0; q < countedReqs.length; q++) if (sbcMatchReq(it, countedReqs[q])) return true;
+      return false;
+    }
+
+    var out = [], drop = { locked: 0, loan: 0, evolved: 0, inSquad: 0, special: 0, tradable: 0, rules: 0 }, keptSpecial = 0;
+    for (var i = 0; i < all.length; i++) {
+      var it = all[i];
+      if (isSbcLocked(it)) { drop.locked++; continue; }     // you've said hands off this one
+      if (isLoanPlayer(it)) { drop.loan++; continue; }
+      // ONLY a card part-way through an evolution is barred from SBCs. Once an evolution
+      // is finished the card can be submitted like any other (EA's own rule).
+      //
+      // This used to test `!!it.upgrades`, which was wrong and quietly expensive. `upgrades`
+      // is an object describing a card's evolution STATE and loads of cards carry one
+      // without being enrolled in anything - on a real club it flagged 146 cards, almost
+      // all of them 94-98 promos, and shut them out of every plan. Measured live: of those
+      // 146, exactly one had `enrolled: true`, and that was the single evolution actually
+      // running at the time. So `enrolled` is the flag, not the object's existence.
+      // (`upgrades` also carries `activeInEvolution`; it wasn't needed here, but it's the
+      // first thing to look at if an in-progress card ever slips through.)
+      var inEvo = false;
+      try { inEvo = !!(it.upgrades && it.upgrades.enrolled === true); } catch (e) {}
+      if (inEvo) { drop.evolved++; continue; }
+      if (sbcSquadIds && it.definitionId != null && sbcSquadIds[it.definitionId]) { drop.inSquad++; continue; }
+      if (opts.noSpecials && !rarityLocksAll && !(it.rareflag === 0 || it.rareflag === 1)) {
+        // Keep it only if this SBC specifically asks for a card like it.
+        if (neededForCounted(it)) { keptSpecial++; }
+        else { drop.special++; continue; }
+      }
+      if (opts.untradeablesOnly && it.tradable === true) { drop.tradable++; continue; }
+      var ok = true;
+      for (var j = 0; j < universal.length; j++) { if (!sbcMatchReq(it, universal[j])) { ok = false; break; } }
+      if (!ok) { drop.rules++; continue; }
+      out.push(it);
+    }
+
+    // How many candidates each individual requirement has, so a "0" instantly shows you
+    // WHICH rule you can't meet rather than just "couldn't build it".
+    var perReq = (info.reqs || []).map(function (r) {
+      var n = r.supported ? all.filter(function (it) {
+        return !isLoanPlayer(it) && sbcMatchReq(it, r);
+      }).length : null;
+      return { req: r, matches: n };
+    });
+
+    return {
+      pool: out,
+      total: all.length,
+      drop: drop,
+      perReq: perReq,
+      squadKnown: !!sbcSquadIds,
+      rarityLocksAll: rarityLocksAll,  // true only when EVERY slot's rarity is dictated
+      keptSpecial: keptSpecial,        // specials kept because the SBC asks for them
+      storeCount: storeCount,          // how many stored cards went into the pool
+      storeInPool: out.filter(isStorageCard).length
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // STEP 3 - THE SQUAD-RATING SOLVER  (still READ-ONLY)
+  // --------------------------------------------------------------------------
+  // "An 88-rated squad" does NOT mean eleven 88s. It's an average with a bonus for
+  // your better cards, so two 87s and nine 88s comes to exactly 88, and an 85 can be
+  // carried by a 95. That's what makes these SBCs cheap to do by hand - and it's
+  // exactly what this works out for you.
+  //
+  // WHAT IT DOES: given "Team Rating: Min. 88" and 11 slots, it finds the CHEAPEST
+  // set of card ratings you actually own that gets there, then names the specific
+  // cards. It writes nothing - it just shows you the plan.
+
+  // sbcSquadRating(ratings, size): EA's own squad-rating formula.
+  //   total  = all the ratings added up
+  //   avg    = total / how many players
+  //   excess = for every player ABOVE that average, how far above they are, added up
+  //   rating = floor( round(total + excess) / size )
+  // The `excess` term is the "good cards carry bad ones" bonus. Worked example, the
+  // one from testing: two 87s + nine 88s -> total 966, avg 87.818, the nine 88s are
+  // above it so excess = 9 x 0.1818 = 1.636, round(967.636) = 968, 968/11 = 88.0 -> 88.
+  function sbcSquadRating(ratings, size) {
+    if (!ratings || !ratings.length) return 0;
+    var n = ratings.length, total = 0, i;
+    for (i = 0; i < n; i++) total += ratings[i];
+    var avg = total / n, excess = 0;
+    for (i = 0; i < n; i++) if (ratings[i] > avg) excess += ratings[i] - avg;
+    return Math.floor(Math.round(total + excess) / (size || n));
+  }
+
+  // --------------------------------------------------------------------------
+  // LOCKED CARDS - "never feed this one to an SBC"
+  // --------------------------------------------------------------------------
+  // Cards you've said are off limits. Kept by ITEM id, so it's this exact card that's
+  // protected, not every version of that player - lock your 91 Mbappe and a spare 84
+  // one is still usable as fodder.
+  //
+  // Stored in the browser (same idea as the evo-eligible rarity list) so it survives
+  // reloads. A locked card is simply dropped from the candidate pool, which means the
+  // plan re-solves around it and the answer is still guaranteed to make the rating.
+  // That's the reason locking beats swapping a card by hand: a manual swap can quietly
+  // break the target, re-solving can't.
+  var SBC_LOCK_KEY = "fc26_sbc_locked";
+  function loadSbcLocked() {
+    try {
+      var raw = window.localStorage.getItem(SBC_LOCK_KEY);
+      if (!raw) return {};
+      var arr = JSON.parse(raw), out = {};
+      if (arr && arr.length) arr.forEach(function (id) { out[id] = 1; });
+      return out;
+    } catch (e) { return {}; }
+  }
+  function saveSbcLocked() {
+    try { window.localStorage.setItem(SBC_LOCK_KEY, JSON.stringify(Object.keys(state.sbcLocked))); } catch (e) {}
+  }
+  state.sbcLocked = loadSbcLocked();
+  function isSbcLocked(it) { try { return !!state.sbcLocked[it.id]; } catch (e) { return false; } }
+  function setSbcLocked(id, on) {
+    if (on) state.sbcLocked[id] = 1; else delete state.sbcLocked[id];
+    saveSbcLocked();
+  }
+
+  // --------------------------------------------------------------------------
+  // SBC STORAGE - the free fodder pile
+  // --------------------------------------------------------------------------
+  // When you pack an untradeable duplicate you can "Store Duplicates", which puts it in
+  // a hidden pile you can't see in your club, can't sell and can't play with. Its ONLY
+  // use is being fed to an SBC. It's a different search from the club:
+  //     services.Item.searchStorageItems(new UTSearchCriteriaDTO())  ->  response.items
+  // Checked live: it returns everything in one go (no paging), every item is untradeable,
+  // and the items carry the same fields and methods club cards do (rating, rareflag,
+  // leagueId, belongsToGroup(), hasQualityTiers()), so the matcher and solver need no
+  // special cases beyond price - see SBC_STORAGE_DISCOUNT below.
+  var sbcStorage = null;      // null = not fetched, [] = fetched and empty
+  var sbcStorageBusy = false;
+  var sbcStorageIds = {};     // id -> 1, so we can tell a stored card from a club card later
+  function sbcLoadStorage(done) {
+    if (sbcStorage || sbcStorageBusy) { if (done) done(); return; }
+    var svc = getServices();
+    if (!svc || !svc.Item || !svc.Item.searchStorageItems || !window.UTSearchCriteriaDTO) {
+      sbcStorage = []; if (done) done(); return;
+    }
+    sbcStorageBusy = true;
+    var finish = function (items) {
+      sbcStorage = items || [];
+      sbcStorageIds = {};
+      sbcStorage.forEach(function (it) { if (it && it.id != null) sbcStorageIds[it.id] = 1; });
+      sbcStorageBusy = false;
+      if (done) done();
+    };
+    try {
+      awaitService(svc.Item.searchStorageItems(new window.UTSearchCriteriaDTO())).then(
+        function (res) {
+          var inner = (res && res.response) || (res && res.data) || {};
+          finish(inner.items || []);
+        },
+        function () { finish([]); }
+      );
+    } catch (e) { finish([]); }
+  }
+  function isStorageCard(it) { try { return !!sbcStorageIds[it.id]; } catch (e) { return false; } }
+
+  // How much cheaper a stored card is than the same rating from your club.
+  //
+  // This matters more than it looks. Storage is typically full of HIGH-rated untradeable
+  // duplicates (a real one: 23 spare 95s, 11 spare 96s). Priced on rating alone the solver
+  // would never touch them - it prices a 95 as enormously expensive - and the whole pile
+  // would sit unused even though those cards are free and can't be used for anything else.
+  //
+  // They aren't worthless though: a stored 97 is worth keeping for a 95-rated SBC later,
+  // so the rating curve still applies WITHIN storage, just scaled right down. At 0.1 a
+  // stored card is worth using if it's up to about 4 ratings above what you'd otherwise
+  // have spent from your club. Tune with window.FC26.sbcStorageDiscount.
+  window.FC26.sbcStorageDiscount = 0.1;
+
+  // sbcCardCost(rating, floor): what a card at this rating really costs you.
+  //
+  // The obvious objective - "use the lowest total of ratings" - is WRONG, and it
+  // produced daft plans: it would happily spend two 94s to save eight rating-points
+  // elsewhere, because it thought a 94 cost the same as ten spare points of 84.
+  // Card value doesn't work like that. It climbs steeply: a 94 is worth vastly more
+  // than the rating gap to an 84 suggests, and you'd rather not burn one at all.
+  //
+  // So cost GROWS EXPONENTIALLY with rating. At the default growth of 1.7 a card one
+  // point higher costs ~70% more, which means the solver will only reach for a high
+  // card when there is genuinely no other way to make the rating.
+  // Tune it from the Console if it ever feels wrong: window.FC26.sbcCostGrowth = 2.
+  window.FC26.sbcCostGrowth = 1.7;
+  function sbcCardCost(rating, floor) {
+    var g = Number(window.FC26.sbcCostGrowth) || 1.7;
+    return Math.pow(g, rating - floor);
+  }
+
+  // sbcFodderRank(a, b): which card would you rather lose? Sorted first = spent first.
+  // We have no market prices, so this is a judgement about what's least painful:
+  //   1. UNTRADEABLE before tradeable - you can't sell it anyway, so it costs you nothing.
+  //   2. Plain (common/rare) before special - a TOTW is worth more than a gold.
+  //   3. Lower rated before higher - a spare 84 hurts less than a spare 90.
+  function sbcFodderRank(a, b) {
+    var au = (a.tradable === true) ? 1 : 0, bu = (b.tradable === true) ? 1 : 0;
+    if (au !== bu) return au - bu;
+    var as = (a.rareflag === 0 || a.rareflag === 1) ? 0 : 1;
+    var bs = (b.rareflag === 0 || b.rareflag === 1) ? 0 : 1;
+    if (as !== bs) return as - bs;
+    return (a.rating || 0) - (b.rating || 0);
+  }
+
+  // sbcRatingStock(pool): group the candidates by rating, each group ordered so the
+  // card you'd least mind spending comes first. -> { 88: [card, card, ...], 87: [...] }
+  //
+  // THE SAME PLAYER CAN'T APPEAR TWICE IN A SQUAD - the game rejects it, exactly as it
+  // does for a normal squad. So each rating keeps only ONE card per player (playerKey
+  // identifies the person, not the card). Two spare 88 Rodris count as one 88 available,
+  // because one is all you could ever put in. Doing this here rather than at the end
+  // matters: the solver counts how many cards it has at each rating, and counting
+  // unusable duplicates would let it plan a squad that can't legally be built.
+  function sbcRatingStock(pool) {
+    var byRating = {};
+    pool.forEach(function (it) {
+      var r = it.rating || 0;
+      if (!r) return;
+      (byRating[r] = byRating[r] || []).push(it);
+    });
+    Object.keys(byRating).forEach(function (k) {
+      byRating[k].sort(sbcFodderRank);
+      var seenPlayer = {}, kept = [];
+      byRating[k].forEach(function (it) {
+        var key = playerKey(it);
+        if (seenPlayer[key]) return;      // already have this person at this rating
+        seenPlayer[key] = 1; kept.push(it);
+      });
+      byRating[k] = kept;
+    });
+    return byRating;
+  }
+
+  // sbcBuckets(pool): the solver's shopping list - one entry per (source, rating) pair.
+  //
+  // Why not just "per rating": a 95 out of SBC storage and a 95 out of your club are the
+  // same to the maths but nothing like the same to you - the stored one is free. They
+  // therefore have to be separate options the solver can choose between, priced
+  // differently, rather than one interchangeable pile of 95s.
+  //
+  // Each bucket carries its own ordered list of actual cards (one per player, least
+  // painful to lose first), so picking a bucket is the same as picking a card.
+  function sbcBuckets(pool) {
+    var club = [], store = [];
+    pool.forEach(function (it) { (isStorageCard(it) ? store : club).push(it); });
+    var out = [];
+    function add(list, src, mult) {
+      var byRating = sbcRatingStock(list);
+      Object.keys(byRating).forEach(function (k) {
+        out.push({ rating: +k, src: src, mult: mult, cards: byRating[k] });
+      });
+    }
+    add(club, "club", 1);
+    add(store, "store", Number(window.FC26.sbcStorageDiscount) || 0.1);
+    return out;
+  }
+
+  // sbcSolveRating(stock, target, slots, fixedRatings): the search.
+  //
+  // We are NOT searching 1785 players - that would be hopeless. We search RATING
+  // COMBINATIONS ("how many 87s, how many 88s"), which is a much smaller problem,
+  // and only over ratings you actually own near the target.
+  //
+  // "Cheapest" = the lowest total of ratings, because a lower-rated card is worth
+  // less. We walk the cheap ratings first so a good answer turns up early, then use
+  // it to prune everything that can't beat it. A node budget stops a pathological
+  // club taking forever - if it's hit we return the best found so far and say so.
+  function sbcSolveRating(buckets, target, slots, fixedRatings) {
+    var fixed = fixedRatings || [];
+    var fixedSum = 0, f;
+    for (f = 0; f < fixed.length; f++) fixedSum += fixed[f];
+    if (slots <= 0) return null;
+    // Which ratings are worth considering at all. This is only a search-size limit - it
+    // must NOT be used to express a preference, because the cost model already does that
+    // and does it better.
+    //
+    // It used to cap club cards at target+6 while allowing stored cards up to target+12,
+    // which was simply a mistake: a 95 in storage could carry a squad but an identical 95
+    // in your club was thrown out before the solver ever saw it. Same range for both now.
+    //
+    // The bottom end matters just as much. At target-6 an 84-rated SBC couldn't touch a
+    // club's 74-77 cards, which on a real club is hundreds of the cheapest cards it owns -
+    // so plans came out dearer than they needed to be. A high card carries low ones, so
+    // low cards are worth offering.
+    var rs = buckets.filter(function (b) {
+      return b.rating >= target - 12 && b.rating <= target + 12 && b.cards.length;
+    });
+    if (!rs.length) return null;
+    var floor = Math.min.apply(null, rs.map(function (b) { return b.rating; }));
+    // Price every option, then put the cheapest first - the search leans on that order.
+    rs.forEach(function (b) { b.cost = b.mult * sbcCardCost(b.rating, floor); });
+    rs.sort(function (a, b) { return a.cost - b.cost; });
+    var have = rs.map(function (b) { return b.cards.length; });
+    var cost = rs.map(function (b) { return b.cost; });
+    var totalAvailable = have.reduce(function (a, b) { return a + b; }, 0);
+    if (totalAvailable < slots) return null;
+
+    // ratingOfCounts(counts): score a candidate line-up of buckets.
+    function ratingOfCounts(counts) {
+      var arr = fixed.slice();
+      for (var k = 0; k < rs.length; k++) for (var c = 0; c < counts[k]; c++) arr.push(rs[k].rating);
+      return { rating: sbcSquadRating(arr, arr.length), arr: arr };
+    }
+
+    // Budget tuned by measurement, not guesswork: a typical 11-slot solve finishes the
+    // WHOLE search well inside this (8-40ms on a laptop) and so is provably the cheapest
+    // combination available. Only unusual cases (a 23-slot squad, or every rating in the
+    // window stocked in bulk) run out, and then we still return the best found and flag
+    // it as "found" rather than claiming it's optimal.
+    var best = null, nodes = 0, NODE_CAP = 1500000, hitCap = false;
+
+    // SEED: fill every slot with the cheapest cards rated at or above the target. If
+    // that's possible it's always a valid answer (all-at-target averages to the target
+    // with no bonus needed). Having any valid answer up front lets the "can't beat the
+    // best" test below prune hard from the very first branch, which is what keeps this
+    // fast. Without a seed the search wades through thousands of too-cheap squads first.
+    (function seed() {
+      var counts = rs.map(function () { return 0; }), need = slots;
+      for (var k = 0; k < rs.length && need > 0; k++) {
+        if (rs[k].rating < target) continue;
+        var t = Math.min(have[k], need);
+        counts[k] = t; need -= t;
+      }
+      if (need > 0) return;                       // not enough cards at/above target
+      var got = ratingOfCounts(counts);
+      if (got.rating >= target) {
+        var c0 = 0;
+        for (var k2 = 0; k2 < rs.length; k2++) c0 += counts[k2] * cost[k2];
+        best = { cost: c0, counts: counts.slice(), ratings: got.arr };
+      }
+    }());
+
+    function dfs(i, used, spent) {
+      if (++nodes > NODE_CAP) { hitCap = true; return; }
+      // Cost only ever goes up as we add cards, so a branch already dearer than our best
+      // answer can never become cheaper. This is what keeps the search quick.
+      if (best && spent >= best.cost) return;
+      if (used === slots) {
+        var got = ratingOfCounts(counts);
+        if (got.rating >= target) best = { cost: spent, counts: counts.slice(), ratings: got.arr };
+        return;
+      }
+      if (i >= rs.length) return;
+      // Safe upper bound: even filling every remaining slot with the highest rating we
+      // hold can only add so much. The squad rating can never exceed the plain average
+      // plus the biggest possible bonus, and the bonus can't exceed the spread, so if
+      // the very best case still falls short of the target there's nothing down here.
+      var remain = slots - used;
+      // Buckets are ordered by COST now, not rating, so the best rating still reachable
+      // has to be looked up rather than read off the end of the list.
+      var topRating = 0;
+      for (var z = i; z < rs.length; z++) if (rs[z].rating > topRating) topRating = rs[z].rating;
+      var sumSoFar = fixedSum;
+      for (var q = 0; q < rs.length; q++) sumSoFar += counts[q] * rs[q].rating;
+      var bestTotal = sumSoFar + remain * topRating;
+      var n = slots + fixed.length;
+      if (Math.floor((bestTotal + (n - 1) * topRating) / n) < target) return;
+      var maxTake = Math.min(have[i], remain);
+      for (var t = maxTake; t >= 0; t--) {
+        counts[i] = t;
+        dfs(i + 1, used + t, spent + t * cost[i]);
+        counts[i] = 0;
+        if (hitCap) return;
+      }
+    }
+    var counts = rs.map(function () { return 0; });
+    dfs(0, 0, 0);
+    if (!best) return null;
+    // Turn the winning counts back into a list of BUCKETS, so the caller knows not just
+    // which rating to use but which pile to take it from.
+    var picks = [];
+    for (var k = 0; k < rs.length; k++) for (var c = 0; c < best.counts[k]; c++) picks.push(rs[k]);
+    return {
+      picks: picks,
+      all: best.ratings,
+      rating: sbcSquadRating(best.ratings, best.ratings.length),
+      exact: !hitCap        // false = we ran out of search budget, so "cheapest found", not "cheapest possible"
+    };
+  }
+
+  // sbcPlanSquad(info, res): the whole plan for the open SBC, or a reason we can't make one.
+  //
+  // Order matters: requirements that demand SPECIFIC players ("Min. 1 TOTW") are
+  // satisfied FIRST, using the cheapest card that qualifies. Those cards are locked in,
+  // their ratings count towards the squad rating, and the solver then fills what's left.
+  // Doing it the other way round would happily build a perfect 88 with no TOTW in it.
+  function sbcPlanSquad(info, res) {
+    var teamReq = null;
+    (info.reqs || []).forEach(function (r) { if (r.name === "TEAM_RATING") teamReq = r; });
+    if (!teamReq) return { ok: false, reason: "This SBC has no team-rating requirement, so there's nothing to solve." };
+    if (teamReq.scope && String(teamReq.scope).toUpperCase() !== "GREATER") {
+      return { ok: false, reason: "This SBC wants an exact team rating (" + teamReq.scope + "), which isn't handled yet - only “minimum” is." };
+    }
+    var target = (teamReq.values && teamReq.values.length) ? teamReq.values[0] : null;
+    var slots = info.slots;
+    if (!target || !slots) return { ok: false, reason: "Couldn't read the target rating or the squad size." };
+
+    var pool = res.pool.slice();
+    var used = {};        // item ids already spoken for
+    var usedPlayer = {};  // PEOPLE already in the squad - nobody can appear twice
+    var reserved = [];
+    function claim(it) { used[it.id] = 1; usedPlayer[playerKey(it)] = 1; }
+    function freeAgent(it) { return !used[it.id] && !usedPlayer[playerKey(it)]; }
+
+    // 1. Lock in the cards that specific requirements demand.
+    var counted = (info.reqs || []).filter(function (r) {
+      return r.supported && !r.derived && typeof r.count === "number" && r.count > 0 && r.name !== "PLAYER_COUNT";
+    });
+    for (var c = 0; c < counted.length; c++) {
+      var req = counted[c];
+      // Only players not already committed, and never a second copy of someone already in.
+      var matches = pool.filter(function (it) { return freeAgent(it) && sbcMatchReq(it, req); });
+      // Two cards of the same player both qualifying would look like two options but can
+      // only ever fill one slot, so count distinct people, not cards.
+      var seenP = {}, distinct = [];
+      matches.sort(sbcFodderRank);
+      matches.forEach(function (it) { var k = playerKey(it); if (!seenP[k]) { seenP[k] = 1; distinct.push(it); } });
+      if (distinct.length < req.count) {
+        return { ok: false, reason: "Not enough different players for “" + req.text + "” - you have " + distinct.length + " and it needs " + req.count + "." };
+      }
+      for (var m = 0; m < req.count; m++) { claim(distinct[m]); reserved.push({ card: distinct[m], req: req }); }
+    }
+    if (reserved.length > slots) return { ok: false, reason: "This SBC's requirements need more players than it has slots." };
+
+    // 2. Solve the remaining slots for the target rating.
+    // Everyone still available - excluding anyone already locked into a reserved slot,
+    // so the solver can't plan around a player who's already in the squad.
+    var rest = pool.filter(freeAgent);
+    var buckets = sbcBuckets(rest);
+    var fixedRatings = reserved.map(function (x) { return x.card.rating || 0; });
+    var solved = sbcSolveRating(buckets, target, slots - reserved.length, fixedRatings);
+    if (!solved) {
+      // "You'd need higher-rated players" was a terrible message: on a real club it was
+      // said to someone holding 409 cards above 90, all of which had been filtered out by
+      // a toggle. So work out the ACTUAL ceiling the current settings allow, and name the
+      // setting that's holding it down.
+      var byBest = rest.slice().sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); });
+      var seenB = {}, top = [], wanted = slots - reserved.length;
+      for (var b2 = 0; b2 < byBest.length && top.length < wanted; b2++) {
+        var kk = playerKey(byBest[b2]);
+        if (seenB[kk]) continue;
+        seenB[kk] = 1; top.push(byBest[b2].rating || 0);
+      }
+      var ceiling = top.length === wanted ? sbcSquadRating(fixedRatings.concat(top), slots) : null;
+      var hints = [];
+      if (res.drop.special) hints.push("untick <b>Skip special cards</b> (" + res.drop.special + " of your cards are being left out by it)");
+      if (!res.storeCount && sbcStorage && sbcStorage.length) hints.push("tick <b>Use SBC storage</b> (" + sbcStorage.length + " cards in there)");
+      if (res.drop.tradable) hints.push("untick <b>Untradeables only</b> (" + res.drop.tradable + " left out)");
+      if (res.drop.locked) hints.push("unlock some cards (" + res.drop.locked + " locked)");
+      return {
+        ok: false,
+        reason: (ceiling != null
+            ? ("The best these settings can reach is " + ceiling + ", and this SBC needs " + target + ". ")
+            : ("There aren't enough usable cards to fill " + slots + " slots. ")) +
+          (hints.length
+            ? ("To get there you could " + hints.join(", or ") + ".")
+            : "Your club genuinely doesn't have the players for this one."),
+        isHtml: true
+      };
+    }
+
+    // 3. Turn the winning ratings into actual named cards (cheapest-to-lose first).
+    // Each rating's list is already one-card-per-player, but the SAME person can own
+    // cards at DIFFERENT ratings (a base 84 and a TOTW 88, say). So skip anyone already
+    // in the squad and take the next distinct player at that rating instead.
+    var take = {}, chosen = [];
+    for (var p = 0; p < solved.picks.length; p++) {
+      var bucket = solved.picks[p];
+      var key = bucket.src + ":" + bucket.rating;
+      var list = bucket.cards || [];
+      var idx = take[key] || 0;
+      while (idx < list.length && !freeAgent(list[idx])) idx++;
+      if (idx >= list.length) {
+        return { ok: false, reason: "Couldn't fill a " + bucket.rating + "-rated slot without using a player who's already " +
+          "in the squad. Lock one of the picks below and it'll plan around them." };
+      }
+      claim(list[idx]);
+      chosen.push(list[idx]);
+      take[key] = idx + 1;
+    }
+
+    var allCards = reserved.map(function (x) { return x.card; }).concat(chosen);
+    var allRatings = allCards.map(function (it) { return it.rating || 0; });
+    return {
+      ok: true,
+      target: target, slots: slots,
+      reserved: reserved, chosen: chosen, cards: allCards,
+      rating: sbcSquadRating(allRatings, allRatings.length),
+      exact: solved.exact,
+      fingerprint: info.fingerprint     // which SBC this plan was built for
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // STEP 4 - FILL THE SQUAD  (the first thing here that WRITES)
+  // --------------------------------------------------------------------------
+  // WHAT THIS DOES AND DOESN'T DO. It puts the planned players into the SBC's squad,
+  // exactly as if you'd dragged them in yourself. It does NOT submit the challenge.
+  //
+  // That line is deliberate. Filling is reversible - you can clear the squad, or just
+  // walk away. SUBMITTING exchanges your players and cannot be undone. So the tool does
+  // the tedious part and leaves the irreversible press to you, in the game, where you
+  // can see the whole squad before committing.
+  //
+  // It's the same two calls the game itself makes when you fill a squad by hand:
+  //   squad.setPlayers(arrayIndexedBySlot)   then   services.SBC.saveChallenge(challenge)
+  // One call for the whole squad, not eleven separate ones.
+  async function sbcFillSquad(plan) {
+    var svc = getServices();
+    if (!svc || !svc.SBC || !svc.SBC.saveChallenge) return { ok: false, reason: "The SBC service isn't available here." };
+    // Re-find the challenge rather than trusting the one the plan was built from - you
+    // may have navigated since. If it's not the same shape any more we refuse.
+    var root = sbcCurrentController();
+    var ch = sbcFindChallenge(root);
+    if (!ch || !ch.squad) return { ok: false, reason: "Lost track of the open SBC. Reopen it and re-read." };
+    var squad = ch.squad, slots;
+    try { slots = squad.getNonBrickSlots() || []; }
+    catch (e) { return { ok: false, reason: "Couldn't read the squad's slots." }; }
+    // IS THIS STILL THE SAME SBC? Comparing slot counts is not enough - nearly every
+    // challenge has 11 slots, so a plan for an 88-rated squad would happily be poured
+    // into a completely different SBC. Compare the full fingerprint (ids + the actual
+    // requirements) so a different target, or different rules, is always caught.
+    var liveFp = sbcFingerprint(ch, slots.length);
+    if (plan.fingerprint && liveFp !== plan.fingerprint) {
+      return { ok: false, reason: "This isn't the SBC the plan was worked out for - it looks like you've " +
+        "opened a different one. Tap “↻ Re-read the open SBC” and it'll plan for this one instead." };
+    }
+    if (slots.length !== plan.slots) {
+      return { ok: false, reason: "The open SBC has changed since this plan was worked out (" + slots.length +
+        " slots now, the plan was for " + plan.slots + "). Re-read and try again." };
+    }
+    if (plan.cards.length < slots.length) {
+      return { ok: false, reason: "The plan has " + plan.cards.length + " players for " + slots.length + " slots." };
+    }
+
+    // Start from an empty squad, so filling twice can't stack or half-replace.
+    try {
+      var isEmpty = (typeof squad.isSquadEmpty === "function") ? squad.isSquadEmpty() : false;
+      if (!isEmpty && typeof squad.removeAllItems === "function") {
+        squad.removeAllItems();
+        await awaitService(svc.SBC.saveChallenge(ch));
+      }
+    } catch (e2) { /* clearing is best-effort - setPlayers below replaces the lot anyway */ }
+
+    // setPlayers wants a full-size array indexed BY SLOT, not a list of players - the
+    // gaps are the slots that don't take a player. TOTAL_PLAYERS is 23 (starting XI plus
+    // bench and reserves) even though an SBC only uses some of them.
+    var total = (window.UTSquadEntity && window.UTSquadEntity.TOTAL_PLAYERS) || 23;
+    var arr = new Array(total), placed = 0;
+    for (var i = 0; i < slots.length; i++) {
+      var slot = slots[i];
+      if (!slot || slot.index == null) continue;
+      arr[slot.index] = plan.cards[i];
+      placed++;
+    }
+    if (!placed) return { ok: false, reason: "Couldn't work out which slots to fill." };
+
+    try {
+      squad.setPlayers(arr);
+      await awaitService(svc.SBC.saveChallenge(ch));
+    } catch (e3) {
+      return { ok: false, reason: "The game refused the squad: " + errMsg(e3) };
+    }
+    return { ok: true, placed: placed };
+  }
+
+  // Console helper for checking the formula against the game itself.
+  //   window.FC26.ratingCheck()            -> our number vs the game's, for the OPEN SBC squad
+  //   window.FC26.ratingCheck([88,88,87])  -> just run the formula on some ratings
+  // Put a few players into the SBC squad by hand in the app, then call it with no
+  // arguments: if "ours" and "game" ever disagree, the game is right and this is wrong.
+  window.FC26.ratingCheck = function (ratings) {
+    if (ratings && ratings.length) return { ratings: ratings, ours: sbcSquadRating(ratings, ratings.length) };
+    var info = readOpenSbc();
+    if (!info.ok) return "Open an SBC squad screen first. " + info.reason;
+    var root = sbcCurrentController(), ch = sbcFindChallenge(root);
+    var squad = ch && ch.squad;
+    if (!squad) return "Couldn't reach the squad object.";
+    // IMPORTANT: the game rates the WHOLE squad, and an empty slot counts as ZERO - it
+    // does not rate "the players you've put in so far". Verified live: three cards
+    // (83, 87, 83) in an 11-slot squad reads 39 in the game, not 85, because the average
+    // is 253/11 = 23 and all three sit way above it. So every slot must be included,
+    // empty ones as 0. (An earlier version of this check dropped the empties and looked
+    // like the formula was wrong when it wasn't.)
+    var rs = [], filled = 0, game = null;
+    try {
+      var slots = squad.getNonBrickSlots() || [];
+      slots.forEach(function (s) {
+        var it = null; try { it = s.getItem(); } catch (e) {}
+        var r = (it && it.rating) ? it.rating : 0;
+        if (r) filled++;
+        rs.push(r);
+      });
+    } catch (e2) {}
+    try { game = squad.getRating(); } catch (e3) {}
+    if (!rs.length) return "Couldn't read the squad's slots.";
+    if (!filled) return "That squad is empty - drag a few players in, then run this again.";
+    var ours = sbcSquadRating(rs, rs.length);
+    return {
+      slots: rs.length, filled: filled, ratings: rs,
+      ours: ours, game: game,
+      agree: (game == null ? "game didn't answer" : ours === game)
+    };
+  };
+
+  // The launcher button. Its look (and the row it shares with Club Dashboard) is set
+  // where the layout is assembled - see "mini-row" there.
+  var sbcLaunchBtn = document.createElement("button");
+  sbcLaunchBtn.type = "button";
+  sbcLaunchBtn.addEventListener("click", openSbcPage);
+
+  // The full-screen page host (same shell as the Dashboard / Squad Builder pages).
+  var sbcHost = document.createElement("div");
+  sbcHost.className = "gt-builder";
+  sbcHost.style.display = "none";
+  body.appendChild(sbcHost);
+
+  state.sbcOpen = false;
+
+  // WATCHER: notice when you switch to a different SBC in the game and redraw on your
+  // behalf. Without this the panel keeps showing a plan for the SBC you were on a minute
+  // ago, which is confusing at best (the Fill button refuses a mismatched plan, so it's
+  // never unsafe - just wrong on screen).
+  //
+  // The interval id lives on window.FC26 rather than in a local, because re-running the
+  // bookmarklet rebuilds the panel but can't reach into the OLD closure to stop its
+  // timer. Parking it somewhere global means every rebuild can clear the previous one.
+  var sbcLastFp = null;
+  function sbcLiveFingerprint() {
+    try {
+      var c = sbcFindChallenge(sbcCurrentController());
+      if (!c || !c.squad) return null;
+      return sbcFingerprint(c, (c.squad.getNonBrickSlots() || []).length);
+    } catch (e) { return null; }
+  }
+  function sbcStopWatch() {
+    if (window.FC26.__sbcWatch) { clearInterval(window.FC26.__sbcWatch); window.FC26.__sbcWatch = null; }
+  }
+  function sbcStartWatch() {
+    sbcStopWatch();
+    window.FC26.__sbcWatch = setInterval(function () {
+      if (!state.sbcOpen) { sbcStopWatch(); return; }
+      var fp = sbcLiveFingerprint();
+      // Redraw on any real change: a different SBC, or leaving the SBC screen entirely.
+      if (fp !== sbcLastFp) renderSbcPage();
+    }, 1500);
+  }
+  sbcStopWatch();   // kill a watcher left behind by a previous run of the bookmarklet
+
+  function openSbcPage() {
+    state.sbcOpen = true;
+    sbcHost.style.display = "flex";
+    layoutHost.style.display = "none";
+    applyPanelChrome();
+    renderSbcPage();
+    sbcStartWatch();
+    // Find out which players are in your active squad (one call, remembered after).
+    // Draws immediately above without it, then redraws once it lands - so the page
+    // never sits blank waiting on the network.
+    sbcLoadActiveSquad(function () { if (state.sbcOpen) renderSbcPage(); });
+    // And the SBC storage pile - a separate search from the club, fetched once.
+    sbcLoadStorage(function () { if (state.sbcOpen) renderSbcPage(); });
+  }
+  function closeSbcPage() {
+    state.sbcOpen = false;
+    sbcStopWatch();
+    sbcHost.style.display = "none";
+    layoutHost.style.display = "flex";
+    applyPanelChrome();
+  }
+
+  // renderSbcPage(): draw whatever SBC is open right now. Re-reads on every call, so
+  // the Re-read button is just "call me again".
+  function renderSbcPage() {
+    if (!state.sbcOpen) return;
+    // Where were you scrolled to? This page rebuilds itself completely on every redraw
+    // (locking a card, the watcher spotting a new SBC), and without this you get thrown
+    // back to the top every time - which made locking a card from the plan unusable,
+    // since the plan is near the bottom.
+    var keepScroll = 0;
+    try { var oldBody = sbcHost.querySelector(".db-body"); if (oldBody) keepScroll = oldBody.scrollTop; } catch (e0) {}
+    sbcHost.innerHTML = "";
+
+    // Header (back + eyebrow + title) - same chrome as the other full-panel pages.
+    var top = document.createElement("div"); top.className = "gt-bd-top";
+    var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeSbcPage);
+    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>SBC Solver</b>";
+    top.appendChild(back); top.appendChild(ttl);
+    sbcHost.appendChild(top);
+
+    var bodyEl = document.createElement("div"); bodyEl.className = "db-body";
+
+    // "Re-read" - you'll switch to the game, open a different SBC, come back and tap it.
+    // This button reloads YOUR CLUB as well as re-reading the SBC. That matters after you
+    // submit one: the players you just spent are gone from the game but still sitting in
+    // the tool's cached club, so without a reload the next plan would happily try to spend
+    // them again. Switching between SBCs doesn't need this - the watcher handles that on
+    // its own - so the club reload is the real reason to press it.
+    var tools = document.createElement("div"); tools.className = "sbc-tools";
+    var again = document.createElement("button"); again.type = "button"; again.className = "sbc-again";
+    again.textContent = "↻ Reload club & re-read";
+    again.title = "Pull your club again (after submitting an SBC) and re-read the open challenge";
+    again.addEventListener("click", function () {
+      if (state.sbcReloading) return;
+      state.sbcReloading = true;
+      again.disabled = true; again.textContent = "Reloading club…";
+      // Storage is fetched once and cached, so it has to be thrown away here too -
+      // otherwise stored cards you just spent would still be offered as fodder.
+      sbcStorage = null; sbcStorageIds = {};
+      // loadFullClub() takes 10-20s and shares one sweep between callers, so this is safe
+      // to press alongside the Lineup's own Reload. Redraw either way, success or not.
+      Promise.resolve(loadFullClub())["catch"](function () {})["then"](function () {
+        sbcLoadStorage(function () {
+          state.sbcReloading = false;
+          renderSbcPage();
+        });
+      });
+    });
+    tools.appendChild(again);
+    bodyEl.appendChild(tools);
+
+    var info = readOpenSbc();
+    // Remember which SBC we've just drawn, so the watcher can spot you moving to another.
+    sbcLastFp = info.ok ? info.fingerprint : null;
+
+    if (!info.ok) {
+      var empty = document.createElement("div"); empty.className = "mp-soon";
+      empty.innerHTML = esc(info.reason) + (info.screen ? ("<br><span style='opacity:.6;font-size:10px'>on screen: " + esc(info.screen) + "</span>") : "");
+      bodyEl.appendChild(empty);
+      sbcHost.appendChild(bodyEl);
+    try { bodyEl.scrollTop = keepScroll; } catch (eS) {}   // put you back where you were
+      return;
+    }
+
+    // ---- The SBC itself ----
+    var head = document.createElement("div"); head.className = "db-card";
+    head.innerHTML =
+      "<div class='sbc-name'>" + esc(info.name) + "</div>" +
+      "<div class='sbc-meta'>" +
+        "<span class='sbc-pill'>" + (info.slots == null ? "?" : info.slots) + " slots</span>" +
+        "<span class='sbc-pill'>" + info.reqs.length + " requirement" + (info.reqs.length === 1 ? "" : "s") + "</span>" +
+        "<span class='sbc-pill'>match " + esc(String(info.op)) + "</span>" +
+      "</div>";
+    bodyEl.appendChild(head);
+
+    // ---- Requirements, in EA's own words ----
+    var card = document.createElement("div"); card.className = "db-card";
+    var h3 = document.createElement("div"); h3.className = "db-h3"; h3.textContent = "Requirements";
+    card.appendChild(h3);
+
+    if (!info.reqs.length) {
+      var none = document.createElement("div"); none.className = "mp-soon";
+      none.textContent = "This challenge lists no requirements.";
+      card.appendChild(none);
+    } else {
+      var list = document.createElement("div"); list.className = "sbc-reqs";
+      info.reqs.forEach(function (r) {
+        var row = document.createElement("div");
+        row.className = "sbc-req" + (r.supported ? "" : (r.planned ? " soon" : " no"));
+        // count -1 means "every player must match this", anything else is "N players".
+        var appliesTo = (r.count === -1 || r.count == null) ? "all players" : (r.count + " player" + (r.count === 1 ? "" : "s"));
+        row.innerHTML =
+          "<span class='sbc-req-dot'>" + (r.supported ? "✓" : (r.planned ? "~" : "✗")) + "</span>" +
+          "<span class='sbc-req-tx'>" +
+            "<b>" + esc(r.text) + "</b>" +
+            "<i>" + esc(r.name) + " · " + esc(appliesTo) + (r.scope ? (" · " + esc(String(r.scope).toLowerCase())) : "") + "</i>" +
+          "</span>";
+        list.appendChild(row);
+      });
+      card.appendChild(list);
+    }
+    bodyEl.appendChild(card);
+
+    // ---- Honest verdict on whether a future auto-fill could handle this one ----
+    // Three outcomes, not two. "Blocked" and "not built yet" are very different things,
+    // and lumping them together made solvable SBCs look impossible.
+    var planned = info.reqs.filter(function (r) { return r.planned; }).length;
+    var blocked = info.reqs.filter(function (r) { return !r.supported && !r.planned; }).length;
+    var verdict = document.createElement("div");
+    verdict.className = "sbc-verdict " + (blocked ? "warn" : (planned ? "soon" : "ok"));
+    verdict.innerHTML = blocked
+      ? "<b>Auto-fill can't build this one.</b><span>" + blocked + " requirement" + (blocked === 1 ? " is" : "s are") +
+        " marked ✗ - chemistry can't be worked out by picking players, so it stays out of scope.</span>"
+      : (planned
+        ? "<b>Buildable, but not yet.</b><span>" + planned + " requirement" + (planned === 1 ? " needs" : "s need") +
+          " squad-rating solving (marked ~). That's a real thing this can do - an “88 rated” squad doesn't mean eleven 88s, " +
+          "it's an average, so mixing e.g. two 87s with nine 88s gets there. It's the next thing to build.</span>"
+        : "<b>Auto-fill could build this one.</b><span>Every requirement is a simple per-player test, which is exactly what a cheapest-fodder fill handles.</span>");
+    bodyEl.appendChild(verdict);
+
+    // ---- STEP 2: which of your club players this SBC would accept ----
+    var pcard = document.createElement("div"); pcard.className = "db-card";
+    var ph = document.createElement("div"); ph.className = "db-h3"; ph.textContent = "Your candidates";
+    pcard.appendChild(ph);
+
+    var club = getClubPlayers();
+    if (!club.length) {
+      var noClub = document.createElement("div"); noClub.className = "mp-soon";
+      noClub.textContent = "No club loaded yet. Go back, tap ↻ Reload club, then re-read.";
+      pcard.appendChild(noClub);
+      bodyEl.appendChild(pcard);
+      sbcHost.appendChild(bodyEl);
+    try { bodyEl.scrollTop = keepScroll; } catch (eS) {}   // put you back where you were
+      return;
+    }
+
+    // Two toggles that genuinely change who's eligible. Kept on state so they survive
+    // a re-read within the session (deliberately not saved to storage - this is step 2).
+    var opts = {
+      noSpecials: state.sbcNoSpecials !== false,
+      untradeablesOnly: !!state.sbcUntradeOnly,
+      // Storage defaults ON: those cards can't be sold or played, so an SBC is the only
+      // thing they're for. Untick to build from your club alone.
+      useStorage: state.sbcUseStorage !== false
+    };
+    var res = sbcBuildPool(info, opts);
+
+    // "Skip special cards" is only genuinely inert when EVERY slot's rarity is dictated
+    // ("all players must be Gold"). A "Min. 1 TOTW" style rule does NOT lock the toggle -
+    // it just means the cards answering that rule are kept while other specials are still
+    // skipped, which is the normal FC26 shape (1 special + 10 golds to hit a rating).
+    var rarityLocked = !!res.rarityLocksAll;
+    var togs = document.createElement("div"); togs.className = "sbc-togs";
+    [["noSpecials", "Skip special cards", "Only commons and rares count as fodder"],
+     ["untradeablesOnly", "Untradeables only", "Burn cards you can't sell anyway"],
+     ["useStorage", "Use SBC storage", "Include your stored duplicates - they can't be sold or played, so an SBC is all they're good for"]].forEach(function (t) {
+      var off = (t[0] === "noSpecials" && rarityLocked);
+      var lab = document.createElement("label"); lab.className = "sbc-tog" + (off ? " off" : "");
+      lab.title = off ? "This SBC asks for a specific rarity, so this can't apply." : t[2];
+      var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!opts[t[0]];
+      cb.disabled = off;
+      cb.addEventListener("change", function () {
+        if (t[0] === "noSpecials") state.sbcNoSpecials = cb.checked;
+        else if (t[0] === "useStorage") state.sbcUseStorage = cb.checked;
+        else state.sbcUntradeOnly = cb.checked;
+        renderSbcPage();
+      });
+      var sp = document.createElement("span"); sp.textContent = t[1];
+      lab.appendChild(cb); lab.appendChild(sp);
+      togs.appendChild(lab);
+    });
+    pcard.appendChild(togs);
+    if (rarityLocked) {
+      var lockNote = document.createElement("div"); lockNote.className = "sbc-note";
+      lockNote.textContent = "This SBC dictates the rarity of every player, so “Skip special cards” can't apply here.";
+      pcard.appendChild(lockNote);
+    } else if (opts.noSpecials && res.keptSpecial) {
+      // Reassure you that skipping specials hasn't thrown away the card the SBC needs.
+      var keepNote = document.createElement("div"); keepNote.className = "sbc-note";
+      keepNote.textContent = "Skipping specials, but " + res.keptSpecial + " special card" +
+        (res.keptSpecial === 1 ? " was" : "s were") + " kept because this SBC asks for them.";
+      pcard.appendChild(keepNote);
+    }
+
+    // Headline number.
+    var big = document.createElement("div"); big.className = "sbc-poolnum";
+    big.innerHTML = "<b>" + res.pool.length + "</b><span>of your " + res.total +
+      " players could go into this SBC" +
+      (res.storeCount ? (", including " + res.storeCount + " from SBC storage") : "") + "</span>";
+    pcard.appendChild(big);
+    if (opts.useStorage && sbcStorage && !sbcStorage.length && !sbcStorageBusy) {
+      var noStore = document.createElement("div"); noStore.className = "sbc-note";
+      noStore.textContent = "SBC storage is empty, so this is your club only.";
+      pcard.appendChild(noStore);
+    }
+
+    // Who got dropped and why. Only reasons that actually removed somebody are shown.
+    var reasons = [
+      ["locked", "locked by you"],
+      ["inSquad", "in your active squad"], ["evolved", "part-way through an evolution"],
+      ["loan", "loan or expiring"], ["special", "special cards (toggle above)"],
+      ["tradable", "tradeable (toggle above)"], ["rules", "don't meet this SBC's rules"]
+    ].filter(function (r) { return res.drop[r[0]] > 0; });
+    if (reasons.length) {
+      var dl = document.createElement("div"); dl.className = "sbc-drops";
+      dl.innerHTML = reasons.map(function (r) {
+        return "<span><b>" + res.drop[r[0]] + "</b> " + esc(r[1]) + "</span>";
+      }).join("");
+      pcard.appendChild(dl);
+    }
+    if (!res.squadKnown) {
+      var warn = document.createElement("div"); warn.className = "sbc-note";
+      warn.textContent = "Still checking which players are in your active squad…";
+      pcard.appendChild(warn);
+    }
+
+    // Per-requirement candidate counts. A zero here is the exact reason a fill would fail.
+    var counted = res.perReq.filter(function (p) { return p.matches != null; });
+    if (counted.length) {
+      var pr = document.createElement("div"); pr.className = "sbc-perreq";
+      pr.innerHTML = counted.map(function (p) {
+        var need = (p.req.count === -1 || p.req.count == null) ? 0 : p.req.count;
+        var short = need > 0 && p.matches < need;
+        return "<span class='sbc-prq" + (short ? " short" : "") + "'>" +
+          "<b>" + p.matches + "</b>" + (need ? (" / " + need + " needed") : " match") +
+          "<i>" + esc(p.req.name.replace(/_/g, " ").toLowerCase()) + "</i></span>";
+      }).join("");
+      pcard.appendChild(pr);
+    }
+
+    // A peek at the pool. Sorted by rating, lowest first, purely so the list is stable -
+    // this is NOT the order a fill would use. Choosing that order is step 3.
+    if (res.pool.length) {
+      var preview = res.pool.slice().sort(function (a, b) { return (a.rating || 0) - (b.rating || 0); }).slice(0, 12);
+      var pl = document.createElement("div"); pl.className = "sbc-prev";
+      pl.innerHTML = preview.map(function (it) {
+        return "<span class='sbc-pchip'><b>" + (it.rating || "?") + "</b>" + esc(playerName(it)) + "</span>";
+      }).join("");
+      pcard.appendChild(pl);
+      var note = document.createElement("div"); note.className = "sbc-note";
+      note.textContent = "Lowest-rated first, just so the list is stable. Picking the real order (cheapest, untradeable-first and so on) comes next.";
+      pcard.appendChild(note);
+    }
+
+    bodyEl.appendChild(pcard);
+
+    // ---- STEP 3: the squad-rating plan ----
+    // Only shown for SBCs that actually want a team rating. Read-only: it works out
+    // WHAT to put in, it doesn't put it in.
+    var wantsRating = (info.reqs || []).some(function (r) { return r.name === "TEAM_RATING"; });
+    if (wantsRating) {
+      var plan = sbcPlanSquad(info, res);
+      var scard = document.createElement("div"); scard.className = "db-card";
+      var sh = document.createElement("div"); sh.className = "db-h3"; sh.textContent = "Cheapest squad that gets there";
+      scard.appendChild(sh);
+
+      if (!plan.ok) {
+        var bad = document.createElement("div"); bad.className = "mp-soon";
+        // The "can't build it" reason may name the settings to change, with <b> around
+        // them, so it goes in as HTML. Everything in it is our own wording plus numbers -
+        // no player names or other user data - so there's nothing here to escape.
+        if (plan.isHtml) bad.innerHTML = plan.reason; else bad.textContent = plan.reason;
+        scard.appendChild(bad);
+      } else {
+        // Headline: what rating this squad would come out at, against what's needed.
+        var hit = document.createElement("div"); hit.className = "sbc-poolnum";
+        hit.innerHTML = "<b>" + plan.rating + "</b><span>squad rating, and this SBC needs " + plan.target +
+          (plan.rating > plan.target ? " (" + (plan.rating - plan.target) + " to spare)" : "") + "</span>";
+        scard.appendChild(hit);
+
+        // The shape of the answer: "8x 84, 1x 90, 2x 94". This is the bit worth reading -
+        // it shows how the high cards are carrying the low ones.
+        var tally = {};
+        plan.cards.forEach(function (it) { var r = it.rating || 0; tally[r] = (tally[r] || 0) + 1; });
+        var shape = Object.keys(tally).map(Number).sort(function (a, b) { return a - b; })
+          .map(function (r) { return "<span class='sbc-shape'><b>" + tally[r] + "&times;</b>" + r + "</span>"; }).join("");
+        var shapeRow = document.createElement("div"); shapeRow.className = "sbc-prev";
+        shapeRow.innerHTML = shape;
+        scard.appendChild(shapeRow);
+
+        // Cards the SBC specifically demanded (e.g. the one TOTW), called out separately
+        // so it's obvious they were chosen to satisfy a rule, not for their rating.
+        if (plan.reserved.length) {
+          var rlab = document.createElement("div"); rlab.className = "sbc-note";
+          rlab.textContent = "Required by this SBC:";
+          scard.appendChild(rlab);
+          var rrow = document.createElement("div"); rrow.className = "sbc-prev";
+          rrow.innerHTML = plan.reserved.map(function (x) {
+            return "<span class='sbc-pchip req'><b>" + (x.card.rating || "?") + "</b>" + esc(playerName(x.card)) + "</span>";
+          }).join("");
+          scard.appendChild(rrow);
+        }
+
+        // Everyone else, cheapest-to-lose first.
+        var flab = document.createElement("div"); flab.className = "sbc-note";
+        flab.textContent = "Plus these " + plan.chosen.length + " to make up the rating (tap one to keep it out):";
+        scard.appendChild(flab);
+        // Each pick is tappable: tap = "don't spend this one", and the plan immediately
+        // re-solves without it. Better than swapping a card by hand, because re-solving
+        // is still guaranteed to make the rating whereas a manual swap can quietly break it.
+        var frow = document.createElement("div"); frow.className = "sbc-prev";
+        plan.chosen.forEach(function (it) {
+          var chip = document.createElement("button");
+          chip.type = "button"; chip.className = "sbc-pchip tap";
+          chip.title = "Keep " + playerName(it) + " out of SBCs";
+          // 📦 = came out of SBC storage (free fodder), 🔒 = untradeable club card.
+          chip.innerHTML = "<b>" + (it.rating || "?") + "</b>" + esc(playerName(it)) +
+            (isStorageCard(it) ? "<i title='from SBC storage'>&#128230;</i>"
+              : (it.tradable === true ? "" : "<i title='untradeable'>&#128274;</i>"));
+          chip.addEventListener("click", function () { setSbcLocked(it.id, true); renderSbcPage(); });
+          frow.appendChild(chip);
+        });
+        scard.appendChild(frow);
+
+        var topCard = Math.max.apply(null, plan.cards.map(function (it) { return it.rating || 0; }));
+        var fromStore = plan.cards.filter(isStorageCard).length;
+        var pnote = document.createElement("div"); pnote.className = "sbc-note";
+        if (fromStore) {
+          pnote.innerHTML = "<b>" + fromStore + " of these " + plan.cards.length + " come from SBC storage</b> (📦) - " +
+            "those cost you nothing, since stored duplicates can't be sold or played anyway. ";
+        }
+        pnote.innerHTML += "Highest card used: <b>" + topCard + "</b>. It keeps your good cards back on purpose - " +
+          "a card's worth climbs steeply with its rating, so it only reaches for a high one when there's no other " +
+          "way to make the number. Within a rating it spends untradeables first (you can't sell them anyway), " +
+          "then plain cards over specials. " +
+          (plan.exact
+            ? "This is the cheapest your club can do it."
+            : "Cheapest found - the search was cut short, so something slightly cheaper may exist.") +
+          " <b>Nothing has been submitted</b> - this is just the plan.";
+        scard.appendChild(pnote);
+
+        // ---- STEP 4: put it in the game ----
+        var fillWrap = document.createElement("div"); fillWrap.className = "sbc-fillrow";
+        var fillBtn = document.createElement("button");
+        fillBtn.type = "button"; fillBtn.className = "sbc-fill";
+        fillBtn.textContent = "Fill this squad in the game";
+        var fillMsg = document.createElement("div"); fillMsg.className = "sbc-note";
+        fillMsg.innerHTML = "Puts these players into the SBC squad for you. <b>It does not submit it</b> - " +
+          "you review it in the game and press Submit yourself, so nothing is exchanged without you seeing it.";
+        fillBtn.addEventListener("click", async function () {
+          if (state.sbcFilling) return;
+          // Spell out exactly what's about to happen, and list every card by name, so the
+          // confirm is a real decision rather than a formality.
+          var lines = plan.cards.map(function (it) {
+            return "  " + (it.rating || "?") + "  " + playerName(it) + (it.tradable === true ? "" : "  (untradeable)");
+          }).join("\n");
+          var msg = "Fill this SBC with these " + plan.cards.length + " players?\n\n" + lines +
+            "\n\nPredicted squad rating: " + plan.rating + " (needs " + plan.target + ")" +
+            "\n\nThis only PLACES them in the squad - it does NOT submit the SBC and nothing is exchanged. " +
+            "Anything already in the squad is cleared first. You can undo it in the game by clearing the squad.";
+          if (!window.confirm(msg)) return;
+          state.sbcFilling = true;
+          fillBtn.disabled = true; fillBtn.textContent = "Filling…";
+          var out = await sbcFillSquad(plan);
+          state.sbcFilling = false;
+          fillBtn.disabled = false; fillBtn.textContent = "Fill this squad in the game";
+          fillMsg.innerHTML = out.ok
+            ? "<b>Done - " + out.placed + " players placed.</b> Check the squad in the game, then press Submit there " +
+              "if you're happy. Nothing has been exchanged yet. After you submit, hit ↻ Reload club so the tool " +
+              "stops showing the players you just spent."
+            : "<b>Couldn't fill it.</b> " + esc(out.reason);
+        });
+        fillWrap.appendChild(fillBtn);
+        scard.appendChild(fillWrap);
+        scard.appendChild(fillMsg);
+      }
+      bodyEl.appendChild(scard);
+    }
+
+    // ---- Locked cards: always visible, always reversible ----
+    // A lock that you can't see is a lock you'll forget about and then wonder why a plan
+    // looks odd, so this card shows even when the list is empty.
+    var lockedIds = Object.keys(state.sbcLocked);
+    if (lockedIds.length) {
+      var lcard = document.createElement("div"); lcard.className = "db-card";
+      var lh = document.createElement("div"); lh.className = "db-h3";
+      lh.textContent = "Kept out of SBCs (" + lockedIds.length + ")";
+      lcard.appendChild(lh);
+      var lrow = document.createElement("div"); lrow.className = "sbc-prev";
+      var known = {};
+      getClubPlayers().forEach(function (it) { if (state.sbcLocked[it.id]) known[it.id] = it; });
+      lockedIds.forEach(function (id) {
+        var it = known[id];
+        var chip = document.createElement("button");
+        chip.type = "button"; chip.className = "sbc-pchip tap locked";
+        chip.title = "Allow this card in SBCs again";
+        chip.innerHTML = it
+          ? ("<b>" + (it.rating || "?") + "</b>" + esc(playerName(it)) + "<i>&times;</i>")
+          : ("<b>?</b>card " + esc(id) + "<i>&times;</i>");   // not in the loaded club (sold, or club not loaded)
+        chip.addEventListener("click", function () { setSbcLocked(id, false); renderSbcPage(); });
+        lrow.appendChild(chip);
+      });
+      lcard.appendChild(lrow);
+      var lnote = document.createElement("div"); lnote.className = "sbc-note";
+      lnote.textContent = "Tap one to allow it again. These are never used in any SBC plan, and the list is remembered between sessions.";
+      lcard.appendChild(lnote);
+      bodyEl.appendChild(lcard);
+    }
+
+    sbcHost.appendChild(bodyEl);
+    try { bodyEl.scrollTop = keepScroll; } catch (eS) {}   // put you back where you were
+  }
+
+  // Console helpers: read the open SBC without opening the panel page.
+  //   window.FC26.readSbc()     -> the parsed object
+  //   window.FC26.openSbcPage() -> open the page
+  window.FC26.readSbc = readOpenSbc;
+  window.FC26.openSbcPage = openSbcPage;
+  // Locked cards, from the Console:
+  //   window.FC26.sbcLocks.list()      -> the locked card ids (with names where known)
+  //   window.FC26.sbcLocks.clear()     -> unlock everything
+  window.FC26.sbcLocks = {
+    list: function () {
+      var known = {}; getClubPlayers().forEach(function (it) { known[it.id] = it; });
+      return Object.keys(state.sbcLocked).map(function (id) {
+        return known[id] ? ((known[id].rating || "?") + " " + playerName(known[id]) + " (" + id + ")") : ("card " + id);
+      });
+    },
+    clear: function () { state.sbcLocked = {}; saveSbcLocked(); try { renderSbcPage(); } catch (e) {} return "All locks cleared."; }
+  };
+  // ### SBC-SOLVER END ###
 
   // Console helper: open the dashboard without clicking (and a summary read-out).
   window.FC26.openDashPage = openDashPage;
@@ -7460,7 +9043,20 @@
 
   var squadMod = document.createElement("div");
   squadMod.className = "fc26-squad";
-  squadMod.appendChild(pickerHead); squadMod.appendChild(clubStat); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub); squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(dashLaunch);
+  squadMod.appendChild(pickerHead); squadMod.appendChild(clubStat); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub);   // The Lineup column was getting long: four full-width launcher tiles stacked up meant a
+  // lot of scrolling before you reached anything. Justaino Score and Squad Builder keep
+  // their big tiles (they're the main events); Club Dashboard and SBC Solver are demoted to
+  // a pair of compact squares side by side. Same buttons and same click handlers - only
+  // their look changes, which is why this re-skins them here rather than rebuilding them.
+  var miniRow = document.createElement("div");
+  miniRow.className = "meta-section mini-row";
+  dashLaunchBtn.className = "mini-launch";
+  dashLaunchBtn.innerHTML = "<span class='mini-ic'>🏟️</span><span class='mini-tx'>Dashboard</span>";
+  sbcLaunchBtn.className = "mini-launch";
+  sbcLaunchBtn.innerHTML = "<span class='mini-ic'>🧩</span><span class='mini-tx'>SBC Solver</span>";
+  miniRow.appendChild(dashLaunchBtn); miniRow.appendChild(sbcLaunchBtn);
+
+  squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(miniRow);
   // Group 2 - Build (Suggest + tabs + evo grid).  (preview is its own module, moved directly.)
   var buildMod = document.createElement("div");
   buildMod.appendChild(evoTitle); buildMod.appendChild(suggestRow); buildMod.appendChild(tabs); buildMod.appendChild(evoCount); buildMod.appendChild(evoList); oneOffs.forEach(function (s) { buildMod.appendChild(s.section); });
@@ -7613,6 +9209,7 @@
     // Same for the other two full-screen pages (the Dashboard was missing here, so rotating
     // a phone with it open used to dump you back on the main layout with the page still "open").
     if (state.dashOpen) { layoutHost.style.display = "none"; dashHost.style.display = "flex"; renderDashPage(); }
+    if (state.sbcOpen) { layoutHost.style.display = "none"; sbcHost.style.display = "flex"; renderSbcPage(); }
     // Peks Lab is checked LAST and hides the meta page, because it's normally opened
     // FROM it - both flags are true at once, and the settings page is the one in front.
     if (state.scorePageOpen) { layoutHost.style.display = "none"; metaPageHost.style.display = "none"; ssHost.style.display = "flex"; renderScorePage(); }

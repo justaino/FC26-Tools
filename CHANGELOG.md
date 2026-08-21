@@ -5,6 +5,82 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
+## v45 - 2026-08-21
+
+**The SBC Solver, a 5th PlayStyle+, and a bug that was hiding 145 of your best cards.**
+
+### New: the SBC Solver
+
+A new **🧩 SBC Solver** square in the Lineup column. Open an SBC's squad screen in the
+game, tap it, and the panel works the whole thing out for you.
+
+- **It reads the SBC you have open** - its name, its slots, and every requirement in plain
+  English. The wording comes from the game's own text, so it reads exactly as it does in the
+  app rather than being my translation of it.
+- **It tells you who can go in**: how many of your club would be accepted, and why the rest
+  were excluded - in your squad, mid-evolution, on loan, locked, or filtered out by your own
+  settings. Every excluded card is accounted for.
+- **It works out the cheapest squad that hits the rating.** An "88 rated" squad is an
+  *average*, not eleven 88s, so it mixes 86s and 89s and lets a good card carry weaker ones.
+  Two 87s and nine 88s makes 88 - that's the sort of thing it finds.
+- **It won't burn your good cards to do it.** Card value climbs steeply with rating, so it
+  treats a 94 as roughly 300 times the cost of an 84 and only reaches for one when there's no
+  other way to make the number. Within a rating it spends the least painful card first:
+  untradeables, then plain cards over specials, then lowest rated.
+- **It uses your SBC storage.** Those stored duplicates can't be sold or played, so an SBC is
+  the only thing they're good for - and they're priced accordingly, so it spends them before
+  touching your club. Untick **Use SBC storage** to build from your club alone.
+- **Tap any card in the plan to keep it out**, and it re-plans without it. Better than
+  swapping a card by hand, because re-planning still guarantees the rating whereas a manual
+  swap can quietly break it. Locks are remembered between sessions.
+- **Then it fills the squad for you - and stops there.** It places the players exactly as if
+  you'd dragged them in. **It does not submit.** Filling can be undone by clearing the squad;
+  submitting exchanges your cards for good, so that press stays yours, in the game, looking
+  at the real squad. It asks first, listing all eleven cards by name and rating.
+- **Chemistry is out of scope**, and says so rather than guessing. An SBC needing chemistry
+  gets no plan.
+- The reload button on that page **reloads your club as well**, which matters after you
+  submit one - the players you just spent are gone from the game but the tool was still
+  holding them.
+
+### PlayStyles: EA raised the cap to 5
+
+- **You can now hold 5 PlayStyle+**, up from 4. The card reads out of 5, and the caps,
+  filters and Apply loop all follow.
+- **Suggest fills all 13 slots** (5 PS+ + 8 basic). It was stopping at 12, because the
+  per-role PlayStyle lists were built for the old 4 + 8 and simply ran out of names. The same
+  thing happened when the cap went 3 to 4 - so the lists are now 13 long, and the note in the
+  source says to lengthen them FIRST next time EA moves the cap.
+- **All 37 role lists re-pulled from fut.gg** at its 5-PlayStyle+ / 8-base setting, so the
+  priorities are current rather than reordered by hand. Every name was checked against the 36
+  PlayStyles the tool knows before anything changed.
+- Because the lists changed order as well as length, **your scores will shift slightly** and
+  Best XI may reshuffle at the edges. It moves everyone the same way, so rankings hold.
+- **EA has opened PlayStyle evos up to every card**, so the eligible-rarity list is no longer
+  a real restriction. There's a new **Tick every rarity** button in "Manage eligible
+  rarities" rather than making you tick fifty boxes. It only ever ADDS, so it can't wipe your
+  list by accident, and it still stages until you press Save.
+
+### Fixed: 145 of your best cards were being excluded from SBCs
+
+- Any card carrying evolution data was treated as "evolved" and barred from SBC plans. On my
+  club that was **146 cards, nearly all of them 94-98 promos**.
+- **Why:** the check asked whether a card had an evolution record at all. Loads of cards
+  carry one without being in an evolution - it describes the state, not the fact. Of those
+  146, exactly **one** was actually mid-evolution.
+- **The real rule**, which is EA's: a card **part-way through** an evolution can't go in an
+  SBC, but once the evolution is **finished** it's fair game. That's what it checks now.
+
+### Smaller things
+
+- **Club Dashboard and SBC Solver are two compact squares side by side**, and Justaino Score
+  and Squad Builder have been slimmed down too. The Lineup column had got long enough that
+  you were scrolling past everything to reach anything.
+- The SBC page no longer **throws you back to the top** every time it redraws, and it notices
+  by itself when you switch to a different SBC in the game.
+
+---
+
 ## v44 - 2026-08-19
 
 **The tool was only ever seeing about half your club.**

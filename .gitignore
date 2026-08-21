@@ -19,5 +19,5 @@ npm-debug.log*
 *.tmp
 
 # Reference copies of OTHER people's tools, kept locally for study only.
-# Never commit it, never ship any of it.
+# ~1MB of third-party code - never commit it, never ship any of it.
 Reference/
