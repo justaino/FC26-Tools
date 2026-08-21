@@ -5,83 +5,79 @@ Versions are cut with `node release.js "note"` and shown on the install page (`i
 
 ---
 
-## Unreleased (on `dev`, not published)
+## v45 - 2026-08-21
 
-Kept here rather than under a version number because **no install-page version has been
-cut for it**. Nobody has this yet. It moves under a real `vN` heading if and when it ships.
+**The SBC Solver, a 5th PlayStyle+, and a bug that was hiding 145 of your best cards.**
 
-**New: the SBC Reader (read-only).**
+### New: the SBC Solver
 
-- A new **🧩 SBC Reader** tile in the Lineup column. Open an SBC's squad screen in the game,
-  tap the tile, and the panel tells you what that SBC is: its name, its slot count, and every
-  requirement spelled out in plain English.
-- **It only reads.** It doesn't fill squads, doesn't submit anything, doesn't touch your club.
-  There's no button that could.
-- The requirement wording comes from the game's own text, so it reads exactly as it does
-  in the app rather than being our translation of it.
-- Each requirement is ticked or crossed depending on whether a future auto-fill could
-  actually satisfy it, with an honest verdict at the bottom.
-- **Team rating and chemistry are crossed on purpose.** Those can't be solved by picking your
-  cheapest players, and filling them badly would eat good fodder for a squad that doesn't
-  submit. Better to say so than to guess.
-- This is step 1 of a possible SBC builder. It might not go any further, so it was built to
-  be removed cleanly if not (see RUNBOOK §3y).
+A new **🧩 SBC Solver** square in the Lineup column. Open an SBC's squad screen in the
+game, tap it, and the panel works the whole thing out for you.
 
-**Also on dev: the candidate pool (step 2).** Shows how many of your club players a given
-SBC would actually accept, why the rest were excluded, and how many candidates each
-individual requirement has. Still read-only.
+- **It reads the SBC you have open** - its name, its slots, and every requirement in plain
+  English. The wording comes from the game's own text, so it reads exactly as it does in the
+  app rather than being my translation of it.
+- **It tells you who can go in**: how many of your club would be accepted, and why the rest
+  were excluded - in your squad, mid-evolution, on loan, locked, or filtered out by your own
+  settings. Every excluded card is accounted for.
+- **It works out the cheapest squad that hits the rating.** An "88 rated" squad is an
+  *average*, not eleven 88s, so it mixes 86s and 89s and lets a good card carry weaker ones.
+  Two 87s and nine 88s makes 88 - that's the sort of thing it finds.
+- **It won't burn your good cards to do it.** Card value climbs steeply with rating, so it
+  treats a 94 as roughly 300 times the cost of an 84 and only reaches for one when there's no
+  other way to make the number. Within a rating it spends the least painful card first:
+  untradeables, then plain cards over specials, then lowest rated.
+- **It uses your SBC storage.** Those stored duplicates can't be sold or played, so an SBC is
+  the only thing they're good for - and they're priced accordingly, so it spends them before
+  touching your club. Untick **Use SBC storage** to build from your club alone.
+- **Tap any card in the plan to keep it out**, and it re-plans without it. Better than
+  swapping a card by hand, because re-planning still guarantees the rating whereas a manual
+  swap can quietly break it. Locks are remembered between sessions.
+- **Then it fills the squad for you - and stops there.** It places the players exactly as if
+  you'd dragged them in. **It does not submit.** Filling can be undone by clearing the squad;
+  submitting exchanges your cards for good, so that press stays yours, in the game, looking
+  at the real squad. It asks first, listing all eleven cards by name and rating.
+- **Chemistry is out of scope**, and says so rather than guessing. An SBC needing chemistry
+  gets no plan.
+- The reload button on that page **reloads your club as well**, which matters after you
+  submit one - the players you just spent are gone from the game but the tool was still
+  holding them.
 
-- Requirements now show one of **three** marks, not two: **✓** the fill handles it, **~**
-  solvable but not built yet (squad rating), **✗** genuinely out of scope (chemistry).
-- **"~" replaced a wrong "✗" on team rating.** Marking it ✗ implied you couldn't complete
-  the SBC at all, which isn't true - an "88 rated" squad is an *average*, so two 87s and
-  nine 88s gets there. That's a solvable problem and it's the next thing to build.
-- Fixed: "skip special cards" was switched off by *any* rarity requirement. "Min. 1 TOTW"
-  constrains one slot, not eleven, so it now only locks when a rarity rule covers every
-  player - and specials the SBC actually asks for are kept rather than binned.
+### PlayStyles: EA raised the cap to 5
 
-**Also on dev: it now works out the squad and fills it (steps 3 and 4).**
+- **You can now hold 5 PlayStyle+**, up from 4. The card reads out of 5, and the caps,
+  filters and Apply loop all follow.
+- **Suggest fills all 13 slots** (5 PS+ + 8 basic). It was stopping at 12, because the
+  per-role PlayStyle lists were built for the old 4 + 8 and simply ran out of names. The same
+  thing happened when the cap went 3 to 4 - so the lists are now 13 long, and the note in the
+  source says to lengthen them FIRST next time EA moves the cap.
+- **All 37 role lists re-pulled from fut.gg** at its 5-PlayStyle+ / 8-base setting, so the
+  priorities are current rather than reordered by hand. Every name was checked against the 36
+  PlayStyles the tool knows before anything changed.
+- Because the lists changed order as well as length, **your scores will shift slightly** and
+  Best XI may reshuffle at the edges. It moves everyone the same way, so rankings hold.
+- **EA has opened PlayStyle evos up to every card**, so the eligible-rarity list is no longer
+  a real restriction. There's a new **Tick every rarity** button in "Manage eligible
+  rarities" rather than making you tick fifty boxes. It only ever ADDS, so it can't wipe your
+  list by accident, and it still stages until you press Save.
 
-- **It solves the rating for you.** Give it "Team Rating: Min. 88" and it works out the
-  cheapest set of cards you actually own that gets there, then names them. An 88 squad is
-  an *average*, so it happily mixes 86s and 89s rather than insisting on eleven 88s.
-- **It won't burn your good cards.** The first version was too willing to spend a 94 to
-  save a few rating-points elsewhere. Card value climbs steeply with rating, so it now
-  treats a 94 as roughly 300 times the cost of an 84 and only reaches for one when there's
-  no other way to make the number. On the same club, a plan of "8x84 + 1x90 + 2x94" became
-  "3x86 + 7x88 + 1x89".
-- Within a rating it spends the least painful card first: untradeables (you can't sell them
-  anyway), then plain cards over specials, then lowest rated.
-- Anything the SBC specifically demands - your one TOTW/FUTTIES - is locked in **first** and
-  shown separately, so it can't build a tidy 88 that quietly leaves the required card out.
-- **The maths is verified against the game itself**, not just assumed. `window.FC26.ratingCheck()`
-  compares our number with the game's own and reports whether they agree. They do.
-- **"Fill this squad in the game" - and that's where it stops.** It places the players for
-  you exactly as if you'd dragged them in. **It does not submit.** Filling can be undone by
-  clearing the squad; submitting exchanges your cards for good, so that press stays yours,
-  in the game, looking at the real squad.
-- Filling asks first, listing all eleven cards by name and rating.
-- **It can't fill the wrong SBC.** It checks you're still on the challenge the plan was
-  built for - comparing slot counts wasn't enough, since nearly every SBC has eleven. The
-  page also spots you switching SBC on its own and redraws within a second or two.
+### Fixed: 145 of your best cards were being excluded from SBCs
 
-**Also on dev: locking, a duplicate-player fix, and a tidier Lineup column.**
+- Any card carrying evolution data was treated as "evolved" and barred from SBC plans. On my
+  club that was **146 cards, nearly all of them 94-98 promos**.
+- **Why:** the check asked whether a card had an evolution record at all. Loads of cards
+  carry one without being in an evolution - it describes the state, not the fact. Of those
+  146, exactly **one** was actually mid-evolution.
+- **The real rule**, which is EA's: a card **part-way through** an evolution can't go in an
+  SBC, but once the evolution is **finished** it's fair game. That's what it checks now.
 
-- **Fixed: the plan could use the same player twice**, which the game rejects outright, the
-  same way it does for a normal squad. Spare copies of a card now count as one, and a player
-  who owns cards at two different ratings can only take one slot.
-- **Tap any card in the plan to keep it out of SBCs**, and it re-plans without them. Locked
-  cards are listed so you can allow them again, and the list is remembered between sessions.
-  This is better than swapping a card by hand, because re-planning still guarantees the
-  rating whereas a manual swap can quietly break it.
-- **The reload button now reloads your club too**, not just the SBC. After you submit one,
-  the players you spent are gone from the game but the tool was still holding them, so the
-  next plan could try to spend them again.
-- **It no longer throws you back to the top** of the page every time it redraws, which made
-  locking a card from the plan almost unusable.
-- **Club Dashboard and SBC Reader are now two small squares side by side** instead of two
-  full-width tiles. The Lineup column had got long enough that you were scrolling past
-  everything to reach anything.
+### Smaller things
+
+- **Club Dashboard and SBC Solver are two compact squares side by side**, and Justaino Score
+  and Squad Builder have been slimmed down too. The Lineup column had got long enough that
+  you were scrolling past everything to reach anything.
+- The SBC page no longer **throws you back to the top** every time it redraws, and it notices
+  by itself when you switch to a different SBC in the game.
 
 ---
 

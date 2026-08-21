@@ -1,13 +1,12 @@
-# FC26 Tools - SBC builder: where it got to, and what's left
+# FC26 Tools - SBC Solver: where it got to, and what's left
 
 ## Paste this to start the next session
 
 > Read `CLAUDE.md`, then `NEXT-SESSION-sbc.md`, then `Documentation/RUNBOOK.md` section 3y
 > before doing anything.
 >
-> Context: the SBC builder is built, tested and working, but it sits on `dev` **unreleased**
-> on purpose - I haven't decided whether to keep it. Don't run `release.js` for it unless I
-> say so. `main` is on v44 (the club-load fix), which IS shipped.
+> Context: the SBC Solver SHIPPED in v45, along with the PS+ cap going to 5 and a fix for
+> evolved cards being wrongly excluded. `main` and `dev` are level.
 >
 > Section 3y records five things that were got wrong once and shouldn't be again: squad
 > rating is an average with empty slots counting as zero; don't minimise the sum of ratings;
@@ -33,16 +32,15 @@ file is just the state of play and the open questions.
 
 ## Status
 
-The SBC builder is **built, working and tested in the live app**, sitting on `dev`,
-**unreleased**. No `release.js` has been run for it, so nobody has it.
+**SHIPPED in v45.** The SBC Solver, the PS+ cap going to 5 (with all 37 role lists re-pulled
+from fut.gg at 5+8), and the evolution fix all went out together.
 
-Separately, **v44 IS shipped on `main`**: the club loader was stopping at ~915 of 1785
-players, which had been silently affecting the picker, the Justaino Score rankings and
-Best XI. That went out on its own, deliberately without the SBC work.
+Before that, **v44** fixed the club loader stopping at ~915 of 1785 players, which had been
+silently affecting the picker, the Justaino Score rankings and Best XI.
 
 ## What it does
 
-Opens from the **🧩 SBC Reader** square in the Lineup column.
+Opens from the **🧩 SBC Solver** square in the Lineup column.
 
 1. **Reads** the SBC open in the game: name, slots, requirements in EA's own words.
 2. **Pools** your club: who this SBC would accept, and why the rest were excluded.
@@ -82,10 +80,8 @@ These are all written up properly in RUNBOOK 3y, listed here so they're impossib
 
 ## Open questions for the next session
 
-1. **Ship it or bin it?** Still undecided and that's fine. The honest test is whether it
-   gets reached for when actually doing SBCs, not whether it works. If it gets used for a
-   week, cut a version. If SBCs still get done by hand, RUNBOOK 3y has three-step delete
-   instructions and nothing else in the tool depends on it.
+1. **Does it get used?** It shipped, but the honest test is still whether it gets reached
+   for when actually doing SBCs. RUNBOOK 3y keeps the three-step delete instructions if not.
 2. **Chemistry** - worth attempting, or is the answer to keep saying no?
 3. **Alternatives per slot** was raised and deliberately not built, because locking covers
    the same need more safely. Revisit only if locking turns out to be annoying in practice.
@@ -94,8 +90,8 @@ These are all written up properly in RUNBOOK 3y, listed here so they're impossib
 
 ## Where the code is
 
-All in `fc26-tools.js`, fenced between `### SBC-READER BEGIN ###` and
-`### SBC-READER END ###`, plus one `miniRow` in the layout assembly and the `.sbc-*` rules
+All in `fc26-tools.js`, fenced between `### SBC-SOLVER BEGIN ###` and
+`### SBC-SOLVER END ###`, plus one `miniRow` in the layout assembly and the `.sbc-*` rules
 in the stylesheet. Nothing else in the tool reads it.
 
 Console helpers: `window.FC26.readSbc()`, `openSbcPage()`, `ratingCheck()`,

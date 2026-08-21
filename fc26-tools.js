@@ -141,7 +141,12 @@
   var FC26_VERSION = "dev";
 
   var TRAIT_OFFSET = 301;   // traitId = rewardId - 301
-  var CAP_PLUS = 4;         // a player can hold at most 4 PlayStyle+  (PS+)  [EA raised this from 3 to 4]
+  // EA has raised this twice now: 3 -> 4 -> 5. If they raise it again this is the only
+  // number to change; everything reads it rather than hardcoding a count.
+  // NOTE: Suggest can only fill as many slots as each role has PlayStyles listed for it,
+  // and the ROLES lists currently hold 12 each (built for the old 4+8). With 5+8=13 it will
+  // fill 12 and stop - see RUNBOOK 3v. Raising the cap does NOT lengthen those lists.
+  var CAP_PLUS = 5;         // a player can hold at most 5 PlayStyle+  (PS+)
   var CAP_BASIC = 8;        // a player can hold at most 8 basic PlayStyles (PS)
 
   // PS = the 36 basic PlayStyles.
@@ -796,78 +801,87 @@
   // EXACTLY 12 PER ROLE, AND THAT NUMBER MATTERS. A PlayStyle that isn't on a role's list
   // gets weight 0 (see roleWeightsFromList), and Suggest stops as soon as the best remaining
   // candidate would add nothing - so the list length is a hard ceiling on how many Suggest
-  // can pick. 12 = the caps (4 PS+ + 8 basic). When these were 11 long, Suggest could only
-  // ever fill 11 of the 12 slots. If you ever shorten a list, you shorten Suggest with it.
+  // can pick. 13 = the caps (5 PS+ + 8 basic). These have been lengthened TWICE now to keep
+  // up with EA raising the PS+ cap: 11 -> 12 (cap 4) -> 13 (cap 5). Each time, Suggest had
+  // quietly been filling one slot short until the lists caught up. If EA raises the cap
+  // again, these lists need a 14th BEFORE Suggest can use it, and if you ever shorten a
+  // list you shorten Suggest with it.
   //
   // Source: fut.gg's "Best PlayStyles by Role" (https://www.fut.gg/playstyles/best-by-role/)
-  // read at its 4-PlayStyles+ / 8-base setting, which is exactly our caps. Their role names
-  // and position groups match ours 1:1, all 37. Three of their names are spelled differently
-  // and were mapped: Game Changer -> Gamechanger, Long Ball -> Long Ball Pass, Rush Out ->
-  // 1v1 Close Down. Still offline curated data - no network call, edit freely if one looks
-  // wrong to you.
+  // read at its 5-PlayStyles+ / 8-base setting, which is exactly our caps. Their role names
+  // and position groups match ours 1:1, all 37, and every one of the 13x37 names maps to a
+  // PlayStyle we know. Four of their names are spelled differently and were mapped:
+  //   Low Driven -> Low Driven Shot,  Game Changer -> Gamechanger,
+  //   Long Ball  -> Long Ball Pass,   Rush Out     -> 1v1 Close Down
+  // (Rush Out is an inference: both lists carry exactly 6 GK-only styles and the other 5
+  // match by name, so it can only be our 1v1 Close Down. EA may simply have renamed it -
+  // if so our display name is the stale one, though nothing breaks either way because
+  // PlayStyles are matched by slot id, not by name.)
+  // Still offline curated data - no network call, edit freely if one looks wrong to you.
   //
-  // Only the ORDER of the top 6 really matters: the rank curve is [4,3,2,1], so ranks 1-2
-  // weigh 4, ranks 3-4 weigh 3, ranks 5-6 weigh 2, and ranks 7-12 ALL weigh 1. Which six sit
-  // in the tail counts; their order among themselves doesn't.
+  // ORDER: fut.gg's 5 PlayStyle+ picks come first, then its 8 base picks. The rank curve is
+  // [4,3,2,1], so ranks 1-2 weigh 4, ranks 3-4 weigh 3, ranks 5-6 weigh 2, and ranks 7-13
+  // ALL weigh 1 - so which styles sit in that tail matters, but their order among themselves
+  // doesn't.
   //
   // NB: Suggest does NOT simply take the top 4 as PS+. It picks whatever raises the score
   // most, so a high-weight style the card already owns as a basic is usually upgraded first.
   // This list sets priorities, not a fixed 4-and-8 split.
   var ROLES = {
     "ST": {
-      "Advanced Forward":     ["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","Gamechanger","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer","Pinged Pass"],
-      "Target Forward":       ["Finesse Shot","Enforcer","Precision Header","Low Driven Shot","Incisive Pass","Rapid","First Touch","Gamechanger","Tiki Taka","Press Proven","Pinged Pass","Technical"],
-      "Poacher":              ["Finesse Shot","Low Driven Shot","Rapid","Incisive Pass","First Touch","Gamechanger","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer","Tiki Taka"],
-      "False 9":              ["Finesse Shot","Incisive Pass","Low Driven Shot","Technical","Gamechanger","Rapid","Tiki Taka","Pinged Pass","Quick Step","Inventive","First Touch","Press Proven"]
+      "Advanced Forward":   ["Finesse Shot","Rapid","Low Driven Shot","Incisive Pass","Pinged Pass","Gamechanger","Quick Step","Technical","Tiki Taka","First Touch","Press Proven","Enforcer","Inventive"],
+      "Target Forward":     ["Enforcer","Finesse Shot","Precision Header","Low Driven Shot","Incisive Pass","Rapid","First Touch","Gamechanger","Tiki Taka","Press Proven","Pinged Pass","Technical","Quick Step"],
+      "Poacher":            ["Finesse Shot","Rapid","Low Driven Shot","Incisive Pass","Tiki Taka","First Touch","Gamechanger","Quick Step","Technical","Press Proven","Pinged Pass","Enforcer","Inventive"],
+      "False 9":            ["Finesse Shot","Incisive Pass","Low Driven Shot","Technical","Quick Step","Gamechanger","Rapid","Tiki Taka","Pinged Pass","Inventive","First Touch","Press Proven","Chip Shot"]
     },
     "RW / LW": {
-      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
-      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
-      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive","Quick Step"]
+      "Inside Forward":   ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven","Enforcer"],
+      "Winger":           ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Enforcer","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
+      "Wide Playmaker":   ["Finesse Shot","Technical","Incisive Pass","Rapid","Press Proven","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Inventive","Quick Step","Enforcer"]
     },
     "CAM": {
-      "Shadow Striker":       ["Finesse Shot","Incisive Pass","Rapid","Technical","Low Driven Shot","Quick Step","Tiki Taka","Gamechanger","First Touch","Pinged Pass","Inventive","Press Proven"],
-      "Playmaker":            ["Finesse Shot","Incisive Pass","Low Driven Shot","Technical","Tiki Taka","Pinged Pass","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid"],
-      "Classic 10":           ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid"],
-      "Half Winger":          ["Incisive Pass","Rapid","Technical","Finesse Shot","Tiki Taka","Pinged Pass","Gamechanger","Quick Step","First Touch","Press Proven","Inventive","Low Driven Shot"]
+      "Shadow Striker":   ["Finesse Shot","Technical","Rapid","Incisive Pass","Tiki Taka","Low Driven Shot","Quick Step","Gamechanger","First Touch","Pinged Pass","Inventive","Press Proven","Relentless"],
+      "Playmaker":        ["Low Driven Shot","Finesse Shot","Incisive Pass","Technical","Pinged Pass","Tiki Taka","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid","Long Ball Pass"],
+      "Classic 10":       ["Finesse Shot","Incisive Pass","Technical","Low Driven Shot","Pinged Pass","Tiki Taka","Gamechanger","First Touch","Press Proven","Quick Step","Inventive","Rapid","Long Ball Pass"],
+      "Half Winger":      ["Finesse Shot","Rapid","Technical","Incisive Pass","Pinged Pass","Tiki Taka","Gamechanger","Quick Step","First Touch","Press Proven","Inventive","Low Driven Shot","Whipped Pass"]
     },
     "CM": {
-      "Box to Box":           ["Incisive Pass","Pinged Pass","Intercept","Finesse Shot","Tiki Taka","Bruiser","Anticipate","Quick Step","Technical","Relentless","Press Proven","First Touch"],
-      "Playmaker":            ["Incisive Pass","Pinged Pass","Finesse Shot","Tiki Taka","Technical","Intercept","Low Driven Shot","Anticipate","First Touch","Quick Step","Inventive","Press Proven"],
-      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Incisive Pass","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive"],
-      "Holding":              ["Intercept","Pinged Pass","Bruiser","Anticipate","Tiki Taka","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless"],
-      "Half Winger":          ["Pinged Pass","Intercept","Quick Step","Tiki Taka","Incisive Pass","Finesse Shot","Anticipate","Technical","Jockey","Bruiser","Rapid","Relentless"]
+      "Box to Box":             ["Incisive Pass","Pinged Pass","Finesse Shot","Intercept","Bruiser","Tiki Taka","Anticipate","Quick Step","Technical","Relentless","Press Proven","First Touch","Low Driven Shot"],
+      "Playmaker":              ["Finesse Shot","Pinged Pass","Intercept","Technical","Incisive Pass","Tiki Taka","Low Driven Shot","Anticipate","First Touch","Quick Step","Inventive","Press Proven","Rapid"],
+      "Deep Lying Playmaker":   ["Pinged Pass","Bruiser","Incisive Pass","Intercept","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive","Relentless"],
+      "Holding":                ["Pinged Pass","Intercept","Bruiser","Incisive Pass","Anticipate","Tiki Taka","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless","Inventive"],
+      "Half Winger":            ["Pinged Pass","Intercept","Quick Step","Bruiser","Anticipate","Tiki Taka","Incisive Pass","Finesse Shot","Technical","Jockey","Rapid","Relentless","Press Proven"]
     },
     "RM / LM": {
-      "Inside Forward":       ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
-      "Winger":               ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
-      "Wide Playmaker":       ["Finesse Shot","Incisive Pass","Technical","Tiki Taka","Pinged Pass","Rapid","Low Driven Shot","Gamechanger","Press Proven","First Touch","Inventive","Quick Step"],
-      "Wide Midfielder":      ["Rapid","Quick Step","Pinged Pass","Intercept","Tiki Taka","Incisive Pass","Anticipate","Relentless","Whipped Pass","Jockey","Press Proven","Bruiser"]
+      "Inside Forward":    ["Finesse Shot","Low Driven Shot","Rapid","Quick Step","Technical","Gamechanger","Incisive Pass","Pinged Pass","Tiki Taka","First Touch","Inventive","Press Proven","Enforcer"],
+      "Winger":            ["Rapid","Finesse Shot","Pinged Pass","Quick Step","Enforcer","Technical","Low Driven Shot","Gamechanger","Incisive Pass","Tiki Taka","First Touch","Inventive","Press Proven"],
+      "Wide Playmaker":    ["Finesse Shot","Technical","Incisive Pass","Rapid","Press Proven","Tiki Taka","Pinged Pass","Low Driven Shot","Gamechanger","First Touch","Inventive","Quick Step","Enforcer"],
+      "Wide Midfielder":   ["Rapid","Quick Step","Pinged Pass","Bruiser","Jockey","Tiki Taka","Incisive Pass","Intercept","Anticipate","Relentless","Whipped Pass","Press Proven","Inventive"]
     },
     "CDM": {
-      "Holding":              ["Intercept","Pinged Pass","Bruiser","Anticipate","Tiki Taka","Jockey","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless"],
-      "Deep Lying Playmaker": ["Intercept","Pinged Pass","Bruiser","Incisive Pass","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive"],
-      "Box Crasher":          ["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Tiki Taka","Quick Step","Bruiser","Anticipate","Technical","Press Proven","Relentless","First Touch"],
-      "Centre Half":          ["Intercept","Bruiser","Jockey","Anticipate","Quick Step","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass","Relentless"],
-      "Wide Half":            ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle"]
+      "Holding":                ["Pinged Pass","Intercept","Bruiser","Incisive Pass","Anticipate","Tiki Taka","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless","Inventive"],
+      "Deep Lying Playmaker":   ["Pinged Pass","Bruiser","Incisive Pass","Intercept","Tiki Taka","Anticipate","Jockey","Quick Step","First Touch","Press Proven","Long Ball Pass","Inventive","Relentless"],
+      "Box Crasher":            ["Incisive Pass","Intercept","Pinged Pass","Finesse Shot","Bruiser","Tiki Taka","Quick Step","Anticipate","Technical","Press Proven","Relentless","First Touch","Low Driven Shot"],
+      "Centre Half":            ["Bruiser","Intercept","Jockey","Quick Step","Anticipate","Block","Tiki Taka","Pinged Pass","Aerial Fortress","Slide Tackle","Long Ball Pass","Relentless","First Touch"],
+      "Wide Half":              ["Bruiser","Anticipate","Quick Step","Intercept","Jockey","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle","Aerial Fortress"]
     },
     "RB / LB": {
-      "Fullback":             ["Bruiser","Intercept","Quick Step","Jockey","Anticipate","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle"],
-      "Wingback":             ["Intercept","Pinged Pass","Quick Step","Bruiser","Anticipate","Tiki Taka","Jockey","Incisive Pass","Rapid","Relentless","Press Proven","Whipped Pass"],
-      "Falseback":            ["Intercept","Pinged Pass","Anticipate","Bruiser","Jockey","Tiki Taka","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless"],
-      "Inverted Wingback":    ["Incisive Pass","Tiki Taka","Quick Step","Anticipate","Intercept","Rapid","Pinged Pass","Jockey","Press Proven","Relentless","Bruiser","First Touch"],
-      "Attacking Wingback":   ["Rapid","Quick Step","Pinged Pass","Intercept","Tiki Taka","Incisive Pass","Anticipate","Relentless","Jockey","First Touch","Bruiser","Whipped Pass"]
+      "Fullback":             ["Bruiser","Anticipate","Quick Step","Intercept","Jockey","Incisive Pass","Block","Tiki Taka","Pinged Pass","Press Proven","Relentless","Slide Tackle","Aerial Fortress"],
+      "Wingback":             ["Intercept","Quick Step","Pinged Pass","Rapid","Jockey","Anticipate","Bruiser","Tiki Taka","Incisive Pass","Relentless","Press Proven","Whipped Pass","First Touch"],
+      "Falseback":            ["Pinged Pass","Anticipate","Bruiser","Intercept","Jockey","Tiki Taka","Incisive Pass","Quick Step","First Touch","Press Proven","Long Ball Pass","Relentless","Rapid"],
+      "Inverted Wingback":    ["Quick Step","Incisive Pass","Tiki Taka","Anticipate","Jockey","Intercept","Rapid","Pinged Pass","Press Proven","Relentless","Bruiser","First Touch","Inventive"],
+      "Attacking Wingback":   ["Pinged Pass","Quick Step","Rapid","Bruiser","Intercept","Tiki Taka","Incisive Pass","Anticipate","Relentless","Jockey","First Touch","Whipped Pass","Press Proven"]
     },
     "CB": {
-      "Defender":             ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless"],
-      "Stopper":              ["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","Aerial Fortress","First Touch"],
-      "Wide Back":            ["Intercept","Anticipate","Quick Step","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless"],
-      "Ball Playing Defender":["Intercept","Bruiser","Anticipate","Jockey","Quick Step","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress","Slide Tackle"]
+      "Defender":                ["Intercept","Bruiser","Quick Step","Anticipate","Jockey","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless","First Touch"],
+      "Stopper":                 ["Intercept","Bruiser","Anticipate","Quick Step","Aerial Fortress","Jockey","Block","Slide Tackle","Tiki Taka","Pinged Pass","Relentless","First Touch","Long Ball Pass"],
+      "Wide Back":               ["Intercept","Quick Step","Anticipate","Jockey","Bruiser","Block","Pinged Pass","Aerial Fortress","Slide Tackle","Tiki Taka","Press Proven","Relentless","First Touch"],
+      "Ball Playing Defender":   ["Intercept","Bruiser","Quick Step","Anticipate","Jockey","Block","Pinged Pass","Tiki Taka","First Touch","Press Proven","Aerial Fortress","Slide Tackle","Relentless"]
     },
     "GK": {
-      "Goalkeeper":           ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Far Throw","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass"],
-      "Ball Playing":         ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass"],
-      "Sweeper Keeper":       ["Far Reach","Footwork","1v1 Close Down","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass"]
+      "Goalkeeper":       ["Footwork","Far Reach","1v1 Close Down","Far Throw","Cross Claimer","Deflector","Pinged Pass","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass","Finesse Shot"],
+      "Ball Playing":     ["Footwork","Far Reach","1v1 Close Down","Cross Claimer","Deflector","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass","Finesse Shot"],
+      "Sweeper Keeper":   ["Footwork","1v1 Close Down","Far Reach","Deflector","Cross Claimer","Pinged Pass","Far Throw","Long Ball Pass","Tiki Taka","Press Proven","First Touch","Incisive Pass","Finesse Shot"]
     }
   };
 
@@ -3034,6 +3048,18 @@
   var eligReset = document.createElement("button"); eligReset.type = "button"; eligReset.textContent = "Update to OG list"; eligReset.className = "elig-act elig-reset";
   eligReset.title = "Stage a reset back to your original (OG) seed list, then Save to apply";
   eligActions.appendChild(eligReset);
+  // "Tick every rarity" - EA has opened PlayStyle evos up to every card, so the curated
+  // list is now a needless restriction and ticking ~50 rarities by hand would be miserable.
+  // The old bulk actions were removed because it was too easy to WIPE the list by accident;
+  // this one only ever ADDS, so it can't lose anything, and it still stages rather than
+  // saving, so nothing changes until you press Save.
+  var eligAll = document.createElement("button"); eligAll.type = "button"; eligAll.textContent = "Tick every rarity"; eligAll.className = "elig-act";
+  eligAll.title = "Stage every rarity as eligible (adds only, never removes), then Save to apply";
+  eligAll.addEventListener("click", function () {
+    state.rarityDefs.forEach(function (r) { stagedElig.add(r.id); });
+    renderRarityManager();
+  });
+  eligActions.appendChild(eligAll);
   var eligListEl = document.createElement("div");
   eligListEl.className = "elig-list";
   var eligMgrNote = document.createElement("div");
@@ -3724,6 +3750,42 @@
       picks.push(best);
     }
 
+    // ---- SPARE SLOTS ----------------------------------------------------------
+    // The loop above stops when nothing raises the score, and that happens as soon as the
+    // card holds everything the ROLE lists. Those lists hold 12 PlayStyles each, which was
+    // exactly the old 4+8 capacity - so when EA raised the PS+ cap to 5 (13 slots), Suggest
+    // filled 12 and left one empty. Same shape as the v41 bug, one slot further along.
+    //
+    // An empty slot is wasted though: a PlayStyle the role doesn't rank is still better than
+    // nothing on the actual card. So once the score has nothing more to say, fall back to the
+    // POSITION-level list (PLAYSTYLE_WEIGHTS) - our own existing ranking, not a made-up one -
+    // and take its best entry the card doesn't already hold.
+    //
+    // These picks are flagged `spare:true` and reported separately, because they are NOT
+    // score-driven and shouldn't be presented as though they were.
+    var posList = PLAYSTYLE_WEIGHTS[pos] || {};
+    var spareGuard = 0;
+    while (spareGuard++ < CAP_PLUS + CAP_BASIC) {
+      var uPlus = countOf(have, true), uBase = countOf(have, false);
+      if (uPlus >= CAP_PLUS && uBase >= CAP_BASIC) break;             // genuinely full
+      var cands = Object.keys(posList)
+        .filter(function (nm) {
+          var b = psByName[nm];
+          if (!b || !pspByName[nm]) return false;
+          if (b.g && !gk) return false;                               // GK-only style on an outfielder
+          var trait = b.r - TRAIT_OFFSET;
+          return !have.some(function (p) { return p.traitId === trait; });
+        })
+        .sort(function (a, b) { return posList[b] - posList[a]; });
+      if (!cands.length) break;                                       // no opinion left to offer
+      var nm2 = cands[0], base2 = psByName[nm2], trait2 = base2.r - TRAIT_OFFSET;
+      // Fill a basic slot first - it's the cheaper evo, and the "+" can come later.
+      var asPlus = !(uBase < CAP_BASIC);
+      if (asPlus && uPlus >= CAP_PLUS) break;
+      have = withStyle(have, trait2, asPlus);
+      picks.push({ evo: asPlus ? pspByName[nm2] : base2, name: nm2, kind: asPlus ? "PS+" : "PS", upgrade: false, gain: 0, spare: true });
+    }
+
     // Hand the picks to the deck as ticked evos.
     state.selected = new Set();
     picks.forEach(function (p) { state.selected.add(p.evo.s); });
@@ -3741,10 +3803,17 @@
         ? playerName(it) + " has no slots left."
         : "Nothing left to add for " + against + " - the PlayStyle score is already maxed at " + startScore.toFixed(1) + ".";
     } else {
+      // Spare picks are counted separately and named, because the role has no opinion on
+      // them - they're filling an otherwise empty slot, not raising the score.
+      var spares = picks.filter(function (p) { return p.spare; });
       status.textContent = "Suggested " + picks.length + " for " + against + ": " +
         nPlus + " PS+, " + (picks.length - nPlus) + " basic" +
         (nUp ? " (" + nUp + " upgrade" + (nUp === 1 ? "" : "s") + ")" : "") +
-        " - score as " + against + " " + startScore.toFixed(1) + " -> " + endScore.toFixed(1) + ".";
+        " - score as " + against + " " + startScore.toFixed(1) + " -> " + endScore.toFixed(1) + "." +
+        (spares.length
+          ? (" Last " + spares.length + " (" + spares.map(function (p) { return p.name; }).join(", ") +
+             ") just fill the spare slot" + (spares.length === 1 ? "" : "s") + " - this role doesn't rank them.")
+          : "");
     }
   }
 
@@ -4972,13 +5041,15 @@
       "#fc26-panel .elig-cancel{flex:none;background:transparent;color:var(--muted);border:1px solid var(--field-border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:10px;font-weight:700}" +
       // ---- Feature 2: Meta rating section --------------------------------------
       "#fc26-panel .meta-section{margin-top:8px}" +
-      // Compact square launchers, two across (Club Dashboard + SBC Reader). Keeps the
+      // Compact square launchers, two across (Club Dashboard + SBC Solver). Keeps the
       // Lineup column short without hiding either page away in a menu.
-      "#fc26-panel .mini-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}" +
-      "#fc26-panel .mini-launch{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:14px 8px;border-radius:10px;background:var(--card);border:1px solid var(--card-border);cursor:pointer;color:var(--ink);font-family:inherit}" +
+      "#fc26-panel .mini-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}" +
+      // Low, horizontal pills: icon and label on one line. The stacked version was as tall
+      // as the full-width tiles it replaced, which rather defeated the point.
+      "#fc26-panel .mini-launch{display:flex;align-items:center;justify-content:center;gap:7px;padding:8px 9px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);cursor:pointer;color:var(--ink);font-family:inherit;min-width:0}" +
       "#fc26-panel .mini-launch:hover{border-color:var(--accent)}" +
-      "#fc26-panel .mini-ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:16px;background:var(--sel);border:1px solid var(--accent)}" +
-      "#fc26-panel .mini-tx{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;text-align:center;line-height:1.3}" +
+      "#fc26-panel .mini-ic{flex:none;font-size:14px;line-height:1}" +
+      "#fc26-panel .mini-tx{min-width:0;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
       "#fc26-panel .meta-toggle{width:100%;text-align:left;background:var(--btn);color:var(--btn-ink);border:0;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:600}" +
       "#fc26-panel .meta-box{margin-top:6px;padding:8px;border-radius:8px;background:var(--card);border:1px solid var(--card-border)}" +
       "#fc26-panel .meta-controls{display:flex;gap:6px}" +
@@ -5252,7 +5323,10 @@
       "#fc26-panel .pv-detail{margin-top:2px}" +
       "#fc26-panel .pv-detail .pv-metaline{margin-top:8px}" +
       // Pinned mobile mini-spotlight (rating + name + caps), always visible below the tabs.
-      "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:10px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-launch-tx b{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:10.5px;color:var(--muted)}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:20px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-tabsel{width:100%;margin-top:7px;padding:5px 7px;font-size:11px;font-weight:700}" + "#fc26-panel .gt-mform{flex:none;display:flex;align-items:center;gap:8px;padding-bottom:8px}" + "#fc26-panel .gt-mform-lab{flex:none;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-mform-sel{flex:1;min-width:0}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" +
+      // The two big launchers (Justaino Score, Squad Builder). Slimmed down to sit better
+      // next to the compact Dashboard / SBC Solver pair below them - same layout, just
+      // less padding and smaller type throughout.
+      "#fc26-panel .gt-launch{width:100%;display:flex;align-items:center;gap:9px;text-align:left;background:var(--card);border:1px solid var(--card-border);border-radius:9px;padding:8px 11px;cursor:pointer;color:var(--ink)}" + "#fc26-panel .gt-launch:hover{border-color:var(--accent)}" + "#fc26-panel .gt-launch-ic{flex:none;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:13px;background:var(--sel);border:1px solid var(--accent)}" + "#fc26-panel .gt-launch-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}" + "#fc26-panel .gt-launch-tx b{font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-launch-tx i{font-style:normal;font-size:9.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" + "#fc26-panel .gt-launch-go{flex:none;color:var(--accent);font-size:16px;font-weight:800}" + "#fc26-panel .gt-builder{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}" + "#fc26-panel .gt-bd-top{flex:none;display:flex;align-items:center;gap:9px;padding:0 0 10px}" + "#fc26-panel .gt-bd-back{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;background:var(--btn);border:1px solid var(--field-border);color:var(--ink);font-size:18px;font-weight:700}" + "#fc26-panel .gt-bd-back:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}" + "#fc26-panel .gt-bd-title b{font-size:15px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;line-height:1}" + "#fc26-panel .gt-bd-eyebrow{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}" + "#fc26-panel .gt-clab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-seg{display:inline-flex;background:rgba(0,0,0,.28);border:1px solid var(--field-border);border-radius:9px;padding:3px;gap:2px}" + "#fc26-panel .gt-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-weight:700;font-size:12px;padding:6px 10px;border-radius:6px;white-space:nowrap}" + "#fc26-panel .gt-seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}" + "#fc26-panel .gt-rebuild{background:var(--btn);color:var(--btn-ink);border:1px solid var(--field-border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:11px;font-weight:700}" + "#fc26-panel .gt-rebuild:hover{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-bd-controls{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px}" + "#fc26-panel .gt-bd-tabs{flex:none;display:flex;gap:7px;padding-bottom:10px}" + "#fc26-panel .gt-tab{flex:1;cursor:pointer;background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:7px 10px;color:inherit;font-family:inherit;text-align:left}" + "#fc26-panel .gt-tab[aria-selected=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" + "#fc26-panel .gt-tab .tn{font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-tab .ta{margin-left:7px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-tab .ts{font-size:9.5px;color:var(--muted);margin-top:2px}" + "#fc26-panel .gt-select{appearance:none;-webkit-appearance:none;font-family:inherit;font-weight:700;font-size:12px;color:var(--ink);background:var(--field);border:1px solid var(--field-border);border-radius:8px;padding:8px 10px;cursor:pointer}" + "#fc26-panel .gt-select option{color:#111827;background:#fff}" + "#fc26-panel .gt-tabsel{width:100%;margin-top:7px;padding:5px 7px;font-size:11px;font-weight:700}" + "#fc26-panel .gt-mform{flex:none;display:flex;align-items:center;gap:8px;padding-bottom:8px}" + "#fc26-panel .gt-mform-lab{flex:none;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}" + "#fc26-panel .gt-mform-sel{flex:1;min-width:0}" + "#fc26-panel .gt-sqpills{flex:none;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding-bottom:8px}" + "#fc26-panel .gt-sqpill{padding:9px 4px;border-radius:9px;background:var(--card);border:1px solid var(--card-border);font-family:inherit;font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:var(--muted);cursor:pointer}" + "#fc26-panel .gt-sqpill[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}" + "#fc26-panel .gt-summary{flex:none;display:flex;flex-wrap:wrap;gap:5px 14px;padding-bottom:8px;font-size:11px;color:var(--muted)}" + "#fc26-panel .gt-summary b{color:var(--ink);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-summary .gsa{color:var(--gold)}" + "#fc26-panel .gt-statstrip{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--card-border);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}" + "#fc26-panel .gt-stat{background:rgba(0,0,0,.22);padding:9px 8px;text-align:center}" + "#fc26-panel .gt-stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}" + "#fc26-panel .gt-stat .v.a{color:var(--accent)}" + "#fc26-panel .gt-stat .v.g{color:var(--gold)}" + "#fc26-panel .gt-stat .k{font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:5px}" + "#fc26-panel .gt-bench{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 11px}" + "#fc26-panel .gt-bench .bl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}" + "#fc26-panel .gt-chips{display:flex;flex-wrap:wrap;gap:6px}" + "#fc26-panel .gt-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;background:var(--tile);border:1px solid var(--tile-border);border-radius:999px;padding:4px 9px 4px 6px;white-space:nowrap}" + "#fc26-panel .gt-chip b{color:var(--gold);font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-bench2{flex:none;padding-top:8px}" + "#fc26-panel .gt-benchtoggle{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:9px;padding:8px 11px;font-family:inherit;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}" + "#fc26-panel .gt-benchtoggle[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}" + "#fc26-panel .gt-benchbody{display:none;margin-top:8px}" + "#fc26-panel .gt-benchbody.open{display:block}" + "#fc26-panel .gt-actions{flex:none;display:flex;flex-direction:column;gap:8px}" + "#fc26-panel.fc26-mobile .gt-actions{padding-top:10px;border-top:1px solid var(--border);margin-top:8px}" + "#fc26-panel .gt-arow{display:flex;gap:9px}" + "#fc26-panel .gt-cbtn{flex:1.4;background:var(--apply);color:var(--apply-ink);border:0;border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}" + "#fc26-panel .gt-rbtn{flex:1;background:rgba(255,120,120,.14);color:#ffc2c2;border:1px solid rgba(255,120,120,.34);border-radius:9px;padding:12px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}" + "#fc26-panel .gt-status{min-height:20px}" + "#fc26-panel .gt-sline{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}" + "#fc26-panel .gt-pbar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}" + "#fc26-panel .gt-pbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .35s ease}" + "#fc26-panel .gt-toast{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:700;animation:fc26pop .4s cubic-bezier(.2,1.5,.4,1) both}" + "#fc26-panel .gt-toast.ok{background:rgba(79,227,172,.12);border:1px solid rgba(79,227,172,.4);color:#c9fff0}" + "#fc26-panel .gt-toast.err{background:rgba(255,120,120,.12);border:1px solid rgba(255,120,120,.4);color:#ffd2d2}" + "#fc26-panel .gt-badge{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px}" + "#fc26-panel .gt-toast.ok .gt-badge{background:#4fe3ac;color:#04241a}" + "#fc26-panel .gt-toast.err .gt-badge{background:#e06767;color:#fff}" + "#fc26-panel .gt-warn2{font-size:11.5px;color:#ffc2c2;background:rgba(255,120,120,.10);border:1px solid rgba(255,120,120,.30);border-radius:9px;padding:9px 11px;line-height:1.4}" + "#fc26-panel .gt-warn2 b{color:#ffd7d7}" + "#fc26-panel .gt-pitchwrap{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:0 4px}" + "#fc26-panel .gt-pitch{height:100%;width:auto;max-width:100%;max-height:100%;aspect-ratio:68/92;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#12243d,#0a1424);position:relative}" + "#fc26-panel .gt-pitch svg{position:absolute;inset:0;width:100%;height:100%;display:block}" + "#fc26-panel .gt-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;transition:left .5s cubic-bezier(.4,1.2,.4,1),top .5s cubic-bezier(.4,1.2,.4,1)}" + "#fc26-panel .gt-disc{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:#06131f;box-shadow:0 4px 12px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.14)}" + "#fc26-panel .gt-dot .gt-sc{position:absolute;bottom:-7px;right:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:2px 4px;border-radius:6px;background:#0a1120;border:1px solid var(--border-strong,rgba(120,180,255,.28));font-variant-numeric:tabular-nums}" + "#fc26-panel .gt-dot .gt-pos{position:absolute;top:-7px;left:-8px;z-index:2;font-size:7.5px;font-weight:800;letter-spacing:.02em;padding:1px 4px;border-radius:5px;background:#0a1120;color:var(--muted);border:1px solid var(--border)}" + "#fc26-panel .gt-dot .gt-nm{font-size:9.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;text-align:center;line-height:1.05;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}" + "#fc26-panel .gt-dot .gt-meta{margin-top:1px;font-size:8.5px;font-weight:800;letter-spacing:.02em;color:#bcd3ef;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.85)}" + "#fc26-panel .gt-dot.t-elite .gt-disc{background:var(--accent)}" + "#fc26-panel .gt-dot.t-elite .gt-sc{color:var(--accent)}" + "#fc26-panel .gt-dot.t-gold .gt-disc{background:var(--gold)}" + "#fc26-panel .gt-dot.t-gold .gt-sc{color:var(--gold)}" + "#fc26-panel .gt-dot.t-solid .gt-disc{background:#bcd3ef}" + "#fc26-panel .gt-dot.t-solid .gt-sc{color:#bcd3ef}" + "#fc26-panel .gt-dot.t-low .gt-disc{background:#7f93b4;color:#0b1424}" + "#fc26-panel .gt-dot.t-low .gt-sc{color:#9fb2d2}" + "#fc26-panel .gt-dot.empty .gt-disc{background:transparent;color:var(--muted);border:2px dashed var(--muted);font-size:16px}" + "#fc26-panel .gt-dot.empty .gt-sc{display:none}" + "#fc26-panel .gt-dot.empty .gt-nm{color:var(--muted);font-style:italic;text-transform:none;opacity:.8}" + "#fc26-panel.fc26-desktop .gt-bd-main{display:flex;gap:14px;flex:1;min-height:0}" + "#fc26-panel.fc26-desktop .gt-bd-side{flex:0 0 296px;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:11px}" + "#fc26-panel.fc26-mobile.gt-open{height:86vh}" +
       // ---- Feature 5: Club Dashboard (display only) ----------------------------
       // Scrolling page body that fills the panel under the shared gt-bd-top header.
       "#fc26-panel .db-body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding-right:2px}" +
@@ -5265,7 +5339,7 @@
       "#fc26-panel .db-hl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
       // On a phone 5 across is too tight - drop to 3 columns (5 cells wrap to 3 + 2).
       "#fc26-panel.fc26-mobile .db-hero{grid-template-columns:repeat(3,1fr)}" +
-      // ---- SBC Reader (### SBC-READER styles - delete with the feature) ----
+      // ---- SBC Solver (### SBC-SOLVER styles - delete with the feature) ----
       // Deliberately reuses .db-card/.db-h3/.db-body from the dashboard, so this is
       // only the handful of rules the reader adds of its own.
       "#fc26-panel .sbc-tools{display:flex;justify-content:flex-end}" +
@@ -6651,7 +6725,7 @@
   // ============================================================================
 
   // The launcher button. Its look (and the row it sits in) is set where the layout is
-  // assembled - it shares a compact two-across row with the SBC Reader.
+  // assembled - it shares a compact two-across row with the SBC Solver.
   var dashLaunchBtn = document.createElement("button");
   dashLaunchBtn.type = "button";
   dashLaunchBtn.addEventListener("click", openDashPage);
@@ -6953,9 +7027,9 @@
   }
 
   // ============================================================================
-  // FEATURE 7 - SBC BUILDER  (read the SBC, pool your club, solve the rating, fill it)
+  // FEATURE 7 - SBC SOLVER  (read the SBC, pool your club, solve the rating, fill it)
   // ============================================================================
-  // ### SBC-READER BEGIN ### (everything down to "### SBC-READER END ###" is this
+  // ### SBC-SOLVER BEGIN ### (everything down to "### SBC-SOLVER END ###" is this
   // feature and nothing else. To remove the feature entirely: delete that block; in the
   // layout assembly, drop `sbcLaunchBtn` from the `miniRow` (and give Club Dashboard back
   // its full-width `.gt-launch` look if you want); and delete the `.sbc-*` rules in the
@@ -6965,8 +7039,8 @@
   // how many slots it has, and what it requires in plain English. That's all.
   // It reads. It never fills a squad, never submits, never touches your club.
   //
-  // WHY IT'S SEPARATE: this is step 1 of a possible SBC builder. If the builder
-  // gets dropped, this block deletes cleanly (see above).
+  // WHY IT'S SEPARATE: the SBC Solver may yet be dropped, so this block is fenced to
+  // delete cleanly if it is (see above).
   //
   // HOW WE FIND THE OPEN SBC (all discovered live - see Reference/paletools/README.md):
   // the app keeps a stack of "view controllers" (one per screen). Ask it for the
@@ -7262,7 +7336,15 @@
   // against the FIRST reason that ruled them out), so the tallies always add up.
   function sbcBuildPool(info, opts) {
     opts = opts || {};
+    // Your club, plus the SBC storage pile if you've asked for it. Stored cards are
+    // untradeable duplicates that can ONLY go into an SBC, so they're free fodder - but
+    // they're priced separately (see SBC_STORAGE_DISCOUNT) rather than by rating alone.
     var all = getClubPlayers();
+    var storeCount = 0;
+    if (opts.useStorage && sbcStorage && sbcStorage.length) {
+      all = all.concat(sbcStorage);
+      storeCount = sbcStorage.length;
+    }
     // The rules every single player has to meet (count -1 = "applies to all players").
     // Rules with a count are about a subset, so they don't shrink the pool.
     var universal = (info.reqs || []).filter(function (r) {
@@ -7299,9 +7381,20 @@
       var it = all[i];
       if (isSbcLocked(it)) { drop.locked++; continue; }     // you've said hands off this one
       if (isLoanPlayer(it)) { drop.loan++; continue; }
-      // Evolved cards can't be submitted to an SBC.
-      var evolved = false; try { evolved = !!it.upgrades; } catch (e) {}
-      if (evolved) { drop.evolved++; continue; }
+      // ONLY a card part-way through an evolution is barred from SBCs. Once an evolution
+      // is finished the card can be submitted like any other (EA's own rule).
+      //
+      // This used to test `!!it.upgrades`, which was wrong and quietly expensive. `upgrades`
+      // is an object describing a card's evolution STATE and loads of cards carry one
+      // without being enrolled in anything - on a real club it flagged 146 cards, almost
+      // all of them 94-98 promos, and shut them out of every plan. Measured live: of those
+      // 146, exactly one had `enrolled: true`, and that was the single evolution actually
+      // running at the time. So `enrolled` is the flag, not the object's existence.
+      // (`upgrades` also carries `activeInEvolution`; it wasn't needed here, but it's the
+      // first thing to look at if an in-progress card ever slips through.)
+      var inEvo = false;
+      try { inEvo = !!(it.upgrades && it.upgrades.enrolled === true); } catch (e) {}
+      if (inEvo) { drop.evolved++; continue; }
       if (sbcSquadIds && it.definitionId != null && sbcSquadIds[it.definitionId]) { drop.inSquad++; continue; }
       if (opts.noSpecials && !rarityLocksAll && !(it.rareflag === 0 || it.rareflag === 1)) {
         // Keep it only if this SBC specifically asks for a card like it.
@@ -7331,7 +7424,9 @@
       perReq: perReq,
       squadKnown: !!sbcSquadIds,
       rarityLocksAll: rarityLocksAll,  // true only when EVERY slot's rarity is dictated
-      keptSpecial: keptSpecial         // specials kept because the SBC asks for them
+      keptSpecial: keptSpecial,        // specials kept because the SBC asks for them
+      storeCount: storeCount,          // how many stored cards went into the pool
+      storeInPool: out.filter(isStorageCard).length
     };
   }
 
@@ -7396,6 +7491,59 @@
     saveSbcLocked();
   }
 
+  // --------------------------------------------------------------------------
+  // SBC STORAGE - the free fodder pile
+  // --------------------------------------------------------------------------
+  // When you pack an untradeable duplicate you can "Store Duplicates", which puts it in
+  // a hidden pile you can't see in your club, can't sell and can't play with. Its ONLY
+  // use is being fed to an SBC. It's a different search from the club:
+  //     services.Item.searchStorageItems(new UTSearchCriteriaDTO())  ->  response.items
+  // Checked live: it returns everything in one go (no paging), every item is untradeable,
+  // and the items carry the same fields and methods club cards do (rating, rareflag,
+  // leagueId, belongsToGroup(), hasQualityTiers()), so the matcher and solver need no
+  // special cases beyond price - see SBC_STORAGE_DISCOUNT below.
+  var sbcStorage = null;      // null = not fetched, [] = fetched and empty
+  var sbcStorageBusy = false;
+  var sbcStorageIds = {};     // id -> 1, so we can tell a stored card from a club card later
+  function sbcLoadStorage(done) {
+    if (sbcStorage || sbcStorageBusy) { if (done) done(); return; }
+    var svc = getServices();
+    if (!svc || !svc.Item || !svc.Item.searchStorageItems || !window.UTSearchCriteriaDTO) {
+      sbcStorage = []; if (done) done(); return;
+    }
+    sbcStorageBusy = true;
+    var finish = function (items) {
+      sbcStorage = items || [];
+      sbcStorageIds = {};
+      sbcStorage.forEach(function (it) { if (it && it.id != null) sbcStorageIds[it.id] = 1; });
+      sbcStorageBusy = false;
+      if (done) done();
+    };
+    try {
+      awaitService(svc.Item.searchStorageItems(new window.UTSearchCriteriaDTO())).then(
+        function (res) {
+          var inner = (res && res.response) || (res && res.data) || {};
+          finish(inner.items || []);
+        },
+        function () { finish([]); }
+      );
+    } catch (e) { finish([]); }
+  }
+  function isStorageCard(it) { try { return !!sbcStorageIds[it.id]; } catch (e) { return false; } }
+
+  // How much cheaper a stored card is than the same rating from your club.
+  //
+  // This matters more than it looks. Storage is typically full of HIGH-rated untradeable
+  // duplicates (a real one: 23 spare 95s, 11 spare 96s). Priced on rating alone the solver
+  // would never touch them - it prices a 95 as enormously expensive - and the whole pile
+  // would sit unused even though those cards are free and can't be used for anything else.
+  //
+  // They aren't worthless though: a stored 97 is worth keeping for a 95-rated SBC later,
+  // so the rating curve still applies WITHIN storage, just scaled right down. At 0.1 a
+  // stored card is worth using if it's up to about 4 ratings above what you'd otherwise
+  // have spent from your club. Tune with window.FC26.sbcStorageDiscount.
+  window.FC26.sbcStorageDiscount = 0.1;
+
   // sbcCardCost(rating, floor): what a card at this rating really costs you.
   //
   // The obvious objective - "use the lowest total of ratings" - is WRONG, and it
@@ -7457,6 +7605,30 @@
     return byRating;
   }
 
+  // sbcBuckets(pool): the solver's shopping list - one entry per (source, rating) pair.
+  //
+  // Why not just "per rating": a 95 out of SBC storage and a 95 out of your club are the
+  // same to the maths but nothing like the same to you - the stored one is free. They
+  // therefore have to be separate options the solver can choose between, priced
+  // differently, rather than one interchangeable pile of 95s.
+  //
+  // Each bucket carries its own ordered list of actual cards (one per player, least
+  // painful to lose first), so picking a bucket is the same as picking a card.
+  function sbcBuckets(pool) {
+    var club = [], store = [];
+    pool.forEach(function (it) { (isStorageCard(it) ? store : club).push(it); });
+    var out = [];
+    function add(list, src, mult) {
+      var byRating = sbcRatingStock(list);
+      Object.keys(byRating).forEach(function (k) {
+        out.push({ rating: +k, src: src, mult: mult, cards: byRating[k] });
+      });
+    }
+    add(club, "club", 1);
+    add(store, "store", Number(window.FC26.sbcStorageDiscount) || 0.1);
+    return out;
+  }
+
   // sbcSolveRating(stock, target, slots, fixedRatings): the search.
   //
   // We are NOT searching 1785 players - that would be hopeless. We search RATING
@@ -7467,29 +7639,40 @@
   // less. We walk the cheap ratings first so a good answer turns up early, then use
   // it to prune everything that can't beat it. A node budget stops a pathological
   // club taking forever - if it's hit we return the best found so far and say so.
-  function sbcSolveRating(stock, target, slots, fixedRatings) {
+  function sbcSolveRating(buckets, target, slots, fixedRatings) {
     var fixed = fixedRatings || [];
     var fixedSum = 0, f;
     for (f = 0; f < fixed.length; f++) fixedSum += fixed[f];
     if (slots <= 0) return null;
-    // Only ratings near the target are worth considering. To average ~88 you're not
-    // going to be using 70s, and anything far above just wastes a good card. A window
-    // of 6 either way keeps the search small enough to be instant.
-    var rs = Object.keys(stock).map(Number)
-      .filter(function (r) { return r >= target - 6 && r <= target + 6; })
-      .sort(function (a, b) { return a - b; });          // cheapest first
+    // Which ratings are worth considering at all. This is only a search-size limit - it
+    // must NOT be used to express a preference, because the cost model already does that
+    // and does it better.
+    //
+    // It used to cap club cards at target+6 while allowing stored cards up to target+12,
+    // which was simply a mistake: a 95 in storage could carry a squad but an identical 95
+    // in your club was thrown out before the solver ever saw it. Same range for both now.
+    //
+    // The bottom end matters just as much. At target-6 an 84-rated SBC couldn't touch a
+    // club's 74-77 cards, which on a real club is hundreds of the cheapest cards it owns -
+    // so plans came out dearer than they needed to be. A high card carries low ones, so
+    // low cards are worth offering.
+    var rs = buckets.filter(function (b) {
+      return b.rating >= target - 12 && b.rating <= target + 12 && b.cards.length;
+    });
     if (!rs.length) return null;
-    var have = rs.map(function (r) { return stock[r].length; });
+    var floor = Math.min.apply(null, rs.map(function (b) { return b.rating; }));
+    // Price every option, then put the cheapest first - the search leans on that order.
+    rs.forEach(function (b) { b.cost = b.mult * sbcCardCost(b.rating, floor); });
+    rs.sort(function (a, b) { return a.cost - b.cost; });
+    var have = rs.map(function (b) { return b.cards.length; });
+    var cost = rs.map(function (b) { return b.cost; });
     var totalAvailable = have.reduce(function (a, b) { return a + b; }, 0);
     if (totalAvailable < slots) return null;
-    // What each rating costs us to spend. The FIXED cards are forced into every possible
-    // answer, so their cost is the same everywhere and is left out of the comparison.
-    var cost = rs.map(function (r) { return sbcCardCost(r, rs[0]); });
 
-    // ratingOf(counts, extraSum): score a candidate without rebuilding an array each time.
+    // ratingOfCounts(counts): score a candidate line-up of buckets.
     function ratingOfCounts(counts) {
       var arr = fixed.slice();
-      for (var k = 0; k < rs.length; k++) for (var c = 0; c < counts[k]; c++) arr.push(rs[k]);
+      for (var k = 0; k < rs.length; k++) for (var c = 0; c < counts[k]; c++) arr.push(rs[k].rating);
       return { rating: sbcSquadRating(arr, arr.length), arr: arr };
     }
 
@@ -7508,7 +7691,7 @@
     (function seed() {
       var counts = rs.map(function () { return 0; }), need = slots;
       for (var k = 0; k < rs.length && need > 0; k++) {
-        if (rs[k] < target) continue;
+        if (rs[k].rating < target) continue;
         var t = Math.min(have[k], need);
         counts[k] = t; need -= t;
       }
@@ -7537,9 +7720,12 @@
       // plus the biggest possible bonus, and the bonus can't exceed the spread, so if
       // the very best case still falls short of the target there's nothing down here.
       var remain = slots - used;
-      var topRating = rs[rs.length - 1];
+      // Buckets are ordered by COST now, not rating, so the best rating still reachable
+      // has to be looked up rather than read off the end of the list.
+      var topRating = 0;
+      for (var z = i; z < rs.length; z++) if (rs[z].rating > topRating) topRating = rs[z].rating;
       var sumSoFar = fixedSum;
-      for (var q = 0; q < rs.length; q++) sumSoFar += counts[q] * rs[q];
+      for (var q = 0; q < rs.length; q++) sumSoFar += counts[q] * rs[q].rating;
       var bestTotal = sumSoFar + remain * topRating;
       var n = slots + fixed.length;
       if (Math.floor((bestTotal + (n - 1) * topRating) / n) < target) return;
@@ -7554,7 +7740,8 @@
     var counts = rs.map(function () { return 0; });
     dfs(0, 0, 0);
     if (!best) return null;
-    // Turn the winning "how many of each rating" back into a plain list of ratings.
+    // Turn the winning counts back into a list of BUCKETS, so the caller knows not just
+    // which rating to use but which pile to take it from.
     var picks = [];
     for (var k = 0; k < rs.length; k++) for (var c = 0; c < best.counts[k]; c++) picks.push(rs[k]);
     return {
@@ -7613,11 +7800,37 @@
     // Everyone still available - excluding anyone already locked into a reserved slot,
     // so the solver can't plan around a player who's already in the squad.
     var rest = pool.filter(freeAgent);
-    var stock = sbcRatingStock(rest);
+    var buckets = sbcBuckets(rest);
     var fixedRatings = reserved.map(function (x) { return x.card.rating || 0; });
-    var solved = sbcSolveRating(stock, target, slots - reserved.length, fixedRatings);
+    var solved = sbcSolveRating(buckets, target, slots - reserved.length, fixedRatings);
     if (!solved) {
-      return { ok: false, reason: "No combination of your cards reaches " + target + " in " + slots + " slots. You'd need higher-rated players." };
+      // "You'd need higher-rated players" was a terrible message: on a real club it was
+      // said to someone holding 409 cards above 90, all of which had been filtered out by
+      // a toggle. So work out the ACTUAL ceiling the current settings allow, and name the
+      // setting that's holding it down.
+      var byBest = rest.slice().sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); });
+      var seenB = {}, top = [], wanted = slots - reserved.length;
+      for (var b2 = 0; b2 < byBest.length && top.length < wanted; b2++) {
+        var kk = playerKey(byBest[b2]);
+        if (seenB[kk]) continue;
+        seenB[kk] = 1; top.push(byBest[b2].rating || 0);
+      }
+      var ceiling = top.length === wanted ? sbcSquadRating(fixedRatings.concat(top), slots) : null;
+      var hints = [];
+      if (res.drop.special) hints.push("untick <b>Skip special cards</b> (" + res.drop.special + " of your cards are being left out by it)");
+      if (!res.storeCount && sbcStorage && sbcStorage.length) hints.push("tick <b>Use SBC storage</b> (" + sbcStorage.length + " cards in there)");
+      if (res.drop.tradable) hints.push("untick <b>Untradeables only</b> (" + res.drop.tradable + " left out)");
+      if (res.drop.locked) hints.push("unlock some cards (" + res.drop.locked + " locked)");
+      return {
+        ok: false,
+        reason: (ceiling != null
+            ? ("The best these settings can reach is " + ceiling + ", and this SBC needs " + target + ". ")
+            : ("There aren't enough usable cards to fill " + slots + " slots. ")) +
+          (hints.length
+            ? ("To get there you could " + hints.join(", or ") + ".")
+            : "Your club genuinely doesn't have the players for this one."),
+        isHtml: true
+      };
     }
 
     // 3. Turn the winning ratings into actual named cards (cheapest-to-lose first).
@@ -7626,17 +7839,18 @@
     // in the squad and take the next distinct player at that rating instead.
     var take = {}, chosen = [];
     for (var p = 0; p < solved.picks.length; p++) {
-      var r = solved.picks[p];
-      var list = stock[r] || [];
-      var idx = take[r] || 0;
+      var bucket = solved.picks[p];
+      var key = bucket.src + ":" + bucket.rating;
+      var list = bucket.cards || [];
+      var idx = take[key] || 0;
       while (idx < list.length && !freeAgent(list[idx])) idx++;
       if (idx >= list.length) {
-        return { ok: false, reason: "Couldn't fill a " + r + "-rated slot without using a player who's already in the squad. " +
-          "Lock one of the picks below and it'll plan around them." };
+        return { ok: false, reason: "Couldn't fill a " + bucket.rating + "-rated slot without using a player who's already " +
+          "in the squad. Lock one of the picks below and it'll plan around them." };
       }
       claim(list[idx]);
       chosen.push(list[idx]);
-      take[r] = idx + 1;
+      take[key] = idx + 1;
     }
 
     var allCards = reserved.map(function (x) { return x.card; }).concat(chosen);
@@ -7818,6 +8032,8 @@
     // Draws immediately above without it, then redraws once it lands - so the page
     // never sits blank waiting on the network.
     sbcLoadActiveSquad(function () { if (state.sbcOpen) renderSbcPage(); });
+    // And the SBC storage pile - a separate search from the club, fetched once.
+    sbcLoadStorage(function () { if (state.sbcOpen) renderSbcPage(); });
   }
   function closeSbcPage() {
     state.sbcOpen = false;
@@ -7842,7 +8058,7 @@
     // Header (back + eyebrow + title) - same chrome as the other full-panel pages.
     var top = document.createElement("div"); top.className = "gt-bd-top";
     var back = document.createElement("button"); back.type = "button"; back.className = "gt-bd-back"; back.textContent = "‹"; back.title = "Back"; back.addEventListener("click", closeSbcPage);
-    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>SBC Reader</b>";
+    var ttl = document.createElement("div"); ttl.className = "gt-bd-title"; ttl.innerHTML = "<span class='gt-bd-eyebrow'>Men Gallant FC</span><b>SBC Solver</b>";
     top.appendChild(back); top.appendChild(ttl);
     sbcHost.appendChild(top);
 
@@ -7862,11 +8078,16 @@
       if (state.sbcReloading) return;
       state.sbcReloading = true;
       again.disabled = true; again.textContent = "Reloading club…";
+      // Storage is fetched once and cached, so it has to be thrown away here too -
+      // otherwise stored cards you just spent would still be offered as fodder.
+      sbcStorage = null; sbcStorageIds = {};
       // loadFullClub() takes 10-20s and shares one sweep between callers, so this is safe
       // to press alongside the Lineup's own Reload. Redraw either way, success or not.
       Promise.resolve(loadFullClub())["catch"](function () {})["then"](function () {
-        state.sbcReloading = false;
-        renderSbcPage();
+        sbcLoadStorage(function () {
+          state.sbcReloading = false;
+          renderSbcPage();
+        });
       });
     });
     tools.appendChild(again);
@@ -7959,7 +8180,13 @@
 
     // Two toggles that genuinely change who's eligible. Kept on state so they survive
     // a re-read within the session (deliberately not saved to storage - this is step 2).
-    var opts = { noSpecials: state.sbcNoSpecials !== false, untradeablesOnly: !!state.sbcUntradeOnly };
+    var opts = {
+      noSpecials: state.sbcNoSpecials !== false,
+      untradeablesOnly: !!state.sbcUntradeOnly,
+      // Storage defaults ON: those cards can't be sold or played, so an SBC is the only
+      // thing they're for. Untick to build from your club alone.
+      useStorage: state.sbcUseStorage !== false
+    };
     var res = sbcBuildPool(info, opts);
 
     // "Skip special cards" is only genuinely inert when EVERY slot's rarity is dictated
@@ -7969,14 +8196,17 @@
     var rarityLocked = !!res.rarityLocksAll;
     var togs = document.createElement("div"); togs.className = "sbc-togs";
     [["noSpecials", "Skip special cards", "Only commons and rares count as fodder"],
-     ["untradeablesOnly", "Untradeables only", "Burn cards you can't sell anyway"]].forEach(function (t) {
+     ["untradeablesOnly", "Untradeables only", "Burn cards you can't sell anyway"],
+     ["useStorage", "Use SBC storage", "Include your stored duplicates - they can't be sold or played, so an SBC is all they're good for"]].forEach(function (t) {
       var off = (t[0] === "noSpecials" && rarityLocked);
       var lab = document.createElement("label"); lab.className = "sbc-tog" + (off ? " off" : "");
       lab.title = off ? "This SBC asks for a specific rarity, so this can't apply." : t[2];
       var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!opts[t[0]];
       cb.disabled = off;
       cb.addEventListener("change", function () {
-        if (t[0] === "noSpecials") state.sbcNoSpecials = cb.checked; else state.sbcUntradeOnly = cb.checked;
+        if (t[0] === "noSpecials") state.sbcNoSpecials = cb.checked;
+        else if (t[0] === "useStorage") state.sbcUseStorage = cb.checked;
+        else state.sbcUntradeOnly = cb.checked;
         renderSbcPage();
       });
       var sp = document.createElement("span"); sp.textContent = t[1];
@@ -7999,13 +8229,19 @@
     // Headline number.
     var big = document.createElement("div"); big.className = "sbc-poolnum";
     big.innerHTML = "<b>" + res.pool.length + "</b><span>of your " + res.total +
-      " club players could go into this SBC</span>";
+      " players could go into this SBC" +
+      (res.storeCount ? (", including " + res.storeCount + " from SBC storage") : "") + "</span>";
     pcard.appendChild(big);
+    if (opts.useStorage && sbcStorage && !sbcStorage.length && !sbcStorageBusy) {
+      var noStore = document.createElement("div"); noStore.className = "sbc-note";
+      noStore.textContent = "SBC storage is empty, so this is your club only.";
+      pcard.appendChild(noStore);
+    }
 
     // Who got dropped and why. Only reasons that actually removed somebody are shown.
     var reasons = [
       ["locked", "locked by you"],
-      ["inSquad", "in your active squad"], ["evolved", "evolved (SBCs won't take them)"],
+      ["inSquad", "in your active squad"], ["evolved", "part-way through an evolution"],
       ["loan", "loan or expiring"], ["special", "special cards (toggle above)"],
       ["tradable", "tradeable (toggle above)"], ["rules", "don't meet this SBC's rules"]
     ].filter(function (r) { return res.drop[r[0]] > 0; });
@@ -8064,7 +8300,10 @@
 
       if (!plan.ok) {
         var bad = document.createElement("div"); bad.className = "mp-soon";
-        bad.textContent = plan.reason;
+        // The "can't build it" reason may name the settings to change, with <b> around
+        // them, so it goes in as HTML. Everything in it is our own wording plus numbers -
+        // no player names or other user data - so there's nothing here to escape.
+        if (plan.isHtml) bad.innerHTML = plan.reason; else bad.textContent = plan.reason;
         scard.appendChild(bad);
       } else {
         // Headline: what rating this squad would come out at, against what's needed.
@@ -8108,16 +8347,23 @@
           var chip = document.createElement("button");
           chip.type = "button"; chip.className = "sbc-pchip tap";
           chip.title = "Keep " + playerName(it) + " out of SBCs";
+          // 📦 = came out of SBC storage (free fodder), 🔒 = untradeable club card.
           chip.innerHTML = "<b>" + (it.rating || "?") + "</b>" + esc(playerName(it)) +
-            (it.tradable === true ? "" : "<i title='untradeable'>&#128274;</i>");
+            (isStorageCard(it) ? "<i title='from SBC storage'>&#128230;</i>"
+              : (it.tradable === true ? "" : "<i title='untradeable'>&#128274;</i>"));
           chip.addEventListener("click", function () { setSbcLocked(it.id, true); renderSbcPage(); });
           frow.appendChild(chip);
         });
         scard.appendChild(frow);
 
         var topCard = Math.max.apply(null, plan.cards.map(function (it) { return it.rating || 0; }));
+        var fromStore = plan.cards.filter(isStorageCard).length;
         var pnote = document.createElement("div"); pnote.className = "sbc-note";
-        pnote.innerHTML = "Highest card used: <b>" + topCard + "</b>. It keeps your good cards back on purpose - " +
+        if (fromStore) {
+          pnote.innerHTML = "<b>" + fromStore + " of these " + plan.cards.length + " come from SBC storage</b> (📦) - " +
+            "those cost you nothing, since stored duplicates can't be sold or played anyway. ";
+        }
+        pnote.innerHTML += "Highest card used: <b>" + topCard + "</b>. It keeps your good cards back on purpose - " +
           "a card's worth climbs steeply with its rating, so it only reaches for a high one when there's no other " +
           "way to make the number. Within a rating it spends untradeables first (you can't sell them anyway), " +
           "then plain cards over specials. " +
@@ -8216,7 +8462,7 @@
     },
     clear: function () { state.sbcLocked = {}; saveSbcLocked(); try { renderSbcPage(); } catch (e) {} return "All locks cleared."; }
   };
-  // ### SBC-READER END ###
+  // ### SBC-SOLVER END ###
 
   // Console helper: open the dashboard without clicking (and a summary read-out).
   window.FC26.openDashPage = openDashPage;
@@ -8799,15 +9045,15 @@
   squadMod.className = "fc26-squad";
   squadMod.appendChild(pickerHead); squadMod.appendChild(clubStat); squadMod.appendChild(playerSearch); squadMod.appendChild(filterRow); squadMod.appendChild(eligManageRow); squadMod.appendChild(eligManager); squadMod.appendChild(batchBar); squadMod.appendChild(playerList); squadMod.appendChild(lineupStub);   // The Lineup column was getting long: four full-width launcher tiles stacked up meant a
   // lot of scrolling before you reached anything. Justaino Score and Squad Builder keep
-  // their big tiles (they're the main events); Club Dashboard and SBC Reader are demoted to
+  // their big tiles (they're the main events); Club Dashboard and SBC Solver are demoted to
   // a pair of compact squares side by side. Same buttons and same click handlers - only
   // their look changes, which is why this re-skins them here rather than rebuilding them.
   var miniRow = document.createElement("div");
   miniRow.className = "meta-section mini-row";
   dashLaunchBtn.className = "mini-launch";
-  dashLaunchBtn.innerHTML = "<span class='mini-ic'>🏟️</span><span class='mini-tx'>Club<br>Dashboard</span>";
+  dashLaunchBtn.innerHTML = "<span class='mini-ic'>🏟️</span><span class='mini-tx'>Dashboard</span>";
   sbcLaunchBtn.className = "mini-launch";
-  sbcLaunchBtn.innerHTML = "<span class='mini-ic'>🧩</span><span class='mini-tx'>SBC<br>Reader</span>";
+  sbcLaunchBtn.innerHTML = "<span class='mini-ic'>🧩</span><span class='mini-tx'>SBC Solver</span>";
   miniRow.appendChild(dashLaunchBtn); miniRow.appendChild(sbcLaunchBtn);
 
   squadMod.appendChild(metaLaunch); squadMod.appendChild(gtSection); squadMod.appendChild(miniRow);

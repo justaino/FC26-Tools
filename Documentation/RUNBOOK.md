@@ -1442,13 +1442,12 @@ a sensible label and no code change; add a `SUB_LABELS` line only if it needs pr
 
 ---
 
-## 3y. UNRELEASED (on `dev` only) - the SBC builder
+## 3y. New in v45 - the SBC Solver
 
-**Not published.** This lives on the `dev` branch with no install-page version, so nobody
-has it, including you unless you paste the dev build in by hand. It may yet be dropped -
-see "Deleting it" at the end.
+Shipped in v45. It is still fenced off in the source so it can be removed cleanly if it ever
+stops earning its place - see "Deleting it" at the end.
 
-Opens from the **🧩 SBC Reader** square in the Lineup column. It shares a compact
+Opens from the **🧩 SBC Solver** square in the Lineup column. It shares a compact
 two-across row (`mini-row`) with **🏟️ Club Dashboard** - both used to be full-width tiles
 and the column got too long. Justaino Score and Squad Builder keep their big tiles.
 
@@ -1456,12 +1455,30 @@ and the column got too long. Justaino Score and Squad Builder keep their big til
 
 1. **Reads** the SBC you currently have open in the game: name, slot count, and every
    requirement in plain English.
-2. **Pools** your club: how many of your players that SBC would accept, and why the rest
-   were excluded.
+2. **Pools** your club (plus SBC storage): how many of your players that SBC would accept,
+   and why the rest were excluded.
 3. **Solves** the squad rating: the cheapest set of cards you own that reaches the target.
 4. **Fills** the squad for you.
 
-Stages 1-3 are read-only. Stage 4 is the only thing that writes.
+Stages 1-3 are read-only. Stage 4 is the only thing that writes, and even that stops short
+of submitting.
+
+### SBC storage
+
+Stored duplicates are a separate search - `services.Item.searchStorageItems(new
+UTSearchCriteriaDTO())` - not part of the club. They come back in one go (no paging), are
+always untradeable, and carry the same fields and methods club cards do, so the matcher and
+solver need no special cases **except price**.
+
+Price is the catch, and it is not optional. Storage is typically full of HIGH-rated cards (a
+real club: 23 spare 95s, 11 spare 96s). Priced on rating alone the solver would never touch
+them, and the whole pile would sit unused even though those cards are free and can be used
+for nothing else. So storage gets its own multiplier, `window.FC26.sbcStorageDiscount`
+(default 0.1): the same rating curve, scaled right down, so a stored card is worth using if
+it's up to about 4 ratings above what you'd otherwise have spent from the club.
+
+That is also why the solver picks from **(source, rating) buckets** rather than one pile per
+rating - a stored 95 and a club 95 are identical to the maths and nothing alike to you.
 
 ### It fills, it never submits
 
@@ -1563,6 +1580,25 @@ just work.
 
 From the Console: `window.FC26.sbcLocks.list()` and `window.FC26.sbcLocks.clear()`.
 
+### Evolutions: only IN-PROGRESS ones are barred ⚠️
+
+EA's rule is that a card **part-way through an evolution** can't be submitted to an SBC, but
+once the evolution is **finished** it can be used like any other card.
+
+The check is `it.upgrades && it.upgrades.enrolled === true`. It is **not** `!!it.upgrades`,
+and that mistake is easy to make because the field name invites it:
+
+`upgrades` is an object describing a card's evolution **state**, and a great many cards
+carry one without being enrolled in anything. On a real club it flagged **146** cards -
+almost all of them 94-98 promos - and shut every one of them out of every plan. Measured
+live on that same club: of the 146, exactly **one** had `enrolled: true`, and it was the
+single evolution actually running at the time.
+
+`evolutionStatus` is NOT on club items (it comes back `undefined`); it only exists as a
+`UTSearchCriteriaDTO` filter, with `EvolutionStatus` = `any` / `complete` / `in_progress`.
+`upgrades` also carries an `activeInEvolution` flag - not needed so far, but it's the first
+thing to check if an in-progress card ever slips through.
+
 ### The same player can't appear twice ⚠️
 
 The game rejects a squad containing one player twice, exactly as it does for a normal squad
@@ -1640,14 +1676,54 @@ Console helpers: `window.FC26.readSbc()`, `window.FC26.openSbcPage()`,
 
 Built to be removable in three steps:
 
-1. Delete the block between `### SBC-READER BEGIN ###` and `### SBC-READER END ###` in
+1. Delete the block between `### SBC-SOLVER BEGIN ###` and `### SBC-SOLVER END ###` in
    `fc26-tools.js`.
 2. Delete `squadMod.appendChild(sbcLaunch);` from the layout assembly line.
-3. Delete the `.sbc-*` rules in the stylesheet (fenced with an `### SBC-READER styles`
+3. Delete the `.sbc-*` rules in the stylesheet (fenced with an `### SBC-SOLVER styles`
    comment).
 
 Then `node minify.js`. Nothing else reads it, apart from `state.sbcOpen` in the two lines
 tracking which full-screen page is open; leaving those is harmless.
+
+---
+
+## 3z. New in v45 - the PS+ cap is 5, and what that touched
+
+**`CAP_PLUS` is the only place the number lives.** Everything reads it, so if EA moves it
+again that one line is the change - the pips, the selection caps, the "with room left"
+filter and the Apply loop all follow.
+
+Two things do NOT follow automatically, and both have bitten already:
+
+**1. The ROLES lists are a hard ceiling on Suggest.** Suggest stops as soon as nothing raises
+the score, and a PlayStyle a role doesn't list is worth zero. So a role listing 12 PlayStyles
+can never fill 13 slots. This has now happened twice - at the 3 to 4 change and again at 4 to
+5 - and both times Suggest quietly filled one short. **Lengthen the lists BEFORE raising the
+cap.** They are 13 long now; a cap of 6 would need 14.
+
+**2. The score's "full marks" ceiling** is `CFG.psCeilPlus` (`PS_CEIL_PLUS`), how many PS+ a
+card is assumed to hold at full marks. It happened to already be 5 when the cap moved to 5,
+so nothing needed doing - but if the cap and that number disagree, scores clip at 100 and
+stop discriminating. Check them together.
+
+### Where the role lists come from
+
+fut.gg's "Best PlayStyles by Role", read at the setting matching our caps. The page renders
+only its DEFAULT split server-side and the count buttons are client-side state with no URL
+parameter, so `curl` cannot get a non-default split. Set the page to 5 and 8 in a browser and
+scrape the rendered DOM instead - gold diamond fill (`#e3c075`) marks a PlayStyle+, white
+marks a base. The scrape command is in the session notes; regenerate it if needed.
+
+Always diff the scraped names against the tool's 36 before writing anything. Four differ:
+`Low Driven` -> Low Driven Shot, `Game Changer` -> Gamechanger, `Long Ball` -> Long Ball
+Pass, `Rush Out` -> 1v1 Close Down.
+
+### Every rarity is eligible now
+
+EA opened PlayStyle evos to every card, so the curated eligible-rarity list stopped being a
+real restriction. "Manage eligible rarities" has a **Tick every rarity** action. It only ever
+ADDS - the old bulk actions were removed because it was too easy to WIPE the list by
+accident, and this one cannot - and it still stages until you press Save.
 
 ---
 
